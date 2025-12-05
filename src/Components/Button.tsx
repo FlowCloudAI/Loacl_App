@@ -13,7 +13,7 @@ interface ButtonProps {
 export default function Button({id, text, click, children, variant, className}: ButtonProps) {
     const content = children ?? (
         <>
-            <p>{text || 'Click Me'}</p>
+            {text || 'Click Me'}
         </>
     );
     const buttonClasses = cn(
