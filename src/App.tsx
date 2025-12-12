@@ -1,4 +1,4 @@
-import {useRef, useState} from 'react'
+import {useState} from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
@@ -6,16 +6,17 @@ import My from './Components/main.tsx';
 import {api} from "./apis.tsx"
 
 function App() {
-    const [count, setCount] = useState(0);
     const [buttonText, setButtonText] = useState('点我');
     const [aiText, setAiText] = useState('');
-    const isRunningRef = useRef(false);     // 打字机是否运行中
+    const [isRunning, setIsRunning] = useState(false);     // 打字机是否运行中
 
     async function handleClick() {
-        if (isRunningRef.current) return; // 真正的防抖
+        if (isRunning) return; // 真正的防抖
 
         if (buttonText === '点我')
             setButtonText('加载中...')  // 先显示"加载中"
+
+        setIsRunning(true);
 
         const requestBody = {
             code: 0,
@@ -33,12 +34,16 @@ function App() {
 
         const result = await api.getAIResponse(requestBody, async ([, content]) => {
             setAiText(prev => prev + content);
+            const now = new Date();
+            const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            console.log(timeString + ': ' + content);
         });
         if (!result.success) {
             alert(`失败: ${result.error}`);
         }
 
-        isRunningRef.current = false;
+        setIsRunning(false);
+        setButtonText('点我');
     }
 
     return (
@@ -53,19 +58,11 @@ function App() {
             </div>
             <h1>Vite + React</h1>
             <div className="card">
-                <button onClick={() => setCount((count) => count + 1)}>
-                    count is {count}
-                </button>
+                <p style={{ whiteSpace: 'pre-wrap' }}>{aiText}</p>
                 <p>
-                    Edit <code>src/App.tsx</code> and save to test HMR
+                    <My.Button text={buttonText} click={handleClick}/>
                 </p>
             </div>
-            <div className="card">
-                <p style={{ whiteSpace: 'pre-wrap' }}>{aiText}</p>
-            </div>
-            <p>
-                <My.Button text={buttonText} click={handleClick}/>
-            </p>
             <p className="read-the-docs">
                 Click on the Vite and React logos to learn more
             </p>

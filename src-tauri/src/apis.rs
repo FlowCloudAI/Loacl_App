@@ -1,11 +1,12 @@
 use std::env;
 use futures::TryStreamExt;
 use serde_json::Value;
-use tauri::{Emitter, State, Window};
+use tauri::{Emitter, Window};
 use reqwest::Client;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio_util::io::StreamReader;
-use crate::secure::SecureStoreState;
+use serde::{Deserialize, Serialize};
+use crate::store::get_store;
 
 #[tauri::command]
 pub fn test_command() -> Result<String, String> {
@@ -31,7 +32,6 @@ pub fn show_main_window(window: Window) -> Result<String, tauri::Error> {
 
 #[tauri::command]
 pub async fn get_ai_response(window: Window, body: String) -> Result<String, String> {
-
     let client = Client::new();
 
     let body_json: Value = serde_json::from_str(&body)
@@ -45,7 +45,7 @@ pub async fn get_ai_response(window: Window, body: String) -> Result<String, Str
         .post("https://api.flowcloudai.cn/chat")
         .header(
             "Authorization",
-            format!("Bearer {}", get_jwt_from_store().unwrap_or_default())
+            format!("Bearer {}", get_jwt_from_store().await.unwrap_or_default())
         )
         .json(&body_json)
         .send()
@@ -58,7 +58,6 @@ pub async fn get_ai_response(window: Window, body: String) -> Result<String, Str
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
         let reader = StreamReader::new(stream);
         let mut lines = BufReader::new(reader).lines();
-
 
         // 3. 逐行读取
         while let Some(line) = lines.next_line().await.map_err(|e| e.to_string())? {
@@ -112,66 +111,36 @@ pub async fn get_ai_response(window: Window, body: String) -> Result<String, Str
     }
     Ok("成功".to_string())
 }
-/// 从 Tauri Store 读取 JWT（供后续扩展）
-fn get_jwt_from_store() -> Result<String, String> {
-    // TODO: 实现从加密存储读取
-    // 现在先用环境变量占位
-    env::var("JWT").map_err(|_| "JWT 未配置".to_string())
+
+#[derive(Serialize, Deserialize, Clone)]
+struct JwtData {
+    token: String,
+    expires_at: i64, // 时间戳
+    // 其他字段...
 }
 
+// 高频读取：直接内存访问
 #[tauri::command]
-pub async fn secure_store(
-    state: State<'_, SecureStoreState>, // ✅ 直接使用 tauri::State
-    key: String,
-    value: String,
-) -> Result<String, String> {
-    let store = state.0.lock().unwrap();
-    let mut data = store.load_decrypted()?;
-    data.data.insert(key, value);
-    store.save_encrypted(&data)?;
-    Ok("存储成功".to_string())
-}
+async fn get_jwt_from_store() -> Result<String, String> {
+    let store = get_store();
 
-#[tauri::command]
-pub async fn secure_read(
-    state: State<'_, SecureStoreState>,
-    key: String,
-) -> Result<Option<String>, String> {
-    let store = state.0.lock().unwrap();
-    let data = store.load_decrypted()?;
-    Ok(data.data.get(&key).cloned())
-}
+    // 使用 try_read() 避免阻塞，配合重试机制
+    for _ in 0..3 {
+        if let Some(jwt_value) = store.get("jwt") {
+            // 直接解析为结构体
+            let jwt_data: JwtData = serde_json::from_value(jwt_value)
+                .map_err(|e| format!("JWT parse error: {}", e))?;
 
-#[tauri::command]
-pub async fn secure_update(
-    state: State<'_, SecureStoreState>,
-    key: String,
-    new_value: String,
-) -> Result<String, String> {
-    let store = state.0.lock().unwrap();
-    let mut data = store.load_decrypted()?;
-
-    if data.data.contains_key(&key) {
-        data.data.insert(key, new_value);
-        store.save_encrypted(&data)?;
-        Ok("更新成功".to_string())
-    } else {
-        Err("键不存在，无法更新".to_string())
+            // 检查过期
+            return if jwt_data.expires_at > chrono::Utc::now().timestamp() {
+                Ok(jwt_data.token)
+            } else {
+                Err("JWT expired".into())
+            }
+        }
+        // 短暂退让，让其他线程释放锁
+        tokio::time::sleep(std::time::Duration::from_micros(10)).await;
     }
-}
 
-#[tauri::command]
-pub async fn secure_delete(
-    state: State<'_, SecureStoreState>,
-    key: String,
-) -> Result<String, String> {
-    let store = state.0.lock().unwrap();
-    let mut data = store.load_decrypted()?;
-
-    if data.data.remove(&key).is_some() {
-        store.save_encrypted(&data)?;
-        Ok("删除成功".to_string())
-    } else {
-        Err("键不存在".to_string())
-    }
+    Err("JWT not found or store busy".into())
 }

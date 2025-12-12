@@ -1,12 +1,13 @@
 mod apis;
-mod secure;
+mod store;
+mod secure_store;
+
 use apis::{
-    get_ai_response, log_message, secure_delete, secure_read, secure_store, secure_update,
+    get_ai_response, log_message,
     show_main_window, test_command,
 };
 use std::default::Default;
 use std::env;
-use tauri::Manager;
 use tauri_plugin_log;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -20,10 +21,9 @@ pub fn run() {
                 .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {}))
                 .expect("TODO: panic message");
 
-            // ✅ 在setup中初始化SecureStore，并传入app
-            let store = secure::SecureStore::new(app.handle()).expect("安全存储初始化失败");
-
-            app.manage(secure::SecureStoreState(std::sync::Mutex::new(store)));
+            // 初始化全局 Store
+            let handle = app.handle().clone();
+            store::init_store(&handle)?; // ✅
 
             // 日志
             if cfg!(debug_assertions) {
@@ -40,13 +40,11 @@ pub fn run() {
             test_command, // 把你的函数名放这里
             show_main_window,
             get_ai_response,
-            log_message,
-            secure_store,
-            secure_delete,
-            secure_read,
-            secure_update
+            log_message
         ])
         // 运行
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+
+    log::info!("Tauri App Started");
 }
