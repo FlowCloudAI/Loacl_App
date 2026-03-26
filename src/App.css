@@ -1,46 +1,84 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+root {
+  --bg-base: #1e1e1e;
+  --bg-surface: #252525;
+  --bg-hover: #272727;
+  --bg-active: #2a2a2a;
+  --border: #3a3a3a;
+  --text-primary: #e8e8e8;
+  --text-secondary: #888;
+  --text-muted: #555;
+  --btn-base: #232323;
+  --btn-hover: #2a2a2a;
+  --btn-active: #1e1e1e;
+  --accent: #4caf82;
+  --accent-hover: #397f5f;
+  --accent-active: #2c6b5d;
 }
 
-button:focus {
-    outline: none;  /* ✅ 移除边框 */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: "JetBrains Mono", "Microsoft YaHei", monospace;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* 主容器 */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* 顶栏 */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  height: 5rem;
+  background: var(--bg-surface);
+  border-bottom: 0.1rem solid var(--border);
+  flex-shrink: 0;
+  user-select: none;
+}
+.top-bar-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.03em;
 }
 
-.card {
-  padding: 2em;
+
+.top-bar-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
-.read-the-docs {
-  color: #888;
+.fc-btn.close-btn:hover {
+  background: #f00;
+}
+
+.menu-btn {
+  width: 3rem;
+  height: 3rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.menu-btn:hover {
+  background: var(--btn-hover);
+  color: var(--text-primary);
 }

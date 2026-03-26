@@ -2,11 +2,10 @@
 name = "FlowCloudAI"
 version = "0.1.0"
 description = "A Tauri App"
-authors = ["CUREDFSZ"]
-license = ""
+authors = ["flowcloudai"]
+license = "MIT"
 repository = ""
-edition = "2021"
-rust-version = "1.82.0"
+edition = "2024"
 
 [lib]
 name = "app_lib"
@@ -17,17 +16,16 @@ tauri-build = { version = "2.5.3", features = [] }
 
 [dependencies]
 log = "0.4.29"
-tauri = { version = "2.9.4", features = [] }
-sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio"] }
+tauri = { version = "2", features = [] }
 tokio = { version = "1.48.0", features = ["full"] }
-chrono = { version = "0.4.42", features = ["serde"] }
 serde_json = "1.0.145"
-tokio-util = { version = "0.7.17", features = ["io"] }
 futures = "0.3.31"
-tauri-plugin-single-instance = "2.3.6"
-reqwest = { version = "0.12", features = ["json", "stream"] }
-tauri-plugin-log = "2.7.1"
-tauri-plugin-store = "2.4.1"
+tauri-plugin-single-instance = "2"
+tauri-plugin-log = "2"
 serde = { version = "1.0.228", features = ["derive"] }
 keyring = "3"
 anyhow = "1"
+worldflow_core = { git = "ssh://git@github.com/FlowCloudAI/Worldflow_Core", branch = "main" }
+flowcloudai_client = { git = "ssh://git@github.com/FlowCloudAI/AI_Client_Core", branch = "main" }
+tauri-plugin-dialog = "2.6.0"
+tauri-plugin-opener = "2.5.3"

@@ -1,29 +1,25 @@
 mod apis;
-mod store;
-mod secure_store;
 
 use apis::{
-    get_ai_response, log_message,
-    show_main_window, test_command,
+    log_message,
+    show_main_window
 };
+
 use std::default::Default;
-use std::env;
 use tauri_plugin_log;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-
     tauri::Builder::default()
         .setup(|app| {
             // 单实例运行检测
             #[cfg(debug_assertions)]
             app.handle()
-                .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {}))
+                .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
+                    log::info!("Single instance detected, quitting.");
+                    std::process::exit(0);
+                }))
                 .expect("TODO: panic message");
-
-            // 初始化全局 Store
-            let handle = app.handle().clone();
-            store::init_store(&handle)?; // ✅
 
             // 日志
             if cfg!(debug_assertions) {
@@ -35,11 +31,11 @@ pub fn run() {
             }
             Ok(())
         })
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         // 注册api接口
         .invoke_handler(tauri::generate_handler![
-            test_command, // 把你的函数名放这里
             show_main_window,
-            get_ai_response,
             log_message
         ])
         // 运行
