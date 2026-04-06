@@ -37,6 +37,22 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all"
+    "targets": "all",
+    "fileAssociations": [
+      {
+        "ext": ["fcplug"],
+        "mimeType": "application/x-fcplugin",
+        "description": "流云AI插件文件",
+        "role": "Editor",
+        "name": "FlowCloudAI Plugin"
+      }
+    ],
+    "windows": {
+      "wix": {
+        "fragmentPaths": [
+          "./install.wxs"
+        ]
+      }
+    }
   }
 }

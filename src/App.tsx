@@ -3,6 +3,9 @@ import "./api"
 import {Button, SideBar, type SideBarItem, TabBar, type TabItem} from 'flowcloudai-ui'
 import {getCurrentWindow} from "@tauri-apps/api/window";
 import {type CSSProperties, useState, useEffect} from "react";
+import ProjectSelection from "./pages/ProjectSelection";
+import ProjectEditing from "./pages/ProjectEditing";
+import Settings from "./pages/Settings";
 
 function App() {
     const win = getCurrentWindow();
@@ -57,10 +60,16 @@ function App() {
         <circle cx="11" cy="11" r="7" strokeWidth="1.5"/>
         <path d="M16.5 16.5L21 21" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>)
-    const UserIcon = (<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="12" cy="8" r="4" strokeWidth="1.5"/>
-        <path d="M20 21a8 8 0 00-16 0" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>)
+    const PluginsIcon = (
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path
+                d="M9 3h3a2 2 0 012 2v1a1 1 0 102 0V5a2 2 0 012-2h1v6h-3a1 1 0 000 2h3v6h-1a2 2 0 01-2-2v-1a1 1 0 10-2 0v1a2 2 0 01-2 2H9v-6h3a1 1 0 000-2H9V3z"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    )
     const SettingsIcon = (<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <circle cx="12" cy="12" r="3" strokeWidth="1.5"/>
         <path
@@ -71,7 +80,7 @@ function App() {
     const menuItems: SideBarItem[] = [
         {key: 'home', label: '首页', icon: HomeIcon},
         {key: 'search', label: '搜索', icon: SearchIcon},
-        {key: 'profile', label: '个人', icon: UserIcon},
+        {key: 'plugins', label: '插件管理', icon: PluginsIcon},
     ]
     const bottomItems: SideBarItem[] = [
         {key: 'settings', label: '设置', icon: SettingsIcon},
@@ -183,6 +192,21 @@ function App() {
                     onSelect={setSelectedKey}
                     onCollapse={setCollapsed}
                 />
+                <div className="page-container">
+                    <div className={`page-wrapper ${selectedKey === 'home' ? 'active' : ''}`}>
+                        <ProjectSelection />
+                    </div>
+                    <div className={`page-wrapper ${selectedKey === 'search' ? 'active' : ''}`}>
+                        <ProjectEditing />
+                    </div>
+                    <div className={`page-wrapper ${selectedKey === 'plugins' ? 'active' : ''}`}>
+                        {/* 插件管理页面占位 */}
+                        <div style={{padding: '20px'}}>插件管理</div>
+                    </div>
+                    <div className={`page-wrapper ${selectedKey === 'settings' ? 'active' : ''}`}>
+                        <Settings />
+                    </div>
+                </div>
             </div>
         </div>
     )

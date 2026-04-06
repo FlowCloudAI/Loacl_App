@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use flowcloudai_client::FlowCloudAIClient;
 use std::collections::HashMap;
 use std::path::PathBuf;

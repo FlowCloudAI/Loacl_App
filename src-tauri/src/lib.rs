@@ -10,6 +10,7 @@ pub use state::*;
 use apis::ai_client::*;
 use apis::app_settings::*;
 use apis::worldflow::*;
+use apis::plugins::*;
 
 use anyhow::Result;
 use std::path::{Path, PathBuf};
@@ -155,6 +156,12 @@ pub fn run() {
             setting_set_api_key,
             setting_has_api_key,
             setting_delete_api_key,
+            // Plugin Management
+            plugin_list_local,
+            plugin_fetch_remote,
+            plugin_check_updates,
+            plugin_install_from_file,
+            plugin_uninstall,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
