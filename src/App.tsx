@@ -154,7 +154,7 @@ function App() {
                                     <path d="M 6 2 L 20 2 A 2 2 0 0 1 22 4 L 22 13"/>
                                 </>
                             ) : (
-                                <rect x="3" y="4.5" width="18" height="15" rx="3"/>
+                                <rect x="3" y="4.5" width="18" height="15" rx="2"/>
                             )}
                         </svg>
                     </Button>
@@ -174,6 +174,7 @@ function App() {
             </div>
             <div className="main-content">
                 <SideBar
+                    className={"side-bar"}
                     items={menuItems}
                     bottomItems={bottomItems}
                     selectedKey={selectedKey}

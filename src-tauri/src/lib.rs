@@ -1,6 +1,8 @@
 mod apis;
+mod prompt;
 mod settings;
 mod state;
+mod tools;
 
 pub use settings::*;
 pub use state::*;
@@ -12,6 +14,7 @@ use apis::worldflow::*;
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::process::exit;
+use std::sync::Arc;
 use tauri::{AppHandle, Manager, Runtime, WindowBuilder};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_log;
@@ -56,20 +59,6 @@ pub fn run() {
                 path: settings_path,
             });
 
-            // 初始化 AI 客户端
-            let plugins_path = app_handle
-                .path()
-                .resource_dir()
-                .unwrap_or_else(|_| std::env::current_dir().unwrap())
-                .join("plugins");
-
-            match AiState::new(plugins_path) {
-                Ok(ai_state) => {
-                    app.manage(ai_state);
-                }
-                Err(e) => log::warn!("AI 客户端初始化失败（无插件）: {}", e),
-            }
-
             // 异步初始化数据库
             let db_path =
                 prepare_db_path(&app_handle).unwrap_or_else(|e| fatal(&app_handle, &e.to_string()));
@@ -77,11 +66,28 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 match init_db(&db_path).await {
                     Ok(db) => {
+                        let app_state = Arc::new(Mutex::new(AppState {
+                            sqlite_db: Mutex::new(db),
+                        }));
+                        
                         let app = app_handle.clone();
                         if let Err(e) = app_handle.run_on_main_thread(move || {
-                            app.manage(AppState {
-                                sqlite_db: Mutex::new(db),
-                            });
+                            // 先管理 AppState
+                            app.manage(app_state.clone());
+                            
+                            // 再初始化 AI 客户端（需要 AppState）
+                            let plugins_path = app
+                                .path()
+                                .resource_dir()
+                                .unwrap_or_else(|_| std::env::current_dir().unwrap())
+                                .join("plugins");
+
+                            match AiState::new(plugins_path, app_state) {
+                                Ok(ai_state) => {
+                                    app.manage(ai_state);
+                                }
+                                Err(e) => log::warn!("AI 客户端初始化失败（无插件）: {}", e),
+                            }
                         }) {
                             log::error!("run_on_main_thread failed: {}", e);
                             fatal(&app_handle, &format!("run_on_main_thread failed: {}", e));

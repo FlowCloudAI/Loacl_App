@@ -1,7 +1,8 @@
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use flowcloudai_client::FlowCloudAIClient;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::sync::{Mutex, mpsc};
 use worldflow_core::SqliteDb;
 
@@ -23,14 +24,22 @@ pub(crate) struct SessionEntry {
 pub struct AiState {
     pub client: Mutex<FlowCloudAIClient>,
     pub(crate) sessions: Mutex<HashMap<String, SessionEntry>>,
+    _app_state: Arc<Mutex<AppState>>,
 }
 
 impl AiState {
-    pub fn new(plugins_dir: PathBuf) -> Result<Self> {
-        let client = FlowCloudAIClient::new(plugins_dir)?;
+    pub fn new(plugins_dir: PathBuf, app_state: Arc<Mutex<AppState>>) -> Result<Self> {
+        let mut client = FlowCloudAIClient::new(plugins_dir)?;
+        
+        // 注册 Worldflow 工具（在创建任何 Session 之前）
+        client.install_tools(|registry| {
+            crate::tools::register_worldflow_tools(registry, app_state.clone())
+        })?;
+        
         Ok(Self {
             client: Mutex::new(client),
             sessions: Mutex::new(HashMap::new()),
+            _app_state: app_state,
         })
     }
 }

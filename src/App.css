@@ -68,7 +68,6 @@ body {
 .top-bar-actions {
     flex-shrink: 0;
     display: flex;
-    gap: 0.5rem;
     margin-left: auto;
 }
 
@@ -91,4 +90,8 @@ body {
 
 .main-content {
     height: 100%;
+}
+
+.side-bar {
+    user-select: none;
 }
