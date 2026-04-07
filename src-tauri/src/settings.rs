@@ -12,6 +12,12 @@ pub struct AppSettings {
     /// 媒体文件根目录（图片、音频）
     /// None = 使用默认 Documents/FlowCloudAI
     pub media_dir: Option<String>,
+    /// 数据库文件目录
+    /// None = Windows 使用程序运行目录，其他平台使用 app_data_dir()
+    pub db_path: Option<String>,
+    /// 插件目录
+    /// None = Windows 使用程序运行目录/plugins，其他平台使用 app_data_dir()/plugins
+    pub plugins_path: Option<String>,
 
     // ── 外观 ──────────────────────────────
     /// "system" | "light" | "dark"
@@ -37,6 +43,8 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             media_dir: None,
+            db_path: None,
+            plugins_path: None,
             theme: "system".to_string(),
             language: "zh-CN".to_string(),
             editor_font_size: 14,

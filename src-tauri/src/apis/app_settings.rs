@@ -1,12 +1,57 @@
 use crate::{ApiKeyStore, AppSettings, SettingsState};
+use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
+
+/// 返回平台默认的数据根目录。
+/// - Windows：可执行文件所在目录
+/// - 其他平台：app_data_dir()
+pub(crate) fn default_data_root(app: &AppHandle) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = app;
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| std::env::current_dir().unwrap())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        app.path()
+            .app_data_dir()
+            .unwrap_or_else(|_| std::env::current_dir().unwrap())
+    }
+}
 
 // ── 设置读写 ──────────────────────────────────────────────────────────────────
 
-/// 读取全部设置
+/// 读取全部设置；若 db_path/plugins_path 为空则自动填充默认值并保存
 #[tauri::command]
-pub async fn setting_get_settings(state: State<'_, SettingsState>) -> Result<AppSettings, String> {
-    Ok(state.settings.lock().await.clone())
+pub async fn setting_get_settings(
+    app: AppHandle,
+    state: State<'_, SettingsState>,
+) -> Result<AppSettings, String> {
+    let mut settings = state.settings.lock().await;
+    
+    // 检查是否需要填充默认路径
+    let data_root = default_data_root(&app);
+    let mut need_save = false;
+    
+    if settings.db_path.is_none() {
+        settings.db_path = Some(data_root.join("db").to_string_lossy().to_string());
+        need_save = true;
+    }
+    
+    if settings.plugins_path.is_none() {
+        settings.plugins_path = Some(data_root.join("plugins").to_string_lossy().to_string());
+        need_save = true;
+    }
+    
+    // 如果填充了默认值，立即保存
+    if need_save {
+        settings.save(&state.path).map_err(|e| e.to_string())?;
+    }
+    
+    Ok(settings.clone())
 }
 
 /// 覆盖全部设置并持久化到 settings.json
@@ -40,6 +85,22 @@ pub async fn setting_get_media_dir(
         .join("FlowCloudAI");
 
     Ok(dir.to_string_lossy().to_string())
+}
+
+/// 获取默认的数据库和插件目录路径
+#[derive(serde::Serialize)]
+pub struct DefaultPaths {
+    pub db_path: String,
+    pub plugins_path: String,
+}
+
+#[tauri::command]
+pub fn setting_get_default_paths(app: AppHandle) -> Result<DefaultPaths, String> {
+    let data_root = default_data_root(&app);
+    Ok(DefaultPaths {
+        db_path: data_root.join("db").to_string_lossy().to_string(),
+        plugins_path: data_root.join("plugins").to_string_lossy().to_string(),
+    })
 }
 
 // ── API Key 管理 ──────────────────────────────────────────────────────────────

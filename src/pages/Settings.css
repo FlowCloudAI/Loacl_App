@@ -1,6 +1,7 @@
 .settings-container {
   max-width: 50rem;
   margin: 0 auto;
+  user-select: none;
 }
 
 .settings-title {
@@ -10,7 +11,6 @@
 .settings-section {
   margin-bottom: 2rem;
   padding: 1.6rem;
-  gap: 1rem;
   border: 1px solid var(--fc-color-border);
   border-radius: var(--fc-radius-md);
 }
@@ -30,6 +30,7 @@
   display: flex;
   align-items: center;
   gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 .settings-label {
@@ -37,7 +38,7 @@
 }
 
 .settings-label-wide {
-  width: 5rem;
+  width: 8rem;
 }
 
 .settings-input-small {

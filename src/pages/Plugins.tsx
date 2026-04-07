@@ -1,0 +1,197 @@
+import {useState, useEffect, useCallback, type CSSProperties} from 'react'
+import {Button, Input, RollingBox, useAlert} from 'flowcloudai-ui'
+import {
+    plugin_list_local,
+    plugin_uninstall,
+    plugin_market_list,
+    plugin_market_install,
+    type LocalPluginInfo,
+    type RemotePluginInfo,
+} from '../api'
+import {LocalPluginCard, MarketPluginCard} from '../components/PluginCard'
+import './Plugins.css'
+
+export default function Plugins() {
+    const {showAlert} = useAlert()
+
+    const [localPlugins, setLocalPlugins] = useState<LocalPluginInfo[]>([])
+    const [marketPlugins, setMarketPlugins] = useState<RemotePluginInfo[]>([])
+    const [loadingLocal, setLoadingLocal] = useState(false)
+    const [loadingMarket, setLoadingMarket] = useState(false)
+    const [localError, setLocalError] = useState<string | null>(null)
+    const [marketError, setMarketError] = useState<string | null>(null)
+
+    // 正在安装/卸载的插件 id
+    const [installingId, setInstallingId] = useState<string | null>(null)
+    const [uninstallingId, setUninstallingId] = useState<string | null>(null)
+
+    // 市场过滤
+    const [searchText, setSearchText] = useState('')
+    const [kindFilter, setKindFilter] = useState<'all' | 'llm' | 'image' | 'tts'>('all')
+
+    const loadLocal = useCallback(async () => {
+        setLoadingLocal(true)
+        setLocalError(null)
+        try {
+            setLocalPlugins(await plugin_list_local())
+        } catch (e) {
+            setLocalError(String(e))
+        } finally {
+            setLoadingLocal(false)
+        }
+    }, [])
+
+    const loadMarket = useCallback(async () => {
+        setLoadingMarket(true)
+        setMarketError(null)
+        try {
+            setMarketPlugins(await plugin_market_list())
+        } catch (e) {
+            setMarketError(String(e))
+        } finally {
+            setLoadingMarket(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        void loadLocal()
+        void loadMarket()
+    }, [loadLocal, loadMarket])
+
+    const handleInstall = async (pluginId: string) => {
+        setInstallingId(pluginId)
+        try {
+            const info = await plugin_market_install(pluginId)
+            setLocalPlugins(prev => {
+                const exists = prev.some(p => p.id === info.id)
+                return exists
+                    ? prev.map(p => (p.id === info.id ? info : p))
+                    : [...prev, info]
+            })
+            void showAlert(`${info.name} 安装成功`, 'success')
+        } catch (e) {
+            void showAlert('安装失败: ' + e, 'error')
+        } finally {
+            setInstallingId(null)
+        }
+    }
+
+    const handleUninstall = async (pluginId: string) => {
+        const res = await showAlert('确定卸载此插件？', 'warning', 'confirm')
+        if (res !== 'yes') return
+        setUninstallingId(pluginId)
+        try {
+            await plugin_uninstall(pluginId)
+            setLocalPlugins(prev => prev.filter(p => p.id !== pluginId))
+            void showAlert('卸载成功', 'success')
+        } catch (e) {
+            void showAlert('卸载失败: ' + e, 'error')
+        } finally {
+            setUninstallingId(null)
+        }
+    }
+
+    const installedIds = new Set(localPlugins.map(p => p.id))
+
+    const filteredMarket = marketPlugins.filter(p => {
+        const matchKind = kindFilter === 'all' || p.kind.includes(kindFilter)
+        const q = searchText.trim().toLowerCase()
+        const matchSearch = !q || p.name.toLowerCase().includes(q) || p.author.toLowerCase().includes(q)
+        return matchKind && matchSearch
+    })
+
+    return (
+        <RollingBox style={{padding: '1rem'} as CSSProperties} thumbSize="thin">
+            <div className="plugins-container">
+                <h1 className="plugins-title">插件管理</h1>
+
+                {/* 已安装 */}
+                <section className="plugins-section">
+                    <div className="plugins-section-header">
+                        <h2 className="plugins-section-title">已安装</h2>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={loadingLocal}
+                            onClick={loadLocal}
+                        >
+                            {loadingLocal ? '刷新中…' : '刷新'}
+                        </Button>
+                    </div>
+
+                    {localError && <div className="plugins-error">{localError}</div>}
+
+                    <div className="plugins-list">
+                        {localPlugins.length === 0 && !loadingLocal ? (
+                            <div className="plugins-empty">暂无已安装插件</div>
+                        ) : (
+                            localPlugins.map(plugin => (
+                                <LocalPluginCard
+                                    key={plugin.id}
+                                    plugin={plugin}
+                                    onUninstall={handleUninstall}
+                                    uninstalling={uninstallingId === plugin.id}
+                                />
+                            ))
+                        )}
+                    </div>
+                </section>
+
+                {/* 市场 */}
+                <section className="plugins-section">
+                    <div className="plugins-section-header">
+                        <h2 className="plugins-section-title">插件库</h2>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={loadingMarket}
+                            onClick={loadMarket}
+                        >
+                            {loadingMarket ? '加载中…' : '刷新'}
+                        </Button>
+                    </div>
+
+                    <div className="plugins-filter-bar">
+                        <Input
+                            placeholder="搜索名称或作者…"
+                            value={searchText}
+                            onChange={setSearchText}
+                            className="plugins-search"
+                        />
+                        <div className="plugins-kind-tabs">
+                            {(['all', 'llm', 'image', 'tts'] as const).map(k => (
+                                <button
+                                    key={k}
+                                    className={`plugins-kind-tab${kindFilter === k ? ' active' : ''}`}
+                                    onClick={() => setKindFilter(k)}
+                                >
+                                    {k === 'all' ? '全部' : k.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {marketError && <div className="plugins-error">{marketError}</div>}
+
+                    <div className="plugins-list">
+                        {filteredMarket.length === 0 && !loadingMarket ? (
+                            <div className="plugins-empty">
+                                {marketPlugins.length === 0 ? '暂无可用插件' : '无匹配结果'}
+                            </div>
+                        ) : (
+                            filteredMarket.map(plugin => (
+                                <MarketPluginCard
+                                    key={plugin.id}
+                                    plugin={plugin}
+                                    installedIds={installedIds}
+                                    onInstall={handleInstall}
+                                    installing={installingId === plugin.id}
+                                />
+                            ))
+                        )}
+                    </div>
+                </section>
+            </div>
+        </RollingBox>
+    )
+}

@@ -47,6 +47,9 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
 
+            // HTTP 客户端（连接池在进程生命周期内共享）
+            app.manage(NetworkState::new());
+
             // 加载设置
             let settings_path = app_handle
                 .path()
@@ -55,6 +58,20 @@ pub fn run() {
                 .join("settings.json");
 
             let settings = AppSettings::load(&settings_path);
+
+            // 解析用户自定义路径（在 settings 移入 manage 之前读取）
+            let data_root = default_data_root(&app_handle);
+            let resolved_db_path = settings
+                .db_path
+                .as_deref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| data_root.join("db"));
+            let resolved_plugins_path = settings
+                .plugins_path
+                .as_deref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| data_root.join("plugins"));
+
             app.manage(SettingsState {
                 settings: Mutex::new(settings),
                 path: settings_path,
@@ -62,7 +79,7 @@ pub fn run() {
 
             // 异步初始化数据库
             let db_path =
-                prepare_db_path(&app_handle).unwrap_or_else(|e| fatal(&app_handle, &e.to_string()));
+                prepare_db_path(&app_handle, &resolved_db_path).unwrap_or_else(|e| fatal(&app_handle, &e.to_string()));
 
             tauri::async_runtime::spawn(async move {
                 match init_db(&db_path).await {
@@ -70,20 +87,21 @@ pub fn run() {
                         let app_state = Arc::new(Mutex::new(AppState {
                             sqlite_db: Mutex::new(db),
                         }));
-                        
+
                         let app = app_handle.clone();
                         if let Err(e) = app_handle.run_on_main_thread(move || {
                             // 先管理 AppState
                             app.manage(app_state.clone());
-                            
-                            // 再初始化 AI 客户端（需要 AppState）
-                            let plugins_path = app
-                                .path()
-                                .resource_dir()
-                                .unwrap_or_else(|_| std::env::current_dir().unwrap())
-                                .join("plugins");
 
-                            match AiState::new(plugins_path, app_state) {
+                            // 管理路径状态
+                            app.manage(PathsState {
+                                db_path: db_path.clone(),
+                                plugins_path: resolved_plugins_path.clone(),
+                            });
+
+                            // 再初始化 AI 客户端（需要 AppState）
+                            std::fs::create_dir_all(&resolved_plugins_path).ok();
+                            match AiState::new(resolved_plugins_path, app_state) {
                                 Ok(ai_state) => {
                                     app.manage(ai_state);
                                 }
@@ -153,15 +171,23 @@ pub fn run() {
             setting_get_settings,
             setting_update_settings,
             setting_get_media_dir,
+            setting_get_default_paths,
             setting_set_api_key,
             setting_has_api_key,
             setting_delete_api_key,
-            // Plugin Management
+            // Plugin Management — 本地
             plugin_list_local,
-            plugin_fetch_remote,
-            plugin_check_updates,
             plugin_install_from_file,
             plugin_uninstall,
+            // Plugin Management — 通用注册表
+            plugin_fetch_remote,
+            plugin_check_updates,
+            // Plugin Management — 官方市场
+            plugin_market_list,
+            plugin_market_install,
+            plugin_market_upload,
+            plugin_market_update,
+            plugin_market_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -181,8 +207,8 @@ async fn init_db(db_path: &Path) -> Result<SqliteDb> {
     SqliteDb::new(&path_str).await.map_err(Into::into)
 }
 
-fn prepare_db_path(app: &AppHandle) -> Result<PathBuf> {
-    let db_path = app.path().app_data_dir()?.join("db").join("main.db");
+fn prepare_db_path(_app: &AppHandle, db_dir: &Path) -> Result<PathBuf> {
+    let db_path = db_dir.join("main.db");
     log::info!("Database path: {:?}", db_path);
 
     if let Some(parent) = db_path.parent() {

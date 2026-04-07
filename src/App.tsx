@@ -6,6 +6,7 @@ import {type CSSProperties, useState, useEffect} from "react";
 import ProjectSelection from "./pages/ProjectSelection";
 import ProjectEditing from "./pages/ProjectEditing";
 import Settings from "./pages/Settings";
+import Plugins from "./pages/Plugins";
 
 function App() {
     const win = getCurrentWindow();
@@ -52,30 +53,32 @@ function App() {
     };
 
     // 侧边栏相关状态
-    const HomeIcon = (<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1V9.5z" strokeWidth="1.5"
-              strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>)
-    const SearchIcon = (<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="11" cy="11" r="7" strokeWidth="1.5"/>
-        <path d="M16.5 16.5L21 21" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>)
-    const PluginsIcon = (
+    const HomeIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1V9.5z" strokeWidth="1.5"
+                  strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>)
+    const SearchIcon = (
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="11" cy="11" r="7" strokeWidth="1.5"/>
+            <path d="M16.5 16.5L21 21" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>)
+
+    const PluginsIcon = (
+        <svg viewBox="-150 -150 1324 1324" xmlns="http://www.w3.org/2000/svg">
             <path
-                d="M9 3h3a2 2 0 012 2v1a1 1 0 102 0V5a2 2 0 012-2h1v6h-3a1 1 0 000 2h3v6h-1a2 2 0 01-2-2v-1a1 1 0 10-2 0v1a2 2 0 01-2 2H9v-6h3a1 1 0 000-2H9V3z"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                d="M702.836 1021.673H104.727c-53.527 0-95.418-44.218-95.418-95.418V779.636c0-11.636 4.655-20.945 13.964-27.927 9.309-6.982 20.945-9.309 30.254-6.982 11.637 2.328 23.273 4.655 32.582 4.655 67.491 0 123.346-55.855 123.346-123.346S153.6 502.691 86.109 502.691c-9.309 0-20.945 2.327-32.582 4.654-11.636 2.328-20.945 0-30.254-6.981S9.309 484.073 9.309 472.436V325.818c0-53.527 44.218-95.418 95.418-95.418h107.055c-2.327-11.636-2.327-23.273-2.327-34.91 0-107.054 86.109-193.163 193.163-193.163s193.164 86.11 193.164 193.164c0 11.636 0 23.273-2.327 34.909h107.054c53.527 0 95.418 44.218 95.418 95.418v107.055h20.946c107.054 0 193.163 86.109 193.163 193.163S923.927 819.2 816.873 819.2h-20.946v107.055c4.655 51.2-39.563 95.418-93.09 95.418zM79.127 819.2v104.727c0 13.964 11.637 25.6 25.6 25.6h598.11c13.963 0 25.6-11.636 25.6-25.6V772.655c0-11.637 4.654-23.273 13.963-27.928 9.31-6.982 20.945-6.982 32.582-4.654 13.963 4.654 27.927 9.309 41.89 9.309 67.492 0 123.346-55.855 123.346-123.346s-55.854-123.345-123.345-123.345c-13.964 0-27.928 2.327-41.891 9.309-11.637 4.655-23.273 2.327-32.582-4.655-9.31-6.981-13.964-16.29-13.964-27.927v-153.6c0-13.963-11.636-25.6-25.6-25.6H546.91c-11.636 0-23.273-6.982-30.254-16.29-6.982-9.31-6.982-23.273-2.328-32.583 9.31-18.618 11.637-34.909 11.637-53.527 0-67.49-55.855-123.345-123.346-123.345s-123.345 55.854-123.345 123.345c0 18.618 4.654 37.237 11.636 53.527 4.655 11.637 4.655 23.273-2.327 32.582-6.982 9.31-18.618 16.291-30.255 16.291h-153.6c-13.963 0-25.6 11.637-25.6 25.6v104.727c109.382-4.654 200.146 83.782 200.146 193.164 0 107.055-86.11 193.164-193.164 193.164-2.327 2.327-4.654 2.327-6.982 2.327z"
+                fill="currentColor"
             />
-        </svg>
-    )
-    const SettingsIcon = (<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="12" cy="12" r="3" strokeWidth="1.5"/>
-        <path
-            d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15 1.65 1.65 0 003.17 14H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68 1.65 1.65 0 0010 3.17V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"
-            strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>)
+        </svg>)
+
+    const SettingsIcon = (
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="3" strokeWidth="1.5"/>
+            <path
+                d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15 1.65 1.65 0 003.17 14H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68 1.65 1.65 0 0010 3.17V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"
+                strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>)
 
     const menuItems: SideBarItem[] = [
         {key: 'home', label: '首页', icon: HomeIcon},
@@ -194,17 +197,16 @@ function App() {
                 />
                 <div className="page-container">
                     <div className={`page-wrapper ${selectedKey === 'home' ? 'active' : ''}`}>
-                        <ProjectSelection />
+                        <ProjectSelection/>
                     </div>
                     <div className={`page-wrapper ${selectedKey === 'search' ? 'active' : ''}`}>
-                        <ProjectEditing />
+                        <ProjectEditing/>
                     </div>
                     <div className={`page-wrapper ${selectedKey === 'plugins' ? 'active' : ''}`}>
-                        {/* 插件管理页面占位 */}
-                        <div style={{padding: '20px'}}>插件管理</div>
+                        <Plugins/>
                     </div>
                     <div className={`page-wrapper ${selectedKey === 'settings' ? 'active' : ''}`}>
-                        <Settings />
+                        <Settings/>
                     </div>
                 </div>
             </div>
