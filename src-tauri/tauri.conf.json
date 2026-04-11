@@ -29,7 +29,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://asset.localhost https://www.flowcloudai.cn",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: fcimg: https://asset.localhost https://fcimg.localhost https://www.flowcloudai.cn",
       "assetProtocol": {
         "enable": true,
         "scope": ["$TEMP/**"]

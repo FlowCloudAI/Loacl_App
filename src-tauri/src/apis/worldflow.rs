@@ -1,9 +1,12 @@
-use crate::AppState;
+use crate::{AppState, PathsState};
 use std::collections::BTreeSet;
 use std::env;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tauri::{State, Window};
+use tauri::{AppHandle, State, Window};
+use tauri_plugin_opener::OpenerExt;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 use worldflow_core::{
     CategoryOps, EntryOps, EntryRelationOps, EntryTypeOps, ProjectOps, SqliteDb, TagSchemaOps,
     models::*,
@@ -50,6 +53,129 @@ async fn touch_project_updated_at(db: &SqliteDb, project_id: &str) -> Result<(),
     .await
     .map(|_| ())
     .map_err(|e| e.to_string())
+}
+
+fn build_entry_images_dir(paths: &PathsState, project_id: &str) -> Result<PathBuf, String> {
+    let db_dir = paths
+        .db_path
+        .parent()
+        .ok_or_else(|| format!("无法解析数据库目录: {:?}", paths.db_path))?;
+    Ok(db_dir.join("images").join(project_id))
+}
+
+fn canonical_images_root(paths: &PathsState) -> Result<PathBuf, String> {
+    let db_dir = paths
+        .db_path
+        .parent()
+        .ok_or_else(|| format!("无法解析数据库目录: {:?}", paths.db_path))?;
+    let images_root = db_dir.join("images");
+    std::fs::canonicalize(&images_root)
+        .map_err(|e| format!("无法解析图片根目录 {:?}: {}", images_root, e))
+}
+
+fn ensure_image_path_allowed(paths: &PathsState, path: &Path) -> Result<PathBuf, String> {
+    let canonical_requested =
+        std::fs::canonicalize(path).map_err(|e| format!("无法访问图片路径 {:?}: {}", path, e))?;
+    let canonical_root = canonical_images_root(paths)?;
+
+    if !canonical_requested.starts_with(&canonical_root) {
+        return Err(format!("图片路径不在允许范围内: {:?}", canonical_requested));
+    }
+
+    Ok(canonical_requested)
+}
+
+fn should_keep_existing_image(path: &Path, target_dir: &Path) -> bool {
+    path.starts_with(target_dir)
+}
+
+#[tauri::command]
+pub fn open_entry_image_path(
+    app: AppHandle,
+    paths: State<'_, PathsState>,
+    path: String,
+) -> Result<(), String> {
+    let allowed_path = ensure_image_path_allowed(paths.inner(), Path::new(&path))?;
+    let folder_path = allowed_path
+        .parent()
+        .ok_or_else(|| format!("无法解析图片所在文件夹: {:?}", allowed_path))?;
+    app.opener()
+        .open_path(folder_path.to_string_lossy().into_owned(), None::<String>)
+        .map_err(|e| format!("打开图片所在文件夹失败: {}", e))
+}
+
+fn copy_entry_images(
+    paths: &PathsState,
+    project_id: &str,
+    images: Option<Vec<FCImage>>,
+) -> Result<Option<Vec<FCImage>>, String> {
+    let Some(images) = images else {
+        return Ok(None)
+    };
+
+    let target_dir = build_entry_images_dir(paths, project_id)?;
+    std::fs::create_dir_all(&target_dir)
+        .map_err(|e| format!("创建图片目录失败 {:?}: {}", target_dir, e))?;
+
+    let copied_images = images
+        .into_iter()
+        .map(|mut image| {
+            if image.path.as_os_str().is_empty() {
+                return Ok(image)
+            }
+
+            let source_path = image.path.clone();
+            if should_keep_existing_image(&source_path, &target_dir) {
+                return Ok(image)
+            }
+            if !source_path.exists() {
+                return Err(format!("图片文件不存在: {:?}", source_path))
+            }
+
+            let extension = source_path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .filter(|ext| !ext.is_empty());
+            let file_name = match extension {
+                Some(ext) => format!("{}.{}", Uuid::new_v4(), ext),
+                None => Uuid::new_v4().to_string(),
+            };
+            let target_path = target_dir.join(file_name);
+
+            std::fs::copy(&source_path, &target_path).map_err(|e| {
+                format!(
+                    "复制图片失败: {:?} -> {:?}, {}",
+                    source_path, target_path, e
+                )
+            })?;
+
+            image.path = target_path;
+            Ok(image)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    Ok(Some(copied_images))
+}
+
+#[tauri::command]
+pub fn import_entry_images(
+    paths: State<'_, PathsState>,
+    project_id: String,
+    file_paths: Vec<String>,
+) -> Result<Vec<FCImage>, String> {
+    let images = file_paths
+        .into_iter()
+        .map(|path| {
+            let path_buf = PathBuf::from(&path);
+            FCImage {
+                path: path_buf,
+                is_cover: false,
+                caption: None,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    Ok(copy_entry_images(paths.inner(), &project_id, Some(images))?.unwrap_or_default())
 }
 
 // ============ Projects ============
@@ -212,6 +338,7 @@ pub async fn db_delete_category(
 #[tauri::command]
 pub async fn db_create_entry(
     state: State<'_, Arc<Mutex<AppState>>>,
+    paths: State<'_, PathsState>,
     project_id: String,
     category_id: Option<String>,
     title: String,
@@ -221,6 +348,7 @@ pub async fn db_create_entry(
     tags: Option<Vec<EntryTag>>,
     images: Option<Vec<FCImage>>,
 ) -> Result<Entry, String> {
+    let images = copy_entry_images(paths.inner(), &project_id, images)?;
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
     let entry = db
@@ -327,6 +455,7 @@ pub async fn db_count_entries(
 #[tauri::command]
 pub async fn db_update_entry(
     state: State<'_, Arc<Mutex<AppState>>>,
+    paths: State<'_, PathsState>,
     id: String,
     category_id: Option<String>,
     title: Option<String>,
@@ -338,6 +467,8 @@ pub async fn db_update_entry(
 ) -> Result<Entry, String> {
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
+    let current_entry = db.get_entry(&id).await.map_err(|e| e.to_string())?;
+    let images = copy_entry_images(paths.inner(), &current_entry.project_id, images)?;
     let entry = db
         .update_entry(
             &id,

@@ -52,7 +52,8 @@ pub fn register_worldflow_tools(
             ToolFunctionArg::new("limit", "integer")
                 .desc("返回数量限制，默认10")
                 .min(1)
-                .max(100),
+                .max(100)
+                .default(10),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
@@ -111,7 +112,8 @@ pub fn register_worldflow_tools(
             ToolFunctionArg::new("limit", "integer")
                 .desc("返回数量限制，默认50")
                 .min(1)
-                .max(100),
+                .max(100)
+                .default(50),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();

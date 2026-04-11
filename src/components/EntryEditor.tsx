@@ -1,7 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { open as openFileDialog } from '@tauri-apps/plugin-dialog'
-import MDEditor from '@uiw/react-md-editor'
-import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, MarkdownEditor, Select, TagItem, useAlert } from 'flowcloudai-ui'
 import {
     db_create_entry,
@@ -9,6 +8,7 @@ import {
     db_list_entries,
     db_update_entry,
     entryTypeKey,
+    import_entry_images,
     type Category,
     type Entry,
     type EntryBrief,
@@ -17,6 +17,7 @@ import {
     type FCImage,
     type TagSchema,
 } from '../api'
+import EntryImageLightbox from './EntryImageLightbox'
 import TagCreator from './TagCreator'
 import EntryTypeIcon from './project-editor/EntryTypeIcon'
 import './EntryEditor.css'
@@ -34,6 +35,11 @@ type LinkPreviewState = {
     entryId: string | null
 }
 
+type WikiPopoverPosition = {
+    top: number
+    left: number
+}
+
 type EntryImage = FCImage & {
     is_cover?: boolean
 }
@@ -42,7 +48,6 @@ type EntryEditorCache = {
     entry: Entry
     draft: EntryDraft
     editorMode: EditorMode
-    infoCollapsed: boolean
 }
 
 interface EntryEditorProps {
@@ -91,8 +96,8 @@ function normalizeEntryImages(images?: FCImage[] | null): EntryImage[] {
 function toEntryImageSrc(image?: FCImage | null): string | undefined {
     const raw = image?.url || image?.path
     if (!raw) return undefined
-    if (/^(https?:|data:|blob:|asset:)/i.test(raw)) return raw
-    return convertFileSrc(raw)
+    if (/^(https?:|data:|blob:|asset:|fcimg:)/i.test(raw)) return raw
+    return convertFileSrc(String(raw), 'fcimg')
 }
 
 function getCoverImage(images: EntryImage[]): EntryImage | null {
@@ -141,6 +146,10 @@ function normalizeComparableText(value: string): string {
     return value.replace(/\r\n?/g, '\n').trim()
 }
 
+function normalizeComparableContent(value: string): string {
+    return value.replace(/\r\n?/g, '\n')
+}
+
 function normalizeComparableType(value?: string | null): string | null {
     if (typeof value !== 'string') return null
     const normalized = value.trim()
@@ -171,16 +180,18 @@ function parseDateValue(value?: string | null): number {
     return Number.isNaN(timestamp) ? 0 : timestamp
 }
 
+const DATE_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+})
+
 function formatDate(value?: string | null): string {
     const timestamp = parseDateValue(value)
     if (!timestamp) return '未知'
-    return new Intl.DateTimeFormat('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-    }).format(timestamp)
+    return DATE_FORMATTER.format(timestamp)
 }
 
 function stripMarkdown(value: string): string {
@@ -231,6 +242,45 @@ function replaceRange(value: string, start: number, end: number, nextText: strin
     return `${value.slice(0, start)}${nextText}${value.slice(end)}`
 }
 
+function getTextareaCaretOffset(textarea: HTMLTextAreaElement, cursor: number): { left: number; top: number; lineHeight: number } {
+    const styles = window.getComputedStyle(textarea)
+    const mirror = document.createElement('div')
+    const marker = document.createElement('span')
+
+    mirror.style.position = 'absolute'
+    mirror.style.visibility = 'hidden'
+    mirror.style.pointerEvents = 'none'
+    mirror.style.top = '0'
+    mirror.style.left = '0'
+    mirror.style.boxSizing = styles.boxSizing
+    mirror.style.width = `${textarea.clientWidth}px`
+    mirror.style.padding = styles.padding
+    mirror.style.border = styles.border
+    mirror.style.font = styles.font
+    mirror.style.lineHeight = styles.lineHeight
+    mirror.style.letterSpacing = styles.letterSpacing
+    mirror.style.textTransform = styles.textTransform
+    mirror.style.textIndent = styles.textIndent
+    mirror.style.textAlign = styles.textAlign as 'start'
+    mirror.style.tabSize = styles.tabSize
+    mirror.style.whiteSpace = 'pre-wrap'
+    mirror.style.wordBreak = 'break-word'
+    mirror.style.overflowWrap = 'break-word'
+
+    mirror.textContent = textarea.value.slice(0, cursor)
+    marker.textContent = textarea.value.slice(cursor, cursor + 1) || '\u200b'
+    mirror.appendChild(marker)
+    document.body.appendChild(mirror)
+
+    const lineHeight = Number.parseFloat(styles.lineHeight) || Number.parseFloat(styles.fontSize) * 1.4 || 20
+    const left = marker.offsetLeft - textarea.scrollLeft
+    const top = marker.offsetTop - textarea.scrollTop
+
+    document.body.removeChild(mirror)
+
+    return { left, top, lineHeight }
+}
+
 function areTagMapsEqual(
     left: Record<string, string | number | boolean | null>,
     right: Record<string, string | number | boolean | null>,
@@ -270,13 +320,37 @@ function buildSavedTags(
     return merged.length ? merged : null
 }
 
+function mergeUniqueStringValues(values: string[]): string[] {
+    return [...new Set(values.filter(Boolean))]
+}
+
+function normalizeTagTargets(target?: TagSchema['target'] | null): string[] {
+    return Array.isArray(target)
+        ? target.map((item) => item.trim()).filter(Boolean)
+        : []
+}
+
+function isSchemaImplantedForType(schema: TagSchema, entryType?: string | null): boolean {
+    const normalizedType = normalizeComparableType(entryType)
+    if (!normalizedType) return false
+    return normalizeTagTargets(schema.target).includes(normalizedType)
+}
+
+function buildAutoVisibleTagSchemaIds(
+    tagSchemas: TagSchema[],
+    draftTags: Record<string, string | number | boolean | null>,
+    entryType?: string | null,
+): string[] {
+    return tagSchemas.flatMap((schema) => {
+        const hasValue = getComparableTagValue(draftTags, schema) !== null
+        if (!hasValue && !isSchemaImplantedForType(schema, entryType)) return []
+        return [schema.id]
+    })
+}
+
 function getCategoryName(categories: Category[], categoryId?: string | null): string {
     if (!categoryId) return '未分类'
     return categories.find((category) => category.id === categoryId)?.name ?? '未分类'
-}
-
-function formatCategoryMeta(categories: Category[], categoryId?: string | null): string {
-    return `所属分类：${getCategoryName(categories, categoryId)}`
 }
 
 function buildEntryPath(projectName: string, categories: Category[], categoryId: string | null | undefined, entryTitle: string): string {
@@ -323,7 +397,6 @@ export default function EntryEditor({
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [editorMode, setEditorMode] = useState<EditorMode>('browse')
-    const [infoCollapsed, setInfoCollapsed] = useState(false)
     const [lightboxOpen, setLightboxOpen] = useState(false)
     const [lightboxIndex, setLightboxIndex] = useState(0)
     const [wikiDraft, setWikiDraft] = useState<WikiDraft | null>(null)
@@ -331,12 +404,26 @@ export default function EntryEditor({
     const [projectEntries, setProjectEntries] = useState<EntryBrief[]>([])
     const [entryCache, setEntryCache] = useState<Record<string, Entry>>({})
     const [backlinksExpanded, setBacklinksExpanded] = useState(false)
+    const [wikiPopoverPosition, setWikiPopoverPosition] = useState<WikiPopoverPosition>({ top: 16, left: 16 })
     const [projectDataLoading, setProjectDataLoading] = useState(false)
     const [linkPreview, setLinkPreview] = useState<LinkPreviewState | null>(null)
     const [tagCreatorOpen, setTagCreatorOpen] = useState(false)
     const [localTagSchemas, setLocalTagSchemas] = useState<TagSchema[]>(tagSchemas)
+    const [pinnedTagSchemaIds, setPinnedTagSchemaIds] = useState<string[]>([])
+    const [tagSchemaPickerValue, setTagSchemaPickerValue] = useState<string | undefined>(undefined)
     const wikiDraftRetainTimerRef = useRef<number | null>(null)
+    const cursorSyncRafRef = useRef<number | null>(null)
+    const pendingCursorSyncRef = useRef<{ value: string; selectionStart: number | null } | null>(null)
     const entryCacheRef = useRef<Record<string, EntryEditorCache>>({})
+    const markdownContainerRef = useRef<HTMLDivElement | null>(null)
+    const wikiPopoverRef = useRef<HTMLDivElement | null>(null)
+    const prevWikiDraftRef = useRef<WikiDraft | null>(null)
+    const onDirtyChangeRef = useRef(onDirtyChange)
+    const projectEntriesRef = useRef(projectEntries)
+    const projectEntriesStatusRef = useRef<'idle' | 'loading' | 'loaded'>('idle')
+    const projectEntryDetailsStatusRef = useRef<'idle' | 'loading' | 'loaded'>('idle')
+    projectEntriesRef.current = projectEntries
+    onDirtyChangeRef.current = onDirtyChange
     const { showAlert } = useAlert()
 
     useEffect(() => {
@@ -344,8 +431,13 @@ export default function EntryEditor({
     }, [tagSchemas])
 
     useEffect(() => {
-        onDirtyChange?.(false)
-    }, [entryId, onDirtyChange])
+        setPinnedTagSchemaIds([])
+        setTagSchemaPickerValue(undefined)
+    }, [entryId])
+
+    useEffect(() => {
+        onDirtyChangeRef.current?.(false)
+    }, [entryId])
 
     useEffect(() => {
         const openEntryIdSet = new Set(openEntryIds)
@@ -368,7 +460,6 @@ export default function EntryEditor({
             setEntry(cachedState.entry)
             setDraft(cachedState.draft)
             setEditorMode(cachedState.editorMode)
-            setInfoCollapsed(cachedState.infoCollapsed)
             setLoading(false)
             return () => {
                 cancelled = true
@@ -381,7 +472,6 @@ export default function EntryEditor({
                 setEntry(result)
                 setDraft(buildDraft(result))
                 setEditorMode('browse')
-                setInfoCollapsed(false)
             })
             .catch((e) => {
                 if (cancelled) return
@@ -398,22 +488,28 @@ export default function EntryEditor({
         }
     }, [entryId])
 
+    // projectId 变化时重置词条列表状态
     useEffect(() => {
-        let cancelled = false
-        setProjectDataLoading(true)
+        projectEntriesStatusRef.current = 'idle'
+        projectEntryDetailsStatusRef.current = 'idle'
+        setProjectEntries([])
+    }, [projectId])
 
-        async function loadProjectEntries() {
-            try {
-                const briefs = await db_list_entries({
-                    projectId,
-                    limit: 1000,
-                    offset: 0,
-                })
-                if (cancelled) return
-                setProjectEntries(briefs)
+    useEffect(() => {
+        if (!entry || entry.id !== entryId) return
+        const initialDraftState = buildDraft(entry)
+        const initialVisibleTagSchemaIds = buildAutoVisibleTagSchemaIds(localTagSchemas, initialDraftState.tags, initialDraftState.type)
+        setPinnedTagSchemaIds((current) => (current.length === 0 ? initialVisibleTagSchemaIds : current))
+    }, [entry, entryId, localTagSchemas])
 
-                const details = await Promise.all(
-                    briefs.map(async (brief) => {
+    const ensureProjectEntryDetailsLoaded = useCallback(async (briefs: EntryBrief[]) => {
+        if (!briefs.length || projectEntryDetailsStatusRef.current !== 'idle') return
+        projectEntryDetailsStatusRef.current = 'loading'
+        try {
+            const results = await Promise.all(
+                briefs
+                    .filter((brief) => brief.id !== entryId)
+                    .map(async (brief) => {
                         try {
                             const detail = await db_get_entry(brief.id)
                             return [brief.id, detail] as const
@@ -421,30 +517,97 @@ export default function EntryEditor({
                             return null
                         }
                     }),
-                )
-                if (cancelled) return
-                setEntryCache(Object.fromEntries(details.filter(Boolean) as Array<readonly [string, Entry]>))
-            } finally {
-                if (!cancelled) {
-                    setProjectDataLoading(false)
-                }
-            }
+            )
+            setEntryCache((current) => ({
+                ...current,
+                ...Object.fromEntries(results.filter(Boolean) as Array<readonly [string, Entry]>),
+            }))
+            projectEntryDetailsStatusRef.current = 'loaded'
+        } catch {
+            projectEntryDetailsStatusRef.current = 'idle'
         }
+    }, [entryId])
 
-        void loadProjectEntries()
-
-        return () => {
-            cancelled = true
+    // 按需加载：进入编辑模式或需要双链时调用
+    const ensureProjectEntriesLoaded = useCallback(async () => {
+        if (projectEntriesStatusRef.current !== 'idle') return
+        projectEntriesStatusRef.current = 'loading'
+        setProjectDataLoading(true)
+        try {
+            const briefs = await db_list_entries({ projectId, limit: 1000, offset: 0 })
+            setProjectEntries(briefs)
+            projectEntriesStatusRef.current = 'loaded'
+            void ensureProjectEntryDetailsLoaded(briefs)
+        } catch {
+            projectEntriesStatusRef.current = 'idle'
+        } finally {
+            setProjectDataLoading(false)
         }
-    }, [projectId])
+    }, [ensureProjectEntryDetailsLoaded, projectId])
+
+    // 进入编辑模式时触发词条列表加载（用于双链联想）
+    useEffect(() => {
+        if (editorMode === 'edit') {
+            void ensureProjectEntriesLoaded()
+        }
+    }, [editorMode, ensureProjectEntriesLoaded])
 
     useEffect(() => {
         return () => {
             if (wikiDraftRetainTimerRef.current) {
                 window.clearTimeout(wikiDraftRetainTimerRef.current)
             }
+            if (cursorSyncRafRef.current !== null) {
+                cancelAnimationFrame(cursorSyncRafRef.current)
+            }
+            pendingCursorSyncRef.current = null
         }
     }, [])
+
+    const updateWikiPopoverPosition = useCallback((textarea?: HTMLTextAreaElement | null, activeDraft?: WikiDraft | null) => {
+        const container = markdownContainerRef.current
+        const draftToUse = activeDraft ?? prevWikiDraftRef.current
+        const input = textarea ?? container?.querySelector('textarea') ?? null
+        const popover = wikiPopoverRef.current
+        if (!container || !input || !draftToUse || !popover) return
+
+        const containerRect = container.getBoundingClientRect()
+        const inputRect = input.getBoundingClientRect()
+        const { left, top, lineHeight } = getTextareaCaretOffset(input, draftToUse.end)
+        const gap = 10
+        const baseLeft = inputRect.left - containerRect.left + left
+        const baseTop = inputRect.top - containerRect.top + top
+        const maxLeft = Math.max(12, container.clientWidth - popover.offsetWidth - 12)
+        const maxTop = Math.max(12, container.clientHeight - popover.offsetHeight - 12)
+        const preferBelow = baseTop + lineHeight + gap + popover.offsetHeight <= container.clientHeight - 12
+        const nextLeft = Math.min(Math.max(12, baseLeft), maxLeft)
+        const nextTop = preferBelow
+            ? Math.min(baseTop + lineHeight + gap, maxTop)
+            : Math.max(12, baseTop - popover.offsetHeight - gap)
+
+        setWikiPopoverPosition((current) => (
+            current.left === nextLeft && current.top === nextTop
+                ? current
+                : { left: nextLeft, top: nextTop }
+        ))
+    }, [])
+
+    // 懒加载：链接预览时按需拉取单条词条详情
+    useEffect(() => {
+        const id = linkPreview?.entryId
+        if (!id) return
+        let cancelled = false
+        void db_get_entry(id)
+            .then((detail) => {
+                if (!cancelled) {
+                    setEntryCache((current) => ({ ...current, [detail.id]: detail }))
+                }
+            })
+            .catch(() => {})
+        return () => {
+            cancelled = true
+        }
+    }, [linkPreview?.entryId])
 
     const typeOptions = useMemo(
         () => entryTypes.map((entryType) => ({
@@ -453,33 +616,47 @@ export default function EntryEditor({
         })),
         [entryTypes],
     )
-    const builtinTypeOptions = typeOptions.filter(({entryType}) => entryType.kind === 'builtin')
-    const customTypeOptions = typeOptions
-        .filter(({entryType}) => entryType.kind === 'custom')
-        .map(({key, entryType}) => ({
-            value: key,
-            label: entryType.name,
-        }))
+    const builtinTypeOptions = useMemo(
+        () => typeOptions.filter(({ entryType }) => entryType.kind === 'builtin'),
+        [typeOptions],
+    )
+    const customTypeOptions = useMemo(
+        () => typeOptions
+            .filter(({ entryType }) => entryType.kind === 'custom')
+            .map(({ key, entryType }) => ({ value: key, label: entryType.name })),
+        [typeOptions],
+    )
 
-    const trimmedTitle = normalizeComparableText(draft.title)
-    const trimmedSummary = normalizeComparableText(draft.summary)
-    const trimmedContent = normalizeComparableText(draft.content)
-    const initialDraft = entry ? buildDraft(entry) : null
+    const trimmedTitle = useMemo(() => normalizeComparableText(draft.title), [draft.title])
+    const trimmedSummary = useMemo(() => normalizeComparableText(draft.summary), [draft.summary])
+    const normalizedContent = useMemo(() => normalizeComparableContent(draft.content), [draft.content])
+    const initialDraft = useMemo(() => (entry ? buildDraft(entry) : null), [entry])
+    const comparableInitial = useMemo(() => {
+        if (!initialDraft) return null
+        return {
+            title: normalizeComparableText(initialDraft.title),
+            summary: normalizeComparableText(initialDraft.summary),
+            content: normalizeComparableContent(initialDraft.content),
+            type: normalizeComparableType(initialDraft.type),
+            tags: initialDraft.tags,
+            images: initialDraft.images,
+        }
+    }, [initialDraft])
     const hasChanges = Boolean(
-        initialDraft && (
-            trimmedTitle !== normalizeComparableText(initialDraft.title)
-            || trimmedSummary !== normalizeComparableText(initialDraft.summary)
-            || trimmedContent !== normalizeComparableText(initialDraft.content)
-            || normalizeComparableType(draft.type) !== normalizeComparableType(initialDraft.type)
-            || !areTagMapsEqual(draft.tags, initialDraft.tags, localTagSchemas)
-            || !areImagesEqual(draft.images, initialDraft.images)
+        comparableInitial && (
+            trimmedTitle !== comparableInitial.title
+            || trimmedSummary !== comparableInitial.summary
+            || normalizedContent !== comparableInitial.content
+            || normalizeComparableType(draft.type) !== comparableInitial.type
+            || !areTagMapsEqual(draft.tags, comparableInitial.tags, localTagSchemas)
+            || !areImagesEqual(draft.images, comparableInitial.images)
         ),
     )
     const canSave = Boolean(entry && trimmedTitle && hasChanges && !loading && !saving)
 
     useEffect(() => {
-        onDirtyChange?.(hasChanges)
-    }, [hasChanges, onDirtyChange])
+        onDirtyChangeRef.current?.(hasChanges)
+    }, [hasChanges])
 
     useEffect(() => {
         if (!entry) return
@@ -488,12 +665,11 @@ export default function EntryEditor({
                 entry,
                 draft,
                 editorMode,
-                infoCollapsed,
             }
             return
         }
         delete entryCacheRef.current[entryId]
-    }, [draft, editorMode, entry, entryId, hasChanges, infoCollapsed])
+    }, [draft, editorMode, entry, entryId, hasChanges])
 
     const coverImage = useMemo(() => getCoverImage(draft.images), [draft.images])
     const coverSrc = useMemo(() => toEntryImageSrc(coverImage), [coverImage])
@@ -501,6 +677,15 @@ export default function EntryEditor({
         ...image,
         src: toEntryImageSrc(image),
     })), [draft.images])
+
+    // 标题小写 Map，用于 O(1) 精确匹配，避免每次 [[联想 都线性扫描
+    const projectEntriesLowerMap = useMemo(() => {
+        const map = new Map<string, EntryBrief>()
+        for (const item of projectEntries) {
+            map.set(item.title.trim().toLowerCase(), item)
+        }
+        return map
+    }, [projectEntries])
 
     const filteredLinkSuggestions = useMemo(() => {
         if (!wikiDraft) return []
@@ -514,8 +699,25 @@ export default function EntryEditor({
     const hasExactSuggestion = useMemo(() => {
         const query = wikiDraft?.query.trim().toLowerCase()
         if (!query) return false
-        return projectEntries.some((item) => item.title.trim().toLowerCase() === query)
-    }, [wikiDraft, projectEntries])
+        const match = projectEntriesLowerMap.get(query)
+        return Boolean(match && match.id !== entryId)
+    }, [wikiDraft, projectEntriesLowerMap, entryId])
+
+    useEffect(() => {
+        if (!wikiDraft) return
+        const rafId = requestAnimationFrame(() => updateWikiPopoverPosition())
+        return () => cancelAnimationFrame(rafId)
+    }, [filteredLinkSuggestions.length, hasExactSuggestion, updateWikiPopoverPosition, wikiDraft])
+
+    useEffect(() => {
+        if (!wikiDraft) return
+        const handleResize = () => updateWikiPopoverPosition()
+        window.addEventListener('resize', handleResize)
+        return () => window.removeEventListener('resize', handleResize)
+    }, [updateWikiPopoverPosition, wikiDraft])
+
+    // 预览源码缓存：draft.content 不变时不重算
+    const previewContent = useMemo(() => buildMarkdownPreviewSource(draft.content), [draft.content])
 
     const backlinks = useMemo(() => {
         if (!trimmedTitle) return []
@@ -526,16 +728,66 @@ export default function EntryEditor({
     }, [entryCache, entryId, trimmedTitle])
 
     const infoTitle = trimmedTitle || entry?.title || '未命名词条'
+    const isBrowseMode = editorMode === 'browse'
 
     const linkPreviewEntry = useMemo(() => {
         if (!linkPreview) return null
         if (linkPreview.entryId) return entryCache[linkPreview.entryId] ?? null
         return Object.values(entryCache).find((item) => item.title === linkPreview.title) ?? null
     }, [entryCache, linkPreview])
+    const autoVisibleTagSchemaIds = useMemo(
+        () => buildAutoVisibleTagSchemaIds(localTagSchemas, draft.tags, draft.type),
+        [draft.tags, draft.type, localTagSchemas],
+    )
+    const visibleTagSchemaIds = useMemo(
+        () => mergeUniqueStringValues([...pinnedTagSchemaIds, ...autoVisibleTagSchemaIds]),
+        [autoVisibleTagSchemaIds, pinnedTagSchemaIds],
+    )
+    const visibleTagSchemaIdSet = useMemo(
+        () => new Set(visibleTagSchemaIds),
+        [visibleTagSchemaIds],
+    )
+    const visibleTagSchemas = useMemo(
+        () => localTagSchemas.filter((schema) => visibleTagSchemaIdSet.has(schema.id)),
+        [localTagSchemas, visibleTagSchemaIdSet],
+    )
+    const implantedTagSchemaIdSet = useMemo(
+        () => new Set(
+            visibleTagSchemas
+                .filter((schema) => isSchemaImplantedForType(schema, draft.type))
+                .map((schema) => schema.id),
+        ),
+        [draft.type, visibleTagSchemas],
+    )
+    const availableTagSchemaOptions = useMemo(
+        () => localTagSchemas
+            .filter((schema) => !visibleTagSchemaIdSet.has(schema.id))
+            .map((schema) => ({ value: schema.id, label: schema.name })),
+        [localTagSchemas, visibleTagSchemaIdSet],
+    )
     const entryPathLabel = useMemo(
         () => buildEntryPath(projectName, categories, entry?.category_id ?? null, infoTitle),
         [projectName, categories, entry?.category_id, infoTitle],
     )
+    const readonlyTags = useMemo(
+        () => visibleTagSchemas.flatMap((schema) => {
+            const value = getComparableTagValue(draft.tags, schema)
+            if (value === null) return []
+            return [{ schema, value }] as const
+        }),
+        [draft.tags, visibleTagSchemas],
+    )
+    const entryCreatedAtText = formatDate(entry?.['created_at'] as string | null | undefined)
+    const entryUpdatedAtText = formatDate(entry?.updated_at as string | null | undefined)
+    const coverHintText = isBrowseMode ? '暂无主图' : '点击上传主图'
+
+    useEffect(() => {
+        if (!autoVisibleTagSchemaIds.length) return
+        setPinnedTagSchemaIds((current) => {
+            const next = mergeUniqueStringValues([...current, ...autoVisibleTagSchemaIds])
+            return next.length === current.length && next.every((item, index) => item === current[index]) ? current : next
+        })
+    }, [autoVisibleTagSchemaIds])
 
     async function handleSave() {
         if (!entry || !canSave) return
@@ -549,7 +801,7 @@ export default function EntryEditor({
                 categoryId: entry.category_id ?? null,
                 title: trimmedTitle,
                 summary: trimmedSummary || null,
-                content: trimmedContent || null,
+                content: normalizedContent === '' ? null : normalizedContent,
                 type: draft.type,
                 tags: buildSavedTags(draft.tags, localTagSchemas, entry.tags),
                 images: draft.images,
@@ -628,7 +880,37 @@ export default function EntryEditor({
     }
 
     function handleMarkdownCursorSync(textarea: HTMLTextAreaElement) {
-        setWikiDraft(resolveActiveWikiDraft(textarea.value, textarea.selectionStart))
+        // 快速检查：不含 [[ 时无需解析，直接清除
+        if (!textarea.value.includes('[[')) {
+            pendingCursorSyncRef.current = null
+            if (prevWikiDraftRef.current !== null) {
+                prevWikiDraftRef.current = null
+                setWikiDraft(null)
+            }
+            return
+        }
+        // RAF 合帧：同一帧内只执行一次，但始终使用最后一次输入快照
+        pendingCursorSyncRef.current = {
+            value: textarea.value,
+            selectionStart: textarea.selectionStart,
+        }
+        if (cursorSyncRafRef.current !== null) return
+        cursorSyncRafRef.current = requestAnimationFrame(() => {
+            cursorSyncRafRef.current = null
+            const pending = pendingCursorSyncRef.current
+            pendingCursorSyncRef.current = null
+            if (!pending) return
+            const next = resolveActiveWikiDraft(pending.value, pending.selectionStart)
+            const prev = prevWikiDraftRef.current
+            const changed = next?.query !== prev?.query || next?.start !== prev?.start || next?.end !== prev?.end
+            if (changed) {
+                prevWikiDraftRef.current = next
+                setWikiDraft(next)
+                if (next) {
+                    updateWikiPopoverPosition(textarea, next)
+                }
+            }
+        })
     }
 
     async function handleUploadImages() {
@@ -642,12 +924,13 @@ export default function EntryEditor({
             })
             const paths = Array.isArray(selected) ? selected : selected ? [selected] : []
             if (!paths.length) return
+            const importedImages = await import_entry_images(projectId, paths)
             setDraft((current) => {
                 const nextImages = [...current.images]
-                paths.forEach((path, index) => {
+                importedImages.forEach((image, index) => {
                     nextImages.push({
-                        path,
-                        alt: path.split(/[\\/]/).pop() ?? `图片 ${nextImages.length + 1}`,
+                        ...image,
+                        alt: image.alt || (image.path?.split(/[\\/]/).pop() ?? `图片 ${nextImages.length + 1}`),
                         is_cover: nextImages.length === 0 && index === 0,
                     })
                 })
@@ -685,10 +968,11 @@ export default function EntryEditor({
                 images: nextImages,
             }
         })
+        setLightboxIndex((current) => Math.min(current, Math.max(0, draft.images.length - 2)))
     }
 
     function handleOpenLinkedEntryByTitle(title: string) {
-        const target = projectEntries.find((item) => item.title === title)
+        const target = projectEntriesRef.current.find((item) => item.title === title)
         if (!target) {
             setLinkPreview({ title, entryId: null })
             return
@@ -696,9 +980,17 @@ export default function EntryEditor({
         onOpenEntry?.({ id: target.id, title: target.title })
     }
 
+    function handleAddVisibleTagSchema(schemaId: string) {
+        if (!schemaId) return
+        setPinnedTagSchemaIds((current) => (current.includes(schemaId) ? current : [...current, schemaId]))
+        setTagSchemaPickerValue(undefined)
+    }
+
     async function handleTagSchemaSaved(schema: TagSchema) {
         const nextSchemas = [...localTagSchemas, schema]
         setLocalTagSchemas(nextSchemas)
+        setPinnedTagSchemaIds((current) => (current.includes(schema.id) ? current : [...current, schema.id]))
+        setTagSchemaPickerValue(undefined)
         setDraft((current) => ({
             ...current,
             tags: {
@@ -712,10 +1004,10 @@ export default function EntryEditor({
 
     return (
         <div className="entry-editor-page">
-            <div className={`entry-editor-shell ${infoCollapsed ? 'is-collapsed' : ''}`}>
-                <section className="entry-editor-hero">
-                    <div className="entry-editor-hero__bar">
-                        <div className="entry-editor-hero__title-block">
+            <div className="entry-editor-shell">
+                <section className="entry-editor-workspace">
+                    <div className="entry-editor-workspace__header">
+                        <div className="entry-editor-workspace__toolbar">
                             <button
                                 type="button"
                                 className="entry-editor-back-button"
@@ -734,33 +1026,6 @@ export default function EntryEditor({
                                 </svg>
                                 <span>返回</span>
                             </button>
-                            <button
-                                type="button"
-                                className="entry-editor-collapse"
-                                onClick={() => setInfoCollapsed((current) => !current)}
-                                aria-label={infoCollapsed ? '展开信息区' : '收起信息区'}
-                            >
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path
-                                        d={infoCollapsed ? 'M7 10l5 5 5-5' : 'M7 14l5-5 5 5'}
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="1.8"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    />
-                                </svg>
-                            </button>
-                            <div>
-                                <h1 className="entry-editor-hero__title">{infoTitle}</h1>
-                                <p className="entry-editor-hero__path">{entryPathLabel}</p>
-                                <p className="entry-editor-hero__meta">
-                                    {entry ? `更新于 ${formatDate(entry.updated_at as string | null | undefined)}` : '正在读取词条…'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="entry-editor-hero__actions">
                             <div className="entry-editor-mode-switch">
                                 <button
                                     type="button"
@@ -781,10 +1046,15 @@ export default function EntryEditor({
                                 {saving ? '保存中…' : '保存修改'}
                             </Button>
                         </div>
+                        <span className="entry-editor-workspace__meta">
+                            {editorMode === 'edit'
+                                ? (projectDataLoading ? '正在索引项目词条…' : `${projectEntries.length} 个词条可用于双链联想`)
+                                : '单击双链查看预览，双击或按钮可在新页签打开。'}
+                        </span>
                     </div>
 
-                    {!infoCollapsed && (
-                        <div className="entry-editor-hero__content">
+                    <div className="entry-editor-workspace__body">
+                        <div className="entry-editor-meta-layout">
                             <div className="entry-editor-cover-panel">
                                 <button
                                     type="button"
@@ -793,7 +1063,7 @@ export default function EntryEditor({
                                         if (lightboxImages.length) {
                                             setLightboxIndex(Math.max(0, lightboxImages.findIndex((image) => image.is_cover)))
                                             setLightboxOpen(true)
-                                        } else {
+                                        } else if (!isBrowseMode) {
                                             void handleUploadImages()
                                         }
                                     }}
@@ -803,15 +1073,17 @@ export default function EntryEditor({
                                     ) : (
                                         <div className="entry-editor-cover__placeholder">
                                             <span className="entry-editor-cover__mark">{infoTitle[0] ?? '词'}</span>
-                                            <span className="entry-editor-cover__hint">点击上传主图</span>
+                                            <span className="entry-editor-cover__hint">{coverHintText}</span>
                                         </div>
                                     )}
                                 </button>
 
                                 <div className="entry-editor-cover__toolbar">
-                                    <Button variant="outline" size="sm" onClick={() => void handleUploadImages()}>
-                                        添加图片
-                                    </Button>
+                                    {!isBrowseMode && (
+                                        <Button variant="outline" size="sm" onClick={() => void handleUploadImages()}>
+                                            添加图片
+                                        </Button>
+                                    )}
                                     {coverImage && (
                                         <Button variant="ghost" size="sm" onClick={() => setLightboxOpen(true)}>
                                             查看设定集
@@ -823,264 +1095,354 @@ export default function EntryEditor({
                             <div className="entry-editor-meta-panel">
                                 <div className="entry-editor-meta-panel__section">
                                     <label className="entry-editor-field-label">标题</label>
-                                    <input
-                                        className="entry-editor-title-input"
-                                        value={draft.title}
-                                        onChange={(event) => setDraft((current) => (
-                                            normalizeComparableText(current.title) === normalizeComparableText(event.target.value)
-                                                ? current
-                                                : { ...current, title: event.target.value }
-                                        ))}
-                                        placeholder="输入词条标题"
-                                        disabled={saving || loading}
-                                    />
+                                    {isBrowseMode ? (
+                                        <div className="entry-editor-readonly-title">{infoTitle}</div>
+                                    ) : (
+                                        <input
+                                            className="entry-editor-title-input"
+                                            value={draft.title}
+                                            onChange={(event) => setDraft((current) => (
+                                                normalizeComparableText(current.title) === normalizeComparableText(event.target.value)
+                                                    ? current
+                                                    : { ...current, title: event.target.value }
+                                            ))}
+                                            placeholder="输入词条标题"
+                                            disabled={saving || loading}
+                                        />
+                                    )}
                                 </div>
 
                                 <div className="entry-editor-meta-panel__section">
                                     <label className="entry-editor-field-label">摘要</label>
-                                    <textarea
-                                        className="entry-editor-summary-input"
-                                        value={draft.summary}
-                                        onChange={(event) => setDraft((current) => (
-                                            normalizeComparableText(current.summary) === normalizeComparableText(event.target.value)
-                                                ? current
-                                                : { ...current, summary: event.target.value }
-                                        ))}
-                                        placeholder="用一两句话概括这个词条的核心信息"
-                                        rows={2}
-                                        disabled={saving || loading}
-                                    />
+                                    {isBrowseMode ? (
+                                        <div className={`entry-editor-readonly-summary${trimmedSummary ? '' : ' is-empty'}`}>
+                                            {trimmedSummary || '暂无摘要'}
+                                        </div>
+                                    ) : (
+                                        <textarea
+                                            className="entry-editor-summary-input"
+                                            value={draft.summary}
+                                            onChange={(event) => setDraft((current) => (
+                                                normalizeComparableText(current.summary) === normalizeComparableText(event.target.value)
+                                                    ? current
+                                                    : { ...current, summary: event.target.value }
+                                            ))}
+                                            placeholder="用一两句话概括这个词条的核心信息"
+                                            rows={2}
+                                            disabled={saving || loading}
+                                        />
+                                    )}
                                 </div>
 
                                 <div className="entry-editor-meta-panel__section">
                                     <div className="entry-editor-field-label-row">
                                         <label className="entry-editor-field-label">词条类型</label>
-                                        <span className="entry-editor-field-note">切换后会同步影响筛选与卡片标记</span>
+                                        {!isBrowseMode && <span className="entry-editor-field-note">切换后会同步影响植入标签的重点显示</span>}
                                     </div>
-                                    <div className="entry-editor-type-grid">
-                                        <button
-                                            type="button"
-                                            className={`entry-editor-type-chip${draft.type === null ? ' active' : ''}`}
-                                            onClick={() => setDraft((current) => (
-                                                normalizeComparableType(current.type) === null
-                                                    ? current
-                                                    : { ...current, type: null }
-                                            ))}
-                                        >
-                                            不设置
-                                        </button>
-                                        {builtinTypeOptions.map(({ key, entryType }) => (
-                                            <button
-                                                key={key}
-                                                type="button"
-                                                className={`entry-editor-type-chip${draft.type === key ? ' active' : ''}`}
-                                                style={{ '--entry-editor-chip-color': entryType.color } as CSSProperties}
-                                                onClick={() => setDraft((current) => ({
-                                                    ...current,
-                                                    type: normalizeComparableType(current.type) === key ? null : key,
-                                                }))}
-                                            >
-                                                <EntryTypeIcon entryType={entryType} className="entry-editor-type-chip__icon" />
-                                                <span>{entryType.name}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                    {customTypeOptions.length > 0 && (
-                                        <div className="entry-editor-custom-type">
-                                            <label className="entry-editor-field-label">自定义类型</label>
-                                            <Select
-                                                options={customTypeOptions}
-                                                value={draft.type && customTypeOptions.some(option => option.value === draft.type) ? draft.type : undefined}
-                                                onChange={(value) => setDraft((current) => {
-                                                    const nextType = normalizeComparableType(typeof value === 'string' ? value : null)
-                                                    return normalizeComparableType(current.type) === nextType
-                                                        ? current
-                                                        : {
-                                                            ...current,
-                                                            type: nextType,
-                                                        }
-                                                })}
-                                                placeholder="搜索并选择自定义词条类型"
-                                                searchable
-                                            />
+                                    {isBrowseMode ? (
+                                        <div className="entry-editor-type-grid">
+                                            {draft.type ? (
+                                                (() => {
+                                                    const selectedType = typeOptions.find(({ key }) => key === draft.type)
+                                                    return selectedType ? (
+                                                        <span
+                                                            className="entry-editor-type-chip active is-readonly"
+                                                            style={{ '--entry-editor-chip-color': selectedType.entryType.color } as CSSProperties}
+                                                        >
+                                                            <EntryTypeIcon entryType={selectedType.entryType} className="entry-editor-type-chip__icon" />
+                                                            <span>{selectedType.entryType.name}</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="entry-editor-type-chip is-readonly">未设置</span>
+                                                    )
+                                                })()
+                                            ) : (
+                                                <span className="entry-editor-type-chip is-readonly">未设置</span>
+                                            )}
                                         </div>
+                                    ) : (
+                                        <>
+                                            <div className="entry-editor-type-grid">
+                                                <button
+                                                    type="button"
+                                                    className={`entry-editor-type-chip${draft.type === null ? ' active' : ''}`}
+                                                    onClick={() => setDraft((current) => (
+                                                        normalizeComparableType(current.type) === null
+                                                            ? current
+                                                            : { ...current, type: null }
+                                                    ))}
+                                                >
+                                                    不设置
+                                                </button>
+                                                {builtinTypeOptions.map(({ key, entryType }) => (
+                                                    <button
+                                                        key={key}
+                                                        type="button"
+                                                        className={`entry-editor-type-chip${draft.type === key ? ' active' : ''}`}
+                                                        style={{ '--entry-editor-chip-color': entryType.color } as CSSProperties}
+                                                        onClick={() => setDraft((current) => ({
+                                                            ...current,
+                                                            type: normalizeComparableType(current.type) === key ? null : key,
+                                                        }))}
+                                                    >
+                                                        <EntryTypeIcon entryType={entryType} className="entry-editor-type-chip__icon" />
+                                                        <span>{entryType.name}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {customTypeOptions.length > 0 && (
+                                                <div className="entry-editor-custom-type">
+                                                    <label className="entry-editor-field-label">自定义类型</label>
+                                                    <Select
+                                                        options={customTypeOptions}
+                                                        value={draft.type && customTypeOptions.some(option => option.value === draft.type) ? draft.type : undefined}
+                                                        onChange={(value) => setDraft((current) => {
+                                                            const nextType = normalizeComparableType(typeof value === 'string' ? value : null)
+                                                            return normalizeComparableType(current.type) === nextType
+                                                                ? current
+                                                                : {
+                                                                    ...current,
+                                                                    type: nextType,
+                                                                }
+                                                        })}
+                                                        placeholder="搜索并选择自定义词条类型"
+                                                        searchable
+                                                    />
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                 </div>
-
                                 <div className="entry-editor-meta-panel__section">
                                     <div className="entry-editor-field-label-row">
                                         <label className="entry-editor-field-label">标签</label>
-                                        <Button variant="ghost" size="sm" onClick={() => setTagCreatorOpen(true)}>
-                                            + 新建标签 Schema
-                                        </Button>
+                                        {!isBrowseMode && (
+                                            <div className="entry-editor-tag-actions">
+                                                {availableTagSchemaOptions.length > 0 && (
+                                                    <div className="entry-editor-tag-picker">
+                                                        <Select
+                                                            options={availableTagSchemaOptions}
+                                                            value={tagSchemaPickerValue}
+                                                            onChange={(value) => {
+                                                                if (typeof value !== 'string') return
+                                                                handleAddVisibleTagSchema(value)
+                                                            }}
+                                                            placeholder="添加已有标签"
+                                                            searchable
+                                                        />
+                                                    </div>
+                                                )}
+                                                <Button variant="ghost" size="sm" onClick={() => setTagCreatorOpen(true)}>
+                                                    + 新建标签
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="entry-editor-field-note">
+                                        {draft.type
+                                            ? '当前词条类型的植入标签会重点显示；切换类型后，原有标签只会取消强调，不会被删除。'
+                                            : '未设置词条类型时，仅显示已添加的标签。'}
                                     </div>
                                     {localTagSchemas.length === 0 ? (
                                         <div className="entry-editor-empty-tip">当前项目还没有标签定义，先创建一个再给词条填写。</div>
-                                    ) : (
-                                        <div className="entry-editor-tags-grid">
-                                            {localTagSchemas.map((schema) => (
-                                                <div key={schema.id} className="entry-editor-tag-card">
-                                                    <div className="entry-editor-tag-card__header">
-                                                        <span className="entry-editor-tag-card__title">{schema.name}</span>
-                                                        <span className="entry-editor-tag-card__meta">
-                                                            {formatCategoryMeta(categories, entry?.category_id ?? null)}
-                                                        </span>
-                                                    </div>
-                                                    <TagItem
+                                    ) : isBrowseMode ? (
+                                        readonlyTags.length > 0 ? (
+                                            <div className="entry-editor-tags-grid">
+                                                {readonlyTags.map(({ schema, value }) => (
+                                                    <div
                                                         key={`${entryId}-${schema.id}`}
-                                                        schema={{
-                                                            id: schema.id,
-                                                            name: schema.name,
-                                                            type: schema.type as 'number' | 'string' | 'boolean',
-                                                            range_min: schema.range_min ?? null,
-                                                            range_max: schema.range_max ?? null,
-                                                        }}
-                                                        value={draft.tags[schema.id] ?? undefined}
-                                                        mode="edit"
-                                                        onChange={(value) => setDraft((current) => {
-                                                            const nextValue = normalizeComparableTagValue(value)
-                                                            const currentValue = getComparableTagValue(current.tags, schema)
-                                                            if (currentValue === nextValue) return current
-                                                            return {
-                                                                ...current,
-                                                                tags: {
-                                                                    ...current.tags,
-                                                                    [schema.id]: nextValue,
-                                                                },
-                                                            }
-                                                        })}
-                                                    />
-                                                </div>
-                                            ))}
+                                                        className={`entry-editor-tag-card${implantedTagSchemaIdSet.has(schema.id) ? ' is-implanted' : ''}`}
+                                                    >
+                                                        {implantedTagSchemaIdSet.has(schema.id) && (
+                                                            <span className="entry-editor-tag-card__badge">植入</span>
+                                                        )}
+                                                        <TagItem
+                                                            schema={{
+                                                                id: schema.id,
+                                                                name: schema.name,
+                                                                type: schema.type as 'number' | 'string' | 'boolean',
+                                                                range_min: schema.range_min ?? null,
+                                                                range_max: schema.range_max ?? null,
+                                                            }}
+                                                            value={value}
+                                                            mode="show"
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="entry-editor-empty-tip">当前词条还没有标签值。</div>
+                                        )
+                                    ) : (
+                                        visibleTagSchemas.length > 0 ? (
+                                            <div className="entry-editor-tags-grid">
+                                                {visibleTagSchemas.map((schema) => (
+                                                    <div
+                                                        key={`${entryId}-${schema.id}`}
+                                                        className={`entry-editor-tag-card${implantedTagSchemaIdSet.has(schema.id) ? ' is-implanted' : ''}`}
+                                                    >
+                                                        {implantedTagSchemaIdSet.has(schema.id) && (
+                                                            <span className="entry-editor-tag-card__badge">植入</span>
+                                                        )}
+                                                        <TagItem
+                                                            schema={{
+                                                                id: schema.id,
+                                                                name: schema.name,
+                                                                type: schema.type as 'number' | 'string' | 'boolean',
+                                                                range_min: schema.range_min ?? null,
+                                                                range_max: schema.range_max ?? null,
+                                                            }}
+                                                            value={draft.tags[schema.id] ?? undefined}
+                                                            mode="edit"
+                                                            onChange={(value) => setDraft((current) => {
+                                                                const nextValue = normalizeComparableTagValue(value)
+                                                                const currentValue = getComparableTagValue(current.tags, schema)
+                                                                if (currentValue === nextValue) return current
+                                                                return {
+                                                                    ...current,
+                                                                    tags: {
+                                                                        ...current.tags,
+                                                                        [schema.id]: nextValue,
+                                                                    },
+                                                                }
+                                                            })}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="entry-editor-empty-tip">当前词条还没有已添加标签，可从已有标签中选择，或新建一个标签。</div>
+                                        )
+                                    )}
+                                    <div className="entry-editor-entry-meta">
+                                        <span>路径：{entryPathLabel}</span>
+                                        <span>分类：{getCategoryName(categories, entry?.category_id ?? null)}</span>
+                                        <span>创建于 {entryCreatedAtText}</span>
+                                        <span>更新于 {entryUpdatedAtText}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {editorMode === 'edit' ? (
+                            <div className="entry-editor-markdown">
+                                <div ref={markdownContainerRef} className="entry-editor-markdown-anchor">
+                                    <MarkdownEditor
+                                        key={entryId}
+                                        value={draft.content}
+                                        onChange={(value) => setDraft((current) => (
+                                            current.content === value
+                                                ? current
+                                                : { ...current, content: value }
+                                        ))}
+                                        minHeight={720}
+                                        placeholder="在这里写正文。输入 [[ 可以快速插入双链。"
+                                        textareaProps={{
+                                            onKeyUp: (event) => handleMarkdownCursorSync(event.currentTarget),
+                                            onClick: (event) => handleMarkdownCursorSync(event.currentTarget),
+                                            onSelect: (event) => handleMarkdownCursorSync(event.currentTarget),
+                                            onScroll: (event) => updateWikiPopoverPosition(event.currentTarget as unknown as HTMLTextAreaElement),
+                                            onBlur: () => {
+                                                if (wikiDraftRetainTimerRef.current) {
+                                                    window.clearTimeout(wikiDraftRetainTimerRef.current)
+                                                }
+                                                wikiDraftRetainTimerRef.current = window.setTimeout(() => setWikiDraft(null), 120)
+                                            },
+                                        }}
+                                    />
+
+                                    {wikiDraft && (
+                                        <div
+                                            ref={wikiPopoverRef}
+                                            className="entry-editor-wikilink-popover"
+                                            style={{
+                                                top: `${wikiPopoverPosition.top}px`,
+                                                left: `${wikiPopoverPosition.left}px`,
+                                            }}
+                                        >
+                                            <div className="entry-editor-wikilink-popover__header">
+                                                <span>插入双链</span>
+                                                <span className="entry-editor-wikilink-popover__query">
+                                                    {wikiDraft.query || '继续输入词条名…'}
+                                                </span>
+                                            </div>
+
+                                            <div className="entry-editor-wikilink-popover__list">
+                                                {filteredLinkSuggestions.map((item) => (
+                                                    <button
+                                                        key={item.id}
+                                                        type="button"
+                                                        className="entry-editor-wikilink-option"
+                                                        onMouseDown={(event) => event.preventDefault()}
+                                                        onClick={() => applyWikiLink(item.title)}
+                                                    >
+                                                        <span className="entry-editor-wikilink-option__title">{item.title}</span>
+                                                        <span className="entry-editor-wikilink-option__meta">
+                                                            {getCategoryName(categories, item.category_id)}
+                                                        </span>
+                                                    </button>
+                                                ))}
+
+                                                {!hasExactSuggestion && wikiDraft.query.trim() && (
+                                                    <button
+                                                        type="button"
+                                                        className="entry-editor-wikilink-option is-create"
+                                                        onMouseDown={(event) => event.preventDefault()}
+                                                        onClick={() => void handleCreateLinkedEntry()}
+                                                        disabled={creatingLinkedEntry}
+                                                    >
+                                                        <span className="entry-editor-wikilink-option__title">
+                                                            {creatingLinkedEntry ? '创建中…' : `创建新词条：${wikiDraft.query.trim()}`}
+                                                        </span>
+                                                        <span className="entry-editor-wikilink-option__meta">
+                                                            创建后会立即插入双链
+                                                        </span>
+                                                    </button>
+                                                )}
+
+                                                {!filteredLinkSuggestions.length && (hasExactSuggestion || !wikiDraft.query.trim()) && (
+                                                    <div className="entry-editor-wikilink-empty">
+                                                        {wikiDraft.query.trim() ? '没有更多匹配项' : '继续输入词条名以搜索'}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </section>
-
-                <section className="entry-editor-workspace">
-                    <div className="entry-editor-workspace__header">
-                        <div>
-                            <h2 className="entry-editor-workspace__title">正文编辑</h2>
-                            <p className="entry-editor-workspace__desc">
-                                {editorMode === 'edit'
-                                    ? '输入 [[ 可搜索当前项目词条并插入双链。'
-                                    : '单击双链查看预览，双击或按钮可在新页签打开。'}
-                            </p>
-                        </div>
-                        <span className="entry-editor-workspace__meta">
-                            {projectDataLoading ? '正在索引项目词条…' : `${projectEntries.length} 个词条可用于双链联想`}
-                        </span>
-                    </div>
-
-                    <div className="entry-editor-workspace__body">
-                        {editorMode === 'edit' ? (
-                            <div className="entry-editor-markdown">
-                                <MarkdownEditor
-                                    key={entryId}
-                                    value={draft.content}
-                                    onChange={(value) => setDraft((current) => (
-                                        normalizeComparableText(current.content) === normalizeComparableText(value)
-                                            ? current
-                                            : { ...current, content: value }
-                                    ))}
-                                    minHeight={720}
-                                    placeholder="在这里写正文。输入 [[ 可以快速插入双链。"
-                                    textareaProps={{
-                                        onKeyUp: (event) => handleMarkdownCursorSync(event.currentTarget),
-                                        onClick: (event) => handleMarkdownCursorSync(event.currentTarget),
-                                        onSelect: (event) => handleMarkdownCursorSync(event.currentTarget),
-                                        onBlur: () => {
-                                            if (wikiDraftRetainTimerRef.current) {
-                                                window.clearTimeout(wikiDraftRetainTimerRef.current)
-                                            }
-                                            wikiDraftRetainTimerRef.current = window.setTimeout(() => setWikiDraft(null), 120)
-                                        },
-                                    }}
-                                />
-
-                                {wikiDraft && (
-                                    <div className="entry-editor-wikilink-popover">
-                                        <div className="entry-editor-wikilink-popover__header">
-                                            <span>插入双链</span>
-                                            <span className="entry-editor-wikilink-popover__query">
-                                                {wikiDraft.query || '继续输入词条名…'}
-                                            </span>
-                                        </div>
-
-                                        <div className="entry-editor-wikilink-popover__list">
-                                            {filteredLinkSuggestions.map((item) => (
-                                                <button
-                                                    key={item.id}
-                                                    type="button"
-                                                    className="entry-editor-wikilink-option"
-                                                    onMouseDown={(event) => event.preventDefault()}
-                                                    onClick={() => applyWikiLink(item.title)}
-                                                >
-                                                    <span className="entry-editor-wikilink-option__title">{item.title}</span>
-                                                    <span className="entry-editor-wikilink-option__meta">
-                                                        {getCategoryName(categories, item.category_id)}
-                                                    </span>
-                                                </button>
-                                            ))}
-
-                                            {!hasExactSuggestion && wikiDraft.query.trim() && (
-                                                <button
-                                                    type="button"
-                                                    className="entry-editor-wikilink-option is-create"
-                                                    onMouseDown={(event) => event.preventDefault()}
-                                                    onClick={() => void handleCreateLinkedEntry()}
-                                                    disabled={creatingLinkedEntry}
-                                                >
-                                                    <span className="entry-editor-wikilink-option__title">
-                                                        {creatingLinkedEntry ? '创建中…' : `创建新词条：${wikiDraft.query.trim()}`}
-                                                    </span>
-                                                    <span className="entry-editor-wikilink-option__meta">
-                                                        创建后会立即插入双链
-                                                    </span>
-                                                </button>
-                                            )}
-
-                                            {!filteredLinkSuggestions.length && (hasExactSuggestion || !wikiDraft.query.trim()) && (
-                                                <div className="entry-editor-wikilink-empty">
-                                                    {wikiDraft.query.trim() ? '没有更多匹配项' : '继续输入词条名以搜索'}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                         ) : (
-                            <div className="entry-editor-preview">
-                                <MDEditor.Markdown
-                                    source={buildMarkdownPreviewSource(draft.content)}
-                                    style={{ whiteSpace: 'pre-wrap', background: 'transparent' }}
-                                    components={{
-                                        a: ({ href, children }) => {
-                                            if (typeof href === 'string' && href.startsWith('entry://')) {
-                                                const title = decodeURIComponent(href.replace('entry://', ''))
-                                                return (
-                                                    <button
-                                                        type="button"
-                                                        className="entry-editor-inline-link"
-                                                        onClick={() => {
-                                                            const target = projectEntries.find((item) => item.title === title)
-                                                            setLinkPreview({
-                                                                title,
-                                                                entryId: target?.id ?? null,
-                                                            })
-                                                        }}
-                                                        onDoubleClick={() => handleOpenLinkedEntryByTitle(title)}
-                                                    >
-                                                        {children}
-                                                    </button>
-                                                )
-                                            }
-                                            return <a href={href}>{children}</a>
-                                        },
-                                    }}
+                            <div
+                                className="entry-editor-preview"
+                                onClick={(e) => {
+                                    const anchor = (e.target as Element).closest('a')
+                                    if (!anchor) return
+                                    const href = anchor.getAttribute('href') ?? ''
+                                    if (href.startsWith('entry://')) {
+                                        e.preventDefault()
+                                        const title = decodeURIComponent(href.slice('entry://'.length))
+                                        void ensureProjectEntriesLoaded().then(() => {
+                                            const target = projectEntriesRef.current.find((item) => item.title === title)
+                                            setLinkPreview({ title, entryId: target?.id ?? null })
+                                        })
+                                    }
+                                }}
+                                onDoubleClick={(e) => {
+                                    const anchor = (e.target as Element).closest('a')
+                                    if (!anchor) return
+                                    const href = anchor.getAttribute('href') ?? ''
+                                    if (href.startsWith('entry://')) {
+                                        e.preventDefault()
+                                        const title = decodeURIComponent(href.slice('entry://'.length))
+                                        void ensureProjectEntriesLoaded().then(() => {
+                                            handleOpenLinkedEntryByTitle(title)
+                                        })
+                                    }
+                                }}
+                            >
+                                <MarkdownEditor
+                                    mode="preview"
+                                    value={previewContent}
+                                    onChange={() => {}}
+                                    background={"transparent"}
                                 />
 
                                 {linkPreview && (
@@ -1099,24 +1461,21 @@ export default function EntryEditor({
                                         {linkPreviewEntry ? (
                                             <div className="entry-editor-link-preview__body">
                                                 <div className="entry-editor-link-preview__media">
-                                                    {toEntryImageSrc(getCoverImage(normalizeEntryImages(linkPreviewEntry.images))) ? (
-                                                        <img
-                                                            src={toEntryImageSrc(getCoverImage(normalizeEntryImages(linkPreviewEntry.images)))}
-                                                            alt={linkPreviewEntry.title}
-                                                        />
-                                                    ) : (
-                                                        <div className="entry-editor-link-preview__placeholder">
-                                                            {linkPreviewEntry.title[0] ?? '词'}
-                                                        </div>
-                                                    )}
+                                                    {(() => {
+                                                        const previewCoverSrc = toEntryImageSrc(getCoverImage(normalizeEntryImages(linkPreviewEntry.images)))
+                                                        return previewCoverSrc ? (
+                                                            <img src={previewCoverSrc} alt={linkPreviewEntry.title} />
+                                                        ) : (
+                                                            <div className="entry-editor-link-preview__placeholder">
+                                                                {linkPreviewEntry.title[0] ?? '词'}
+                                                            </div>
+                                                        )
+                                                    })()}
                                                 </div>
                                                 <div className="entry-editor-link-preview__content">
                                                     <h3>{linkPreviewEntry.title}</h3>
                                                     <p className="entry-editor-link-preview__summary">
                                                         {linkPreviewEntry.summary || '暂无摘要'}
-                                                    </p>
-                                                    <p className="entry-editor-link-preview__excerpt">
-                                                        {buildExcerpt(linkPreviewEntry.content)}
                                                     </p>
                                                     <div className="entry-editor-link-preview__actions">
                                                         <Button
@@ -1185,72 +1544,17 @@ export default function EntryEditor({
                 )}
             </div>
 
-            {lightboxOpen && lightboxImages.length > 0 && (
-                <div className="entry-editor-lightbox" onClick={(event) => {
-                    if (event.target === event.currentTarget) setLightboxOpen(false)
-                }}>
-                    <div className="entry-editor-lightbox__dialog">
-                        <div className="entry-editor-lightbox__toolbar">
-                            <div className="entry-editor-lightbox__meta">
-                                <span>{lightboxIndex + 1} / {lightboxImages.length}</span>
-                                {lightboxImages[lightboxIndex]?.is_cover && <span className="entry-editor-lightbox__badge">主图</span>}
-                            </div>
-                            <div className="entry-editor-lightbox__actions">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleSetCover(lightboxIndex)}
-                                >
-                                    设为主图
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRemoveImage(lightboxIndex)}
-                                >
-                                    移除
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setLightboxOpen(false)}
-                                >
-                                    关闭
-                                </Button>
-                            </div>
-                        </div>
-
-                        <div className="entry-editor-lightbox__main">
-                            {lightboxImages[lightboxIndex]?.src ? (
-                                <img
-                                    src={lightboxImages[lightboxIndex].src}
-                                    alt={lightboxImages[lightboxIndex].alt || infoTitle}
-                                    className="entry-editor-lightbox__image"
-                                />
-                            ) : (
-                                <div className="entry-editor-lightbox__empty">图片路径不可预览</div>
-                            )}
-                        </div>
-
-                        <div className="entry-editor-lightbox__thumbs">
-                            {lightboxImages.map((image, index) => (
-                                <button
-                                    key={`${image.path ?? image.url ?? index}-${index}`}
-                                    type="button"
-                                    className={`entry-editor-lightbox__thumb${index === lightboxIndex ? ' active' : ''}`}
-                                    onClick={() => setLightboxIndex(index)}
-                                >
-                                    {image.src ? (
-                                        <img src={image.src} alt={image.alt || `${infoTitle} ${index + 1}`} />
-                                    ) : (
-                                        <span>{index + 1}</span>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
+            <EntryImageLightbox
+                open={lightboxOpen}
+                images={lightboxImages}
+                currentIndex={lightboxIndex}
+                infoTitle={infoTitle}
+                onClose={() => setLightboxOpen(false)}
+                onIndexChange={setLightboxIndex}
+                onSetCover={handleSetCover}
+                onRemove={handleRemoveImage}
+                onAddImage={() => void handleUploadImages()}
+            />
 
             <TagCreator
                 open={tagCreatorOpen}

@@ -19,7 +19,10 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, Runtime, WindowBuilder};
+use tauri::{
+    AppHandle, Manager, Runtime, UriSchemeContext, WindowBuilder,
+    http::{Response, StatusCode, header::CONTENT_TYPE},
+};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_log;
 use tokio::sync::Mutex;
@@ -36,6 +39,9 @@ pub struct SettingsState {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .register_uri_scheme_protocol("fcimg", |ctx, request| {
+            handle_fcimg_request(ctx, request)
+        })
         .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
             log::info!("Single instance detected, quitting.");
             exit(0);
@@ -147,6 +153,8 @@ pub fn run() {
             db_delete_entry,
             db_create_entries_bulk,
             db_optimize_fts,
+            import_entry_images,
+            open_entry_image_path,
             // Tag Schemas
             db_create_tag_schema,
             db_get_tag_schema,
@@ -242,4 +250,108 @@ fn fatal<R: Runtime, M: Manager<R>>(manager: &M, msg: &str) -> ! {
             .map(|w| w.dialog().message(msg).blocking_show());
     }
     exit(1);
+}
+
+fn build_fcimg_response(
+    status: StatusCode,
+    body: Vec<u8>,
+    content_type: Option<&str>,
+) -> Response<Vec<u8>> {
+    let mut builder = Response::builder().status(status);
+    if let Some(content_type) = content_type {
+        builder = builder.header(CONTENT_TYPE, content_type);
+    }
+    builder.body(body).expect("failed to build fcimg response")
+}
+
+fn handle_fcimg_request<R: Runtime>(
+    ctx: UriSchemeContext<R>,
+    request: tauri::http::Request<Vec<u8>>,
+) -> Response<Vec<u8>> {
+    let Some(paths) = ctx.app_handle().try_state::<PathsState>() else {
+        return build_fcimg_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            b"paths state unavailable".to_vec(),
+            Some("text/plain; charset=utf-8"),
+        )
+    };
+
+    let raw_uri = request.uri().to_string();
+    let encoded_path = request
+        .uri()
+        .path()
+        .trim_start_matches('/');
+    if encoded_path.is_empty() {
+        return build_fcimg_response(
+            StatusCode::BAD_REQUEST,
+            b"missing image path".to_vec(),
+            Some("text/plain; charset=utf-8"),
+        )
+    }
+
+    let decoded_path = match urlencoding::decode(encoded_path) {
+        Ok(value) => value.into_owned(),
+        Err(_) => {
+            return build_fcimg_response(
+                StatusCode::BAD_REQUEST,
+                format!("invalid image path: {}", raw_uri).into_bytes(),
+                Some("text/plain; charset=utf-8"),
+            )
+        }
+    };
+
+    let requested_path = PathBuf::from(decoded_path);
+    let canonical_requested = match std::fs::canonicalize(&requested_path) {
+        Ok(path) => path,
+        Err(_) => {
+            return build_fcimg_response(
+                StatusCode::NOT_FOUND,
+                b"image not found".to_vec(),
+                Some("text/plain; charset=utf-8"),
+            )
+        }
+    };
+
+    let Some(db_dir) = paths.db_path.parent() else {
+        return build_fcimg_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            b"invalid db path".to_vec(),
+            Some("text/plain; charset=utf-8"),
+        )
+    };
+    let images_root = db_dir.join("images");
+    let canonical_images_root = match std::fs::canonicalize(&images_root) {
+        Ok(path) => path,
+        Err(_) => {
+            return build_fcimg_response(
+                StatusCode::NOT_FOUND,
+                b"images root not found".to_vec(),
+                Some("text/plain; charset=utf-8"),
+            )
+        }
+    };
+
+    if !canonical_requested.starts_with(&canonical_images_root) {
+        return build_fcimg_response(
+            StatusCode::FORBIDDEN,
+            b"forbidden".to_vec(),
+            Some("text/plain; charset=utf-8"),
+        )
+    }
+
+    let bytes = match std::fs::read(&canonical_requested) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            return build_fcimg_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                b"failed to read image".to_vec(),
+                Some("text/plain; charset=utf-8"),
+            )
+        }
+    };
+    let mime = mime_guess::from_path(&canonical_requested)
+        .first_or_octet_stream()
+        .to_string();
+
+    build_fcimg_response(StatusCode::OK, bytes, Some(&mime))
 }

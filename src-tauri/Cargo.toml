@@ -34,3 +34,6 @@ quick-xml = "0.39"
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 petgraph = "0.6"
+uuid = { version = "1", features = ["v4"] }
+mime_guess = "2"
+urlencoding = "2"

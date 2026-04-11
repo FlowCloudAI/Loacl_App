@@ -327,6 +327,12 @@ export const db_create_entries_bulk = (entries: CreateEntryInput[]) =>
 
 export const db_optimize_fts = () => command<void>('db_optimize_fts')
 
+export const import_entry_images = (projectId: string, filePaths: string[]) =>
+    command<FCImage[]>('import_entry_images', {projectId, filePaths})
+
+export const open_entry_image_path = (path: string) =>
+    command<void>('open_entry_image_path', {path})
+
 export const db_create_tag_schema = ({
                                          projectId,
                                          name,

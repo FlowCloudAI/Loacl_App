@@ -1,3 +1,4 @@
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { memo, type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Card, Input, RollingBox } from 'flowcloudai-ui'
 import {
@@ -40,6 +41,12 @@ function formatDate(s?: string | null): string {
 function placeholderMark(title: string): string {
     const trimmed = title.trim()
     return trimmed ? trimmed[0] : '词'
+}
+
+function toEntryCoverSrc(cover?: string | null): string | undefined {
+    if (!cover) return undefined
+    if (/^(https?:|data:|blob:|asset:|fcimg:)/i.test(cover)) return cover
+    return convertFileSrc(String(cover), 'fcimg')
 }
 
 function sortEntries(entries: EntryBrief[], mode: SortMode): EntryBrief[] {
@@ -187,27 +194,36 @@ function CategoryView({categoryId, projectId, entryTypes, onEntryCreated, onOpen
                             const entryType = entry.type
                                 ? entryTypes.find((et) => entryTypeKey(et) === entry.type)
                                 : null
+                            const coverSrc = toEntryCoverSrc(entry.cover)
 
                             return (
                                 <Card
                                     key={entry.id}
                                     className="pe-entry-card"
                                     imageSlot={(
-                                        <div
-                                            className="pe-entry-placeholder"
-                                            style={{'--entry-accent-color': entryType?.color ?? 'var(--fc-color-primary)'} as CSSProperties}
-                                        >
-                                            <div className="pe-entry-placeholder__icon">
-                                                {entryType ? (
-                                                    <EntryTypeIcon entryType={entryType} className="pe-entry-placeholder__type-icon"/>
-                                                ) : (
-                                                    <span className="pe-entry-placeholder__mark">{placeholderMark(entry.title)}</span>
-                                                )}
+                                        coverSrc ? (
+                                            <img
+                                                src={coverSrc}
+                                                alt={entry.title}
+                                                className="pe-entry-cover"
+                                            />
+                                        ) : (
+                                            <div
+                                                className="pe-entry-placeholder"
+                                                style={{'--entry-accent-color': entryType?.color ?? 'var(--fc-color-primary)'} as CSSProperties}
+                                            >
+                                                <div className="pe-entry-placeholder__icon">
+                                                    {entryType ? (
+                                                        <EntryTypeIcon entryType={entryType} className="pe-entry-placeholder__type-icon"/>
+                                                    ) : (
+                                                        <span className="pe-entry-placeholder__mark">{placeholderMark(entry.title)}</span>
+                                                    )}
+                                                </div>
+                                                <div className="pe-entry-placeholder__mark pe-entry-placeholder__mark--ghost">
+                                                    {placeholderMark(entry.title)}
+                                                </div>
                                             </div>
-                                            <div className="pe-entry-placeholder__mark pe-entry-placeholder__mark--ghost">
-                                                {placeholderMark(entry.title)}
-                                            </div>
-                                        </div>
+                                        )
                                     )}
                                     title={entry.title}
                                     description={entry.summary || '这个词条还没有摘要，点击后可继续补充设定内容。'}

@@ -25,6 +25,25 @@ function parseOptionalNumber(raw: string): number | null {
     return Number(trimmed)
 }
 
+function normalizeTagTargets(target: string[] | string | null | undefined): string[] {
+    if (Array.isArray(target)) {
+        return [...new Set(target.map(item => item.trim()).filter(Boolean))]
+    }
+    if (typeof target !== 'string') return []
+
+    const trimmed = target.trim()
+    if (!trimmed) return []
+
+    try {
+        const parsed = JSON.parse(trimmed) as unknown
+        if (parsed !== target) return normalizeTagTargets(parsed as string[] | string | null | undefined)
+    } catch {
+        // 兼容旧数据里可能存在的逗号分隔字符串
+    }
+
+    return [...new Set(trimmed.split(',').map(item => item.trim()).filter(Boolean))]
+}
+
 interface TagCreatorProps {
     open: boolean
     projectId: string
@@ -71,7 +90,7 @@ export default function TagCreator({
             setDefaultValue(initialTag?.default_val ?? '')
             setRangeMin(initialTag?.range_min != null ? String(initialTag.range_min) : '')
             setRangeMax(initialTag?.range_max != null ? String(initialTag.range_max) : '')
-            setSelectedTargets(initialTag?.target?.length ? initialTag.target : allTargetKeys)
+            setSelectedTargets(normalizeTagTargets(initialTag?.target))
             setApiError(null)
             setSubmitting(false)
         }
@@ -131,11 +150,8 @@ export default function TagCreator({
         }
     }
 
-    const requiresTargetSelection = isEditMode
-
     const canSubmit = trimmedName.length > 0 &&
         !isDuplicate &&
-        (!requiresTargetSelection || selectedTargets.length > 0) &&
         !hasInvalidRangeMin &&
         !hasInvalidRangeMax &&
         !hasInvalidRangeOrder &&
@@ -164,7 +180,7 @@ export default function TagCreator({
                 name: trimmedName,
                 description: trimmedDescription || null,
                 type: valueType,
-                target: selectedTargets,
+                target: normalizeTagTargets(selectedTargets),
                 defaultVal: normalizedDefaultValue,
                 rangeMin: valueType === 'number' ? parsedRangeMin : null,
                 rangeMax: valueType === 'number' ? parsedRangeMax : null,
@@ -263,12 +279,7 @@ export default function TagCreator({
 
                     <div className="tag-creator-field">
                         <div className="tag-creator-label-row">
-                            <label className="tag-creator-label">
-                                适用词条类型
-                                {requiresTargetSelection && (
-                                    <span className="tag-creator-required" aria-hidden="true"> *</span>
-                                )}
-                            </label>
+                            <label className="tag-creator-label">植入词条类型</label>
                             <div className="tag-creator-mini-actions">
                                 <button
                                     type="button"
@@ -288,6 +299,9 @@ export default function TagCreator({
                                 </button>
                             </div>
                         </div>
+                        <p className="tag-creator-field-hint">
+                            选中的词条类型会默认植入这个标签；不植入的情况下，它会作为可手动添加的自由标签。
+                        </p>
 
                         <div className="tag-creator-target-grid">
                             {entryTypes.map(entryType => {
@@ -309,9 +323,6 @@ export default function TagCreator({
                                 )
                             })}
                         </div>
-                        {requiresTargetSelection && selectedTargets.length === 0 && (
-                            <p className="tag-creator-field-hint error">至少选择一个词条类型</p>
-                        )}
                     </div>
 
                     <div className="tag-creator-field">

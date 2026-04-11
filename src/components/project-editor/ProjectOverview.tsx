@@ -87,7 +87,7 @@ function normalizeTagTargets(target: TagSchema['target'] | string | null | undef
 
 function formatTagTargets(tag: TagSchema, entryTypeNameMap: Map<string, string>): string {
     const targets = normalizeTagTargets(tag.target)
-    if (!targets.length) return '未设置适用类型'
+    if (!targets.length) return '未设置植入类型'
     return targets.map(target => entryTypeNameMap.get(target) ?? target).join('、')
 }
 
@@ -372,7 +372,7 @@ function ProjectOverview({
                                             {tag.description || '暂无描述'}
                                         </p>
                                         <p className="pe-config-item__meta">
-                                            适用类型：{formatTagTargets(tag, entryTypeNameMap)}
+                                            植入类型：{formatTagTargets(tag, entryTypeNameMap)}
                                         </p>
                                     </div>
 

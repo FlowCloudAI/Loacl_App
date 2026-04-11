@@ -1,4 +1,4 @@
-import {memo, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState} from 'react'
+import React, {memo, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Tree, flatToTree, type DropPosition} from 'flowcloudai-ui'
 import {
     db_count_entries,
@@ -26,6 +26,7 @@ import './ProjectEditor.css'
 const TREE_MIN_WIDTH = '15rem'
 const TREE_MAX_WIDTH = '22rem'
 const TREE_DEFAULT_PX = 256
+const TREE_COLLAPSE_THRESHOLD_RATIO = 1 / 5
 const ROOT_ID = '__project_root__'
 
 interface Props {
@@ -43,8 +44,11 @@ type ProjectPanel = 'overview' | 'relation-graph'
 
 function ProjectEditorInner({projectId, activeEntryId = null, openEntryIds = [], onOpenEntry, onEntryTitleChange, onBackToProject, onEntryDirtyChange}: Props) {
     const [treeWidth, setTreeWidth] = useState(TREE_DEFAULT_PX)
+    const [treeCollapsed, setTreeCollapsed] = useState(false)
     const [dividerDragging, setDividerDragging] = useState(false)
     const isDragging = useRef(false)
+    const layoutRef = useRef<HTMLDivElement>(null)
+    const lastExpandedWidthRef = useRef(TREE_DEFAULT_PX)
 
     const [project, setProject] = useState<Project | null>(null)
     const [categories, setCategories] = useState<Category[]>([])
@@ -128,24 +132,65 @@ function ProjectEditorInner({projectId, activeEntryId = null, openEntryIds = [],
         }
     }, [fetchAll])
 
-    const minPx = parseFloat(getComputedStyle(document.documentElement).fontSize) *
-        parseFloat(TREE_MIN_WIDTH)
-    const maxPx = parseFloat(getComputedStyle(document.documentElement).fontSize) *
-        parseFloat(TREE_MAX_WIDTH)
+    useEffect(() => {
+        if (!treeCollapsed) {
+            lastExpandedWidthRef.current = treeWidth
+        }
+    }, [treeCollapsed, treeWidth])
+
+    const expandTree = useCallback(() => {
+        const nextWidth = lastExpandedWidthRef.current || TREE_DEFAULT_PX
+        setTreeCollapsed(false)
+        setTreeWidth(nextWidth)
+        layoutRef.current?.style.setProperty('--pe-tree-width', `${nextWidth}px`)
+    }, [])
+
+    const collapseTree = useCallback(() => {
+        setTreeCollapsed(true)
+        layoutRef.current?.style.setProperty('--pe-tree-width', '0px')
+    }, [])
 
     const handleDividerMouseDown = (e: ReactMouseEvent) => {
         e.preventDefault()
         isDragging.current = true
         setDividerDragging(true)
+        const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize)
+        const minPx = rootFontSize * parseFloat(TREE_MIN_WIDTH)
+        const maxPx = rootFontSize * parseFloat(TREE_MAX_WIDTH)
         const startX = e.clientX
-        const startWidth = treeWidth
+        const startWidth = treeCollapsed ? (lastExpandedWidthRef.current || TREE_DEFAULT_PX) : treeWidth
+        const collapseThreshold = startWidth * TREE_COLLAPSE_THRESHOLD_RATIO
+        let currentWidth = startWidth
+        let shouldCollapse = false
+        const layout = layoutRef.current
+        const collapsePreviewClassName = 'is-divider-collapse-preview'
+
+        if (treeCollapsed) {
+            setTreeCollapsed(false)
+            layout?.style.setProperty('--pe-tree-width', `${startWidth}px`)
+        }
+        layout?.classList.remove(collapsePreviewClassName)
+
         const onMove = (ev: MouseEvent) => {
-            const next = Math.min(maxPx, Math.max(minPx, startWidth + ev.clientX - startX))
-            setTreeWidth(next)
+            const rawWidth = startWidth + ev.clientX - startX
+            currentWidth = Math.min(maxPx, Math.max(minPx, rawWidth))
+            shouldCollapse = rawWidth <= collapseThreshold
+            layout?.classList.toggle(collapsePreviewClassName, shouldCollapse)
+            // 直接写 CSS 变量，完全绕过 React 渲染
+            layout?.style.setProperty('--pe-tree-width', shouldCollapse ? '0px' : `${currentWidth}px`)
         }
         const onUp = () => {
             isDragging.current = false
-            setDividerDragging(false)
+            layout?.classList.remove(collapsePreviewClassName)
+            if (shouldCollapse) {
+                setDividerDragging(false)
+                setTreeCollapsed(true)
+                layout?.style.setProperty('--pe-tree-width', '0px')
+            } else {
+                setDividerDragging(false)
+                setTreeCollapsed(false)
+                setTreeWidth(currentWidth)
+            }
             document.removeEventListener('mousemove', onMove)
             document.removeEventListener('mouseup', onUp)
         }
@@ -300,36 +345,54 @@ function ProjectEditorInner({projectId, activeEntryId = null, openEntryIds = [],
         }
     }
 
-    const flatRows = [
-        {id: ROOT_ID, parent_id: null as string | null, name: project?.name ?? '…', sort_order: 0},
-        ...categories.map(c => ({
-            id: c.id,
-            parent_id: c.parent_id ?? ROOT_ID,
-            name: c.name,
-            sort_order: c.sort_order,
-        })),
-    ]
-    const {roots} = flatToTree(flatRows)
+    const {roots} = useMemo(() => {
+        const flatRows = [
+            {id: ROOT_ID, parent_id: null as string | null, name: project?.name ?? '…', sort_order: 0},
+            ...categories.map(c => ({
+                id: c.id,
+                parent_id: c.parent_id ?? ROOT_ID,
+                name: c.name,
+                sort_order: c.sort_order,
+            })),
+        ]
+        return flatToTree(flatRows)
+    }, [project?.name, categories])
 
     if (!project) {
         return <div className="pe-loading">加载中…</div>
     }
 
     return (
-        <div className="pe-layout">
-            <div className="pe-tree-panel" style={{width: treeWidth}}>
-                <Tree
-                    treeData={roots}
-                    selectedKey={selectedKey}
-                    defaultExpandedKeys={[ROOT_ID]}
-                    scrollHeight="100%"
-                    onSelect={handleSelect}
-                    onRename={handleRename}
-                    onCreate={handleCreate}
-                    onDelete={handleDelete}
-                    onMove={handleMove}
-                    searchable
-                />
+        <div
+            className={`pe-layout ${treeCollapsed ? 'is-tree-collapsed' : ''} ${dividerDragging ? 'is-divider-dragging' : ''}`}
+            ref={layoutRef}
+            style={{'--pe-tree-width': `${treeCollapsed ? 0 : treeWidth}px`} as React.CSSProperties}
+        >
+            <div className="pe-tree-panel">
+                <div className="pe-tree-panel__header">
+                    <button
+                        type="button"
+                        className="pe-tree-toggle"
+                        onClick={treeCollapsed ? expandTree : collapseTree}
+                    >
+                        {treeCollapsed ? '展开' : '收起'}
+                    </button>
+                </div>
+
+                <div className="pe-tree-panel__body">
+                    <Tree
+                        treeData={roots}
+                        selectedKey={selectedKey}
+                        defaultExpandedKeys={[ROOT_ID]}
+                        scrollHeight="100%"
+                        onSelect={handleSelect}
+                        onRename={handleRename}
+                        onCreate={handleCreate}
+                        onDelete={handleDelete}
+                        onMove={handleMove}
+                        searchable
+                    />
+                </div>
             </div>
 
             <div

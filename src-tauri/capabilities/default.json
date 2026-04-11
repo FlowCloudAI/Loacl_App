@@ -9,6 +9,7 @@
     "core:default",
     "log:allow-log",
     "opener:default",
+    "opener:allow-open-path",
     "dialog:default",
     "core:window:allow-start-dragging",
     "core:window:allow-minimize",
