@@ -24,6 +24,15 @@ pub fn save_map_shape_scene(
         .and_then(|meta| meta.request_id.clone())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
+    log::info!(
+        "收到地图保存请求：request_id={}，图形数={}，关键地点数={}，画布={}x{}",
+        request_id,
+        request.shapes.len(),
+        request.key_locations.len(),
+        request.canvas.width,
+        request.canvas.height
+    );
+
     validate_request(&request, &request_id)?;
 
     let meta_ext = request.meta.as_ref().and_then(|meta| meta.ext.clone());
@@ -89,8 +98,19 @@ fn validate_request(
     }
 
     if field_errors.is_empty() {
+        log::info!(
+            "地图草稿校验通过：request_id={}，图形数={}，关键地点数={}",
+            request_id,
+            request.shapes.len(),
+            request.key_locations.len()
+        );
         Ok(())
     } else {
+        log::warn!(
+            "地图草稿校验失败：request_id={}，错误数={}",
+            request_id,
+            field_errors.len()
+        );
         Err(MapShapeSaveErrorResponse {
             code: "MAP_SHAPE_VALIDATION_FAILED".to_string(),
             message: "地图草稿校验失败，请根据字段提示修正后再提交。".to_string(),
@@ -179,7 +199,7 @@ fn validate_id_uniqueness(
 }
 
 fn push_duplicate_id_errors<'a>(
-    ids: impl Iterator<Item=&'a str>,
+    ids: impl Iterator<Item = &'a str>,
     field: &str,
     code: &str,
     message: &str,
@@ -356,13 +376,20 @@ fn build_preview_shapes(
         .iter()
         .enumerate()
         .map(|(index, shape)| {
+            log::info!(
+                "开始构建预览图形：index={}，shape_id={}，name={}，原始顶点数={}",
+                index,
+                shape.id,
+                shape.name,
+                shape.vertices.len()
+            );
             let related_locations = key_locations
                 .iter()
                 .filter(|location| location.shape_id.as_deref() == Some(shape.id.as_str()))
                 .cloned()
                 .collect::<Vec<_>>();
 
-            MapPreviewShape {
+            let preview_shape = MapPreviewShape {
                 id: shape.id.clone(),
                 name: shape.name.clone(),
                 polygon: build_natural_coastline_polygon(canvas, shape, &related_locations),
@@ -371,7 +398,15 @@ fn build_preview_shapes(
                 biz_id: shape.biz_id.clone(),
                 kind: Some(shape.kind.clone().unwrap_or(MapShapeKind::Coastline)),
                 ext: shape.ext.clone(),
-            }
+            };
+
+            log::info!(
+                "预览图形构建完成：shape_id={}，输出顶点数={}",
+                preview_shape.id,
+                preview_shape.polygon.len()
+            );
+
+            preview_shape
         })
         .collect()
 }

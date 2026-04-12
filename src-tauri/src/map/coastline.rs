@@ -12,19 +12,69 @@ use crate::map::constants::{
 };
 use crate::map::geometry::{find_polygon_self_intersections, is_point_in_polygon};
 use crate::map::types::{MapEditorCanvas, MapKeyLocationDraft, MapShapeDraft, MapShapeVertex};
+use std::time::Instant;
 
 pub fn build_natural_coastline_polygon(
     canvas: &MapEditorCanvas,
     shape: &MapShapeDraft,
     related_locations: &[MapKeyLocationDraft],
 ) -> Vec<[f64; 2]> {
+    let started_at = Instant::now();
+    log::info!(
+        "开始海岸线计算：shape_id={}，name={}，原始顶点数={}，关联关键地点数={}",
+        shape.id,
+        shape.name,
+        shape.vertices.len(),
+        related_locations.len()
+    );
+
     if shape.vertices.len() < 3 {
+        log::warn!(
+            "海岸线计算直接返回原始轮廓：shape_id={}，原因=顶点数不足，顶点数={}",
+            shape.id,
+            shape.vertices.len()
+        );
         return to_polygon(&shape.vertices);
     }
 
     let naturalized = naturalize_vertices(canvas, shape);
     if coastline_is_usable(&naturalized, related_locations) {
+        log::info!(
+            "海岸线计算成功：shape_id={}，分支=自然化，输出顶点数={}，耗时={}ms",
+            shape.id,
+            naturalized.len(),
+            started_at.elapsed().as_millis()
+        );
         return to_polygon(&naturalized);
+    }
+
+    let naturalized_intersections = find_polygon_self_intersections(&naturalized);
+    if !naturalized_intersections.is_empty() {
+        log::warn!(
+            "海岸线自然化结果不可用：shape_id={}，原因=自交，交叉数={}，输出顶点数={}",
+            shape.id,
+            naturalized_intersections.len(),
+            naturalized.len()
+        );
+    } else {
+        let outside_count = related_locations
+            .iter()
+            .filter(|location| {
+                let point = MapShapeVertex {
+                    id: location.id.clone(),
+                    x: location.x,
+                    y: location.y,
+                };
+                !is_point_in_polygon(&point, &naturalized)
+            })
+            .count();
+        if outside_count > 0 {
+            log::warn!(
+                "海岸线自然化结果不可用：shape_id={}，原因=关键地点落到轮廓外，数量={}",
+                shape.id,
+                outside_count
+            );
+        }
     }
 
     let smoothed = relax_polygon(
@@ -33,9 +83,21 @@ pub fn build_natural_coastline_polygon(
         COASTLINE_FALLBACK_RELAX_WEIGHT,
     );
     if coastline_is_usable(&smoothed, related_locations) {
+        log::info!(
+            "海岸线计算成功：shape_id={}，分支=回退平滑，输出顶点数={}，耗时={}ms",
+            shape.id,
+            smoothed.len(),
+            started_at.elapsed().as_millis()
+        );
         return to_polygon(&smoothed);
     }
 
+    log::warn!(
+        "海岸线计算失败并返回原始轮廓：shape_id={}，原始顶点数={}，耗时={}ms",
+        shape.id,
+        shape.vertices.len(),
+        started_at.elapsed().as_millis()
+    );
     to_polygon(&shape.vertices)
 }
 
@@ -54,6 +116,7 @@ fn naturalize_vertices(canvas: &MapEditorCanvas, shape: &MapShapeDraft) -> Vec<M
     let mut refined = Vec::new();
     refined.push(vertices[0].clone());
 
+    let mut skipped_zero_length = 0usize;
     for edge_index in 0..vertices.len() {
         let start = &vertices[edge_index];
         let end = &vertices[(edge_index + 1) % vertices.len()];
@@ -61,6 +124,7 @@ fn naturalize_vertices(canvas: &MapEditorCanvas, shape: &MapShapeDraft) -> Vec<M
         let dy = end.y - start.y;
         let edge_length = (dx * dx + dy * dy).sqrt();
         if edge_length <= f64::EPSILON {
+            skipped_zero_length += 1;
             continue;
         }
 
@@ -96,8 +160,19 @@ fn naturalize_vertices(canvas: &MapEditorCanvas, shape: &MapShapeDraft) -> Vec<M
         }
     }
 
+    let raw_refined_len = refined.len();
     let refined = dedupe_adjacent_vertices(refined);
-    relax_polygon(&refined, COASTLINE_RELAX_PASSES, COASTLINE_RELAX_WEIGHT)
+    let relaxed = relax_polygon(&refined, COASTLINE_RELAX_PASSES, COASTLINE_RELAX_WEIGHT);
+    log::info!(
+        "自然化细节：shape_id={}，原始顶点数={}，细分后顶点数={}，去重后顶点数={}，平滑后顶点数={}，跳过零长度边数={}",
+        shape.id,
+        vertices.len(),
+        raw_refined_len,
+        refined.len(),
+        relaxed.len(),
+        skipped_zero_length
+    );
+    relaxed
 }
 
 fn coastline_is_usable(
@@ -108,7 +183,8 @@ fn coastline_is_usable(
         return false;
     }
 
-    if !find_polygon_self_intersections(vertices).is_empty() {
+    let intersections = find_polygon_self_intersections(vertices);
+    if !intersections.is_empty() {
         return false;
     }
 

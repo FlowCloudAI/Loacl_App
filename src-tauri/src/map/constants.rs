@@ -14,15 +14,15 @@ pub const DUPLICATE_VERTEX_DISTANCE: f64 = 1.0;
 
 /// 判断两个顶点“过近”的距离阈值。
 /// 调大：更容易拦截密集顶点；调小：允许更尖锐、更细碎的人工轮廓。
-pub const MIN_VERTEX_DISTANCE: f64 = 12.0;
+pub const MIN_VERTEX_DISTANCE: f64 = 8.0;
 
 /// 海岸线细分后每条边至少保留的段数。
 /// 调大：短边也会被进一步细分；调小：小岛更接近原始草稿。
-pub const COASTLINE_MIN_SEGMENTS: usize = 2;
+pub const COASTLINE_MIN_SEGMENTS: usize = 5;
 
 /// 海岸线细分后每条边允许的最大段数。
 /// 调大：长边能生成更多细节，但顶点数和计算量上升；调小：轮廓更克制。
-pub const COASTLINE_MAX_SEGMENTS: usize = 20;
+pub const COASTLINE_MAX_SEGMENTS: usize = 32;
 
 /// 海岸线波动包络使用的圆周常量。
 pub const TAU: f64 = std::f64::consts::PI * 2.0;
@@ -37,19 +37,19 @@ pub const COASTLINE_NORMALIZED_LENGTH_MAX: f64 = 3.0;
 
 /// 细分公式中的基础项。
 /// 调大：所有边都会变得更碎；调小：整体更接近原始轮廓。
-pub const COASTLINE_SEGMENT_BASE: f64 = 2.5;
+pub const COASTLINE_SEGMENT_BASE: f64 = 15.0;
 
 /// 细分公式中长度归一值的权重。
 /// 调大：长边和短边的细分差异更明显；调小：边长差异影响减弱。
-pub const COASTLINE_SEGMENT_LENGTH_FACTOR: f64 = 1.8;
+pub const COASTLINE_SEGMENT_LENGTH_FACTOR: f64 = 8.0;
 
 /// 细分公式中边长占周长比例的权重。
 /// 调大：超长边更容易得到高细分预算；调小：更均匀。
-pub const COASTLINE_SEGMENT_EDGE_RATIO_FACTOR: f64 = 14.0;
+pub const COASTLINE_SEGMENT_EDGE_RATIO_FACTOR: f64 = 18.0;
 
 /// 位移振幅相对边长的基础比例。
 /// 调大：海岸线起伏更明显；调小：更平顺。
-pub const COASTLINE_AMPLITUDE_BASE: f64 = 0.5;
+pub const COASTLINE_AMPLITUDE_BASE: f64 = 1.0;
 
 /// 振幅最小值，保证短边也有可见细节。
 /// 调大：即使短边也有更明显的起伏；调小：短边可能过于平直。
@@ -77,7 +77,7 @@ pub const COASTLINE_FALLBACK_RELAX_WEIGHT: f64 = 0.18;
 
 /// 去重相邻顶点时允许的最小平方距离。
 /// 调大：会更积极地删除近邻点；调小：保留更多细节。
-pub const COASTLINE_DEDUPLICATE_DISTANCE_SQUARED: f64 = 0.25;
+pub const COASTLINE_DEDUPLICATE_DISTANCE_SQUARED: f64 = 0.2;
 
 /// 海岸线噪声第一层频率的基础值。
 /// 调大：该层噪声波长更短，大尺度起伏更细碎；调小：波长更长，起伏更舒缓。
@@ -85,7 +85,7 @@ pub const COASTLINE_WAVE_A_BASE: f64 = 1.0;
 
 /// 海岸线噪声第一层频率的可变范围。
 /// 调大：不同边之间该层频率差异更大，多样性增强；调小：该层频率更统一。
-pub const COASTLINE_WAVE_A_SPAN: f64 = 2.4;
+pub const COASTLINE_WAVE_A_SPAN: f64 = 3.5;
 
 /// 海岸线噪声第二层频率的基础值。
 /// 调大：该层中尺度细节更密集；调小：中尺度起伏更平缓。
@@ -97,7 +97,7 @@ pub const COASTLINE_WAVE_B_SPAN: f64 = 3.7;
 
 /// 海岸线噪声第三层频率的基础值。
 /// 调大：该层细碎纹理更明显；调小：细节更柔和。
-pub const COASTLINE_WAVE_C_BASE: f64 = 4.5;
+pub const COASTLINE_WAVE_C_BASE: f64 = 6.5;
 
 /// 海岸线噪声第三层频率的可变范围。
 /// 调大：细碎纹理在不同边上差异更大；调小：更统一。
@@ -105,7 +105,7 @@ pub const COASTLINE_WAVE_C_SPAN: f64 = 5.1;
 
 /// 海岸线噪声第一层权重。
 /// 调大：大尺度起伏对最终形状影响更大；调小：大尺度形态被削弱。
-pub const COASTLINE_WAVE_A_WEIGHT: f64 = 0.56;
+pub const COASTLINE_WAVE_A_WEIGHT: f64 = 0.50;
 
 /// 海岸线噪声第二层权重。
 /// 调大：中尺度细节更突出；调小：整体更平滑。
@@ -113,7 +113,7 @@ pub const COASTLINE_WAVE_B_WEIGHT: f64 = 0.29;
 
 /// 海岸线噪声第三层权重。
 /// 调大：海岸线表面更粗糙、更有纹理感；调小：更光滑。
-pub const COASTLINE_WAVE_C_WEIGHT: f64 = 0.15;
+pub const COASTLINE_WAVE_C_WEIGHT: f64 = 0.30;
 
 /// 海岸线噪声第一组盐值。
 /// 修改：会改变该层大尺度噪声的随机模式，海岸线宏观形态变化但保持确定性。
@@ -146,7 +146,6 @@ pub const HASH_UNIT_INCREMENT: u64 = 0xBF58_476D_1CE4_E5B9;
 /// ISO UTC 时间计算中每天的秒数。
 /// 仅时间换算常量，通常无需调整。
 pub const SECS_PER_DAY: i64 = 86_400;
-
 
 /// 预览层默认填充色调色板，与前端 mock 保持一致。
 /// 修改：直接改变地图预览层填充色的视觉表现，需与前端同步。
