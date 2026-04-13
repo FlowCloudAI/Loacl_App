@@ -2,8 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Select, TagItem, useAlert } from 'flowcloudai-ui';
 import { listen } from '@tauri-apps/api/event';
-import { VariableSizeList as List } from 'react-window';
-import { useDropzone } from 'react-dropzone';
+import { List, type ListImperativeAPI } from 'react-window';
 import {
     ai_close_session,
     ai_create_llm_session,
@@ -89,10 +88,9 @@ export default function AIChat() {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const listRef = useRef<List>(null);
+    const listRef = useRef<ListImperativeAPI>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const [containerHeight, setContainerHeight] = useState(400);
-    const itemHeights = useRef<Record<number, number>>({});
 
     const { showAlert } = useAlert();
 
@@ -130,7 +128,8 @@ export default function AIChat() {
     // -------------------- 流式消息后滚动 --------------------
     useEffect(() => {
         if (!isStreaming && listRef.current && messages.length > 0) {
-            listRef.current.scrollToItem(messages.length - 1, 'end');
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (listRef.current as any).scrollToRow({ index: messages.length - 1, align: 'end' });
         }
     }, [messages, isStreaming]);
 
@@ -233,60 +232,6 @@ export default function AIChat() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
         }
     }, [conversations]);
-
-    // -------------------- 文件上传（react-dropzone） --------------------
-    const onDrop = useCallback((acceptedFiles: File[]) => {
-        const newAttachments: Attachment[] = [];
-        acceptedFiles.forEach(file => {
-            const reader = new FileReader();
-            reader.onload = () => {
-                const base64 = reader.result as string;
-                const isImage = file.type.startsWith('image/');
-                newAttachments.push({
-                    id: `att_${Date.now()}_${Math.random()}`,
-                    name: file.name,
-                    type: isImage ? 'image' : 'file',
-                    data: base64,
-                    preview: isImage ? base64 : undefined,
-                });
-                setAttachments(prev => [...prev, ...newAttachments]);
-            };
-            reader.readAsDataURL(file);
-        });
-    }, []);
-
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({
-        onDrop,
-        noClick: true,
-        accept: {
-            'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
-            'text/plain': ['.txt'],
-            'application/pdf': ['.pdf'],
-            'application/msword': ['.doc'],
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-        },
-    });
-
-    const removeAttachment = (id: string) => {
-        setAttachments(prev => prev.filter(a => a.id !== id));
-    };
-
-    // -------------------- 粘贴图片/文件 --------------------
-    const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        const items = e.clipboardData?.items;
-        if (!items) return;
-        const files: File[] = [];
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            if (item.kind === 'file') {
-                const file = item.getAsFile();
-                if (file) files.push(file);
-            }
-        }
-        if (files.length > 0) {
-            onDrop(files);
-        }
-    }, [onDrop]);
 
     // -------------------- 消息复制 --------------------
     const copyMessage = (content: string) => {
@@ -542,27 +487,12 @@ export default function AIChat() {
     const showCharHint = charCount >= SHOW_HINT_THRESHOLD;
 
     // -------------------- 虚拟列表相关 --------------------
-    const getItemSize = useCallback((index: number) => {
-        return itemHeights.current[index] || 80;
-    }, []);
-
-    const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
-        const message = messages[index];
-        const rowRef = useRef<HTMLDivElement>(null);
-
-        useEffect(() => {
-            if (rowRef.current) {
-                const height = rowRef.current.getBoundingClientRect().height;
-                if (itemHeights.current[index] !== height) {
-                    itemHeights.current[index] = height;
-                    listRef.current?.resetAfterIndex(index);
-                }
-            }
-        }, [index, message]);
+    const Row = ({ index, style, data }: { index: number; style: React.CSSProperties; data: { messages: Message[] } }) => {
+        const message = data.messages[index];
 
         return (
             <div style={style}>
-                <div ref={rowRef} className={`ai-message ai-message--${message.role}`}>
+                <div className={`ai-message ai-message--${message.role}`}>
                     <div className="ai-message-avatar">
                         {message.role === 'user' ? '👤' : '🤖'}
                     </div>
@@ -698,9 +628,7 @@ export default function AIChat() {
                 </div>
 
                 {/* 消息区域 - 虚拟列表 */}
-                <div className="ai-messages-container" ref={messagesContainerRef} {...getRootProps()}>
-                    <input {...getInputProps()} />
-                    {isDragActive && <div className="ai-drop-overlay">拖拽文件到此处上传</div>}
+                <div className="ai-messages-container" ref={messagesContainerRef}>
                     {!activeConversationId && (
                         <div className="ai-empty-state">
                             <div className="ai-empty-icon">💬</div>
@@ -709,16 +637,15 @@ export default function AIChat() {
                         </div>
                     )}
                     {messages.length > 0 && (
-                        <List
-                            ref={listRef}
-                            height={containerHeight}
-                            itemCount={messages.length}
-                            itemSize={getItemSize}
-                            width="100%"
+                        <List<{ data: { messages: Message[] } }>
+                            listRef={listRef}
+                            rowCount={messages.length}
+                            rowHeight={120}
                             className="ai-virtual-list"
-                        >
-                            {Row}
-                        </List>
+                            style={{ height: containerHeight }}
+                            rowComponent={Row}
+                            rowProps={{ data: { messages } }}
+                        />
                     )}
                     {currentAssistantMessage && (
                         <div className="ai-message ai-message--assistant ai-streaming-message">
@@ -742,58 +669,51 @@ export default function AIChat() {
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* 输入区域 */}
-                <div className="ai-input-area">
-                    {attachments.length > 0 && (
-                        <div className="ai-attachments-preview">
-                            {attachments.map(att => (
-                                <div key={att.id} className="ai-attachment-preview-item">
-                                    {att.type === 'image' && att.preview ? (
-                                        <img src={att.preview} alt={att.name} />
-                                    ) : (
-                                        <span>📄 {att.name}</span>
-                                    )}
-                                    <button className="ai-remove-attachment" onClick={() => removeAttachment(att.id)}>×</button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                    <div className="ai-input-wrapper">
-                        <textarea
-                            ref={(node) => {
-                                inputRef.current = node;
-                                textareaRef.current = node;
-                            }}
-                            className="ai-input-textarea"
-                            value={inputValue}
-                            onChange={handleInputChange}
-                            onKeyDown={handleKeyDown}
-                            onPaste={handlePaste}
-                            placeholder={activeConversationId ? "请输入消息 (Enter 发送，支持粘贴图片/文件)" : "请先创建新对话"}
-                            disabled={isStreaming || !activeConversationId}
-                            rows={1}
-                        />
-                        <div className="ai-input-actions">
-                            {showCharHint && (
-                                <span className="ai-char-count">{charCount}/{MAX_CHARS}</span>
-                            )}
-                            {isStreaming ? (
-                                <Button size="sm" className="ai-stop-btn" onClick={() => void handleStopGeneration()}>
-                                    停止
-                                </Button>
-                            ) : (
-                                <button
-                                    className="ai-send-icon-btn"
-                                    onClick={() => void handleSend()}
-                                    disabled={(!inputValue.trim() && attachments.length === 0) || !activeConversationId}
-                                    title="发送"
-                                >
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="12" y1="19" x2="12" y2="5"></line>
-                                        <polyline points="5 12 12 5 19 12"></polyline>
-                                    </svg>
-                                </button>
-                            )}
+                {/* 悬浮输入框 */}
+                <div className="ai-floating-input-wrapper">
+                    <div className="ai-floating-input-container">
+                        <div className="ai-floating-input-inner">
+                            <textarea
+                                ref={(node) => {
+                                    inputRef.current = node;
+                                    textareaRef.current = node;
+                                }}
+                                className="ai-floating-textarea"
+                                value={inputValue}
+                                onChange={handleInputChange}
+                                onKeyDown={handleKeyDown}
+                                placeholder={activeConversationId ? "请输入消息..." : "请先创建新对话"}
+                                disabled={isStreaming || !activeConversationId}
+                                rows={1}
+                            />
+                            <div className="ai-floating-actions">
+                                {showCharHint && (
+                                    <span className="ai-floating-char-count">{charCount}/{MAX_CHARS}</span>
+                                )}
+                                {isStreaming ? (
+                                    <button
+                                        className="ai-floating-stop-btn"
+                                        onClick={() => void handleStopGeneration()}
+                                        title="停止生成"
+                                    >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                            <rect x="6" y="6" width="12" height="12" rx="2" />
+                                        </svg>
+                                    </button>
+                                ) : (
+                                    <button
+                                        className="ai-floating-send-btn"
+                                        onClick={() => void handleSend()}
+                                        disabled={!inputValue.trim() || !activeConversationId}
+                                        title="发送"
+                                    >
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <line x1="12" y1="19" x2="12" y2="5"></line>
+                                            <polyline points="5 12 12 5 19 12"></polyline>
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
