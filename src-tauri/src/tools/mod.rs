@@ -262,3 +262,123 @@ pub async fn get_project_summary(
 
     Ok((project, counts))
 }
+
+/// 更新词条标题
+pub async fn update_entry_title(
+    state: &AppState,
+    entry_id: &str,
+    title: String,
+) -> Result<Entry, String> {
+    let entry_id = Uuid::parse_str(entry_id).map_err(|e| e.to_string())?;
+    let db = state.sqlite_db.lock().await;
+    db.update_entry(
+        &entry_id,
+        UpdateEntry {
+            category_id: Some(None),
+            title: Some(title),
+            summary: None,
+            content: None,
+            r#type: Some(None),
+            tags: None,
+            images: None,
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// 更新词条摘要
+pub async fn update_entry_summary(
+    state: &AppState,
+    entry_id: &str,
+    summary: Option<String>,
+) -> Result<Entry, String> {
+    let entry_id = Uuid::parse_str(entry_id).map_err(|e| e.to_string())?;
+    let db = state.sqlite_db.lock().await;
+    db.update_entry(
+        &entry_id,
+        UpdateEntry {
+            category_id: Some(None),
+            title: None,
+            summary,
+            content: None,
+            r#type: Some(None),
+            tags: None,
+            images: None,
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// 更新词条正文
+pub async fn update_entry_content(
+    state: &AppState,
+    entry_id: &str,
+    content: Option<String>,
+) -> Result<Entry, String> {
+    let entry_id = Uuid::parse_str(entry_id).map_err(|e| e.to_string())?;
+    let db = state.sqlite_db.lock().await;
+    db.update_entry(
+        &entry_id,
+        UpdateEntry {
+            category_id: Some(None),
+            title: None,
+            summary: None,
+            content,
+            r#type: Some(None),
+            tags: None,
+            images: None,
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// 更新词条类型
+pub async fn update_entry_type(
+    state: &AppState,
+    entry_id: &str,
+    entry_type: Option<String>,
+) -> Result<Entry, String> {
+    let entry_id = Uuid::parse_str(entry_id).map_err(|e| e.to_string())?;
+    let db = state.sqlite_db.lock().await;
+    db.update_entry(
+        &entry_id,
+        UpdateEntry {
+            category_id: Some(None),
+            title: None,
+            summary: None,
+            content: None,
+            r#type: Some(entry_type),
+            tags: None,
+            images: None,
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// 更新词条标签（全量替换）
+pub async fn update_entry_tags(
+    state: &AppState,
+    entry_id: &str,
+    tags: Vec<EntryTag>,
+) -> Result<Entry, String> {
+    let entry_id = Uuid::parse_str(entry_id).map_err(|e| e.to_string())?;
+    let db = state.sqlite_db.lock().await;
+    db.update_entry(
+        &entry_id,
+        UpdateEntry {
+            category_id: Some(None),
+            title: None,
+            summary: None,
+            content: None,
+            r#type: Some(None),
+            tags: Some(tags),
+            images: None,
+        },
+    )
+    .await
+    .map_err(|e| e.to_string())
+}

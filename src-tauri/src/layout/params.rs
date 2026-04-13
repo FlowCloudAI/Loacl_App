@@ -6,17 +6,9 @@
 //!   让统计量、参数生成、求解主循环彼此解耦。
 //! - D3 forceCollide：边长下限与碰撞半径语义保持一致，避免参数生成阶段直接要求节点重叠。
 
-use crate::layout::constants::{
-    EDGE_LENGTH_ALPHA_CV, EDGE_LENGTH_ALPHA_RHO, EDGE_LENGTH_MAX, EDGE_LENGTH_MIN,
-    ESTIMATED_AREA_BETA_CV, ESTIMATED_AREA_BETA_RHO, INIT_RADIUS_BETA_RMAX,
-    INITIAL_TEMPERATURE_GAMMA, ITERATION_BASE, ITERATION_MAX, ITERATION_MIN, ITERATION_RHO_SCALE,
-    ITERATION_SQRT_SCALE, MIN_MEAN_DEGREE, MIN_TEMPERATURE_FOR_LOG, MIN_TEMPERATURE_GAMMA,
-    MIN_TEMPERATURE_RATIO, NODE_GAP, PATHISH_AXIS_COMPACTION_MAX, PATHISH_BRANCH_SMOOTHING_MAX,
-    PATHISH_EDGE_LENGTH_REDUCTION, PATHISH_INIT_RADIUS_REDUCTION, PATHISH_LEAF_PULL_MAX,
-    PATHISH_RADIAL_PULL_MAX, TEMPERATURE_DECAY_MAX, TEMPERATURE_DECAY_MIN,
-    TWO_WAY_ATTRACTION_WEIGHT, TWO_WAY_EDGE_LENGTH_FACTOR,
-};
+use crate::layout::constants::MIN_MEAN_DEGREE;
 use crate::layout::engine::{LayoutEdge, LayoutNode};
+use crate::layout::resolved_params::ResolvedLayoutParams;
 
 #[derive(Debug, Clone)]
 pub struct ComponentStats {
@@ -24,10 +16,12 @@ pub struct ComponentStats {
     pub n: usize,
     pub m: usize,
     pub rho: f64,
+    #[allow(dead_code)]
     pub degrees: Vec<usize>,
     pub mean_deg: f64,
     pub std_deg: f64,
     pub cv_deg: f64,
+    #[allow(dead_code)]
     pub radii: Vec<f64>,
     pub r_mean: f64,
     pub r_max: f64,
@@ -73,6 +67,7 @@ pub fn build_adaptive_component_config(
     component_nodes: Vec<usize>,
     component_edges: Vec<LayoutEdge>,
     all_nodes: &[LayoutNode],
+    resolved: &ResolvedLayoutParams,
 ) -> AdaptiveComponentConfig {
     let stats = collect_component_stats(
         component_id.clone(),
@@ -80,8 +75,8 @@ pub fn build_adaptive_component_config(
         &component_edges,
         all_nodes,
     );
-    let params = derive_component_params(&stats);
-    let edge_params = derive_edge_layout_params(&component_edges, all_nodes, &params);
+    let params = derive_component_params(&stats, resolved);
+    let edge_params = derive_edge_layout_params(&component_edges, all_nodes, &params, resolved);
 
     log_component_config(&stats, &params);
 
@@ -161,12 +156,15 @@ pub fn collect_component_stats(
     }
 }
 
-pub fn derive_component_params(stats: &ComponentStats) -> ComponentLayoutParams {
+pub fn derive_component_params(
+    stats: &ComponentStats,
+    r: &ResolvedLayoutParams,
+) -> ComponentLayoutParams {
     let scale_expansion =
-        1.0 + EDGE_LENGTH_ALPHA_RHO * stats.rho + EDGE_LENGTH_ALPHA_CV * stats.cv_deg;
-    let pathish_compaction = 1.0 - PATHISH_EDGE_LENGTH_REDUCTION * stats.pathish_score;
-    let lc_raw = (2.0 * stats.r_mean + NODE_GAP) * scale_expansion * pathish_compaction;
-    let ideal_edge_length = lc_raw.clamp(EDGE_LENGTH_MIN, EDGE_LENGTH_MAX);
+        1.0 + r.edge_length_alpha_rho * stats.rho + r.edge_length_alpha_cv * stats.cv_deg;
+    let pathish_compaction = 1.0 - r.pathish_edge_length_reduction * stats.pathish_score;
+    let lc_raw = (2.0 * stats.r_mean + r.node_gap) * scale_expansion * pathish_compaction;
+    let ideal_edge_length = lc_raw.clamp(r.edge_length_min, r.edge_length_max);
     let fr_scale = ideal_edge_length;
 
     let initialization_radius = if stats.n <= 1 {
@@ -174,41 +172,41 @@ pub fn derive_component_params(stats: &ComponentStats) -> ComponentLayoutParams 
     } else {
         let circumference_term = (stats.n as f64) * fr_scale / (std::f64::consts::TAU);
         let node_size_term =
-            INIT_RADIUS_BETA_RMAX * stats.r_max * (stats.n as f64) / std::f64::consts::PI;
+            r.init_radius_beta_rmax * stats.r_max * (stats.n as f64) / std::f64::consts::PI;
         let base_radius = circumference_term.max(node_size_term);
-        base_radius * (1.0 - PATHISH_INIT_RADIUS_REDUCTION * stats.pathish_score)
+        base_radius * (1.0 - r.pathish_init_radius_reduction * stats.pathish_score)
     };
 
-    let minimum_temperature = (MIN_TEMPERATURE_GAMMA * stats.r_mean).max(MIN_TEMPERATURE_FOR_LOG);
+    let minimum_temperature = (r.min_temperature_gamma * stats.r_mean).max(r.min_distance);
     let initial_temperature = if stats.n <= 1 {
         minimum_temperature
     } else {
-        (INITIAL_TEMPERATURE_GAMMA * initialization_radius)
-            .max(minimum_temperature * MIN_TEMPERATURE_RATIO)
+        (r.initial_temperature_gamma * initialization_radius)
+            .max(minimum_temperature * r.min_temperature_ratio)
     };
 
-    let iterations_raw = ITERATION_BASE
-        + ITERATION_SQRT_SCALE * (stats.n as f64).sqrt()
-        + ITERATION_RHO_SCALE * stats.rho;
+    let iterations_raw = r.iteration_base
+        + r.iteration_sqrt_scale * (stats.n as f64).sqrt()
+        + r.iteration_rho_scale * stats.rho;
     let iterations = iterations_raw
         .round()
-        .clamp(ITERATION_MIN as f64, ITERATION_MAX as f64) as usize;
+        .clamp(r.iteration_min as f64, r.iteration_max as f64) as usize;
 
     let temperature_decay = if stats.n <= 1 || initial_temperature <= minimum_temperature {
-        TEMPERATURE_DECAY_MAX
+        r.temperature_decay_max
     } else {
         ((minimum_temperature / initial_temperature).ln() / (iterations as f64))
             .exp()
-            .clamp(TEMPERATURE_DECAY_MIN, TEMPERATURE_DECAY_MAX)
+            .clamp(r.temperature_decay_min, r.temperature_decay_max)
     };
 
     let estimated_area = (stats.n as f64)
-        * (2.0 * stats.r_mean + NODE_GAP).powi(2)
-        * (1.0 + ESTIMATED_AREA_BETA_RHO * stats.rho + ESTIMATED_AREA_BETA_CV * stats.cv_deg);
-    let axis_compaction_strength = PATHISH_AXIS_COMPACTION_MAX * stats.pathish_score;
-    let radial_pull_strength = PATHISH_RADIAL_PULL_MAX * stats.pathish_score;
-    let leaf_pull_strength = PATHISH_LEAF_PULL_MAX * stats.pathish_score;
-    let branch_smoothing_strength = PATHISH_BRANCH_SMOOTHING_MAX * stats.pathish_score;
+        * (2.0 * stats.r_mean + r.node_gap).powi(2)
+        * (1.0 + r.estimated_area_beta_rho * stats.rho + r.estimated_area_beta_cv * stats.cv_deg);
+    let axis_compaction_strength = r.pathish_axis_compaction_max * stats.pathish_score;
+    let radial_pull_strength = r.pathish_radial_pull_max * stats.pathish_score;
+    let leaf_pull_strength = r.pathish_leaf_pull_max * stats.pathish_score;
+    let branch_smoothing_strength = r.pathish_branch_smoothing_max * stats.pathish_score;
 
     ComponentLayoutParams {
         ideal_edge_length,
@@ -230,21 +228,22 @@ pub fn derive_edge_layout_params(
     component_edges: &[LayoutEdge],
     all_nodes: &[LayoutNode],
     params: &ComponentLayoutParams,
+    r: &ResolvedLayoutParams,
 ) -> Vec<EdgeLayoutParams> {
     component_edges
         .iter()
         .map(|edge| {
             let left_radius = all_nodes[edge.source].radius;
             let right_radius = all_nodes[edge.target].radius;
-            let collision_floor = left_radius + right_radius + NODE_GAP;
+            let collision_floor = left_radius + right_radius + r.node_gap;
             let length_factor = if edge.is_two_way {
-                TWO_WAY_EDGE_LENGTH_FACTOR
+                r.two_way_edge_length_factor
             } else {
                 1.0
             };
             let target_length = collision_floor.max(params.fr_scale * length_factor);
             let attraction_weight = if edge.is_two_way {
-                TWO_WAY_ATTRACTION_WEIGHT
+                r.two_way_attraction_weight
             } else {
                 1.0
             };
@@ -334,6 +333,7 @@ mod tests {
     use super::{collect_component_stats, derive_component_params, derive_edge_layout_params};
     use crate::layout::constants::{COLLISION_PADDING, TWO_WAY_ATTRACTION_WEIGHT};
     use crate::layout::engine::{LayoutEdge, LayoutNode};
+    use crate::layout::resolved_params::ResolvedLayoutParams;
 
     fn test_node(id: &str, width: f64, height: f64) -> LayoutNode {
         LayoutNode {
@@ -402,8 +402,9 @@ mod tests {
             ..sparse.clone()
         };
 
-        let sparse_params = derive_component_params(&sparse);
-        let dense_params = derive_component_params(&dense);
+        let resolved = ResolvedLayoutParams::from_payload(None);
+        let sparse_params = derive_component_params(&sparse, &resolved);
+        let dense_params = derive_component_params(&dense, &resolved);
 
         assert!(dense_params.ideal_edge_length > sparse_params.ideal_edge_length);
         assert!(dense_params.initialization_radius >= sparse_params.initialization_radius);
@@ -441,7 +442,8 @@ mod tests {
             },
         ];
 
-        let edge_params = derive_edge_layout_params(&edges, &nodes, &params);
+        let resolved = ResolvedLayoutParams::from_payload(None);
+        let edge_params = derive_edge_layout_params(&edges, &nodes, &params, &resolved);
 
         assert_eq!(edge_params[0].attraction_weight, 1.0);
         assert_eq!(edge_params[1].attraction_weight, TWO_WAY_ATTRACTION_WEIGHT);
@@ -486,8 +488,9 @@ mod tests {
             ..compact.clone()
         };
 
-        let compact_params = derive_component_params(&compact);
-        let clustered_params = derive_component_params(&clustered);
+        let resolved = ResolvedLayoutParams::from_payload(None);
+        let compact_params = derive_component_params(&compact, &resolved);
+        let clustered_params = derive_component_params(&clustered, &resolved);
 
         assert!(compact_params.ideal_edge_length < clustered_params.ideal_edge_length);
         assert!(

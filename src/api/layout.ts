@@ -1,4 +1,4 @@
-import { command } from './base'
+import {command} from './base'
 
 export interface LayoutNodeInput {
   id: string
@@ -15,10 +15,60 @@ export interface LayoutEdgeInput {
   kind?: string | null
 }
 
+export interface LayoutParamsPayload {
+    collisionPadding?: number
+    nodeGap?: number
+    collisionPassesPerIteration?: number
+    finalCollisionPasses?: number
+    edgeLengthAlphaRho?: number
+    edgeLengthAlphaCv?: number
+    edgeLengthMin?: number
+    edgeLengthMax?: number
+    twoWayEdgeLengthFactor?: number
+    twoWayAttractionWeight?: number
+    initialTemperatureGamma?: number
+    minTemperatureGamma?: number
+    minTemperatureRatio?: number
+    iterationBase?: number
+    iterationSqrtScale?: number
+    iterationRhoScale?: number
+    iterationMin?: number
+    iterationMax?: number
+    initRadiusBetaRmax?: number
+    estimatedAreaBetaRho?: number
+    estimatedAreaBetaCv?: number
+    pathishEdgeLengthReduction?: number
+    pathishInitRadiusReduction?: number
+    pathishAxisCompactionMax?: number
+    pathishRadialPullMax?: number
+    pathishLeafPullMax?: number
+    pathishBranchSmoothingMax?: number
+    postLayoutCompactionPasses?: number
+    earlyStopThreshold?: number
+    earlyStopStreak?: number
+    componentGap?: number
+    shelfRowMaxWidth?: number
+    isolatedNodeHorizontalGap?: number
+    clusterBoxGap?: number
+    clusterLinkDistanceBase?: number
+    clusterRepulsionSoft?: number
+    clusterCenterPull?: number
+    clusterTemperatureInitial?: number
+    clusterTemperatureDecay?: number
+    clusterIterations?: number
+    clusterTwoWayBonus?: number
+    fixedRandomSeed?: number
+    minDistance?: number
+    attractiveDirectionSalt?: number
+    finalCollisionSalt?: number
+    collisionDirectionSalt?: number
+}
+
 export interface LayoutRequest {
   nodeOrigin?: [number, number] | null
   nodes: LayoutNodeInput[]
   edges: LayoutEdgeInput[]
+    params?: LayoutParamsPayload
 }
 
 export interface Position {

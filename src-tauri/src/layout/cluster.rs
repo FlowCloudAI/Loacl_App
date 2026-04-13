@@ -1,10 +1,6 @@
-use crate::layout::constants::{
-    CLUSTER_BOX_GAP, CLUSTER_CENTER_PULL, CLUSTER_ITERATIONS, CLUSTER_LINK_DISTANCE_BASE,
-    CLUSTER_REPULSION_SOFT, CLUSTER_TEMPERATURE_DECAY, CLUSTER_TEMPERATURE_INITIAL,
-    CLUSTER_TWO_WAY_BONUS, FIXED_RANDOM_SEED, MIN_DISTANCE,
-};
-use crate::layout::math::{deterministic_unit, fnv64, safe_direction, unit_angle, Vec2};
-use crate::layout::topology::{build_node_slot_map, build_undirected_topology, UndirectedTopology};
+use crate::layout::math::{Vec2, deterministic_unit, fnv64, safe_direction, unit_angle};
+use crate::layout::resolved_params::ResolvedLayoutParams;
+use crate::layout::topology::{UndirectedTopology, build_node_slot_map, build_undirected_topology};
 use std::collections::{BTreeMap, VecDeque};
 use std::f64::consts::TAU;
 
@@ -62,6 +58,7 @@ pub struct ClusterPlacement {
 pub fn decompose_component(
     component: &ConnectedComponentSpec,
     node_ids: &[String],
+    r: &ResolvedLayoutParams,
 ) -> ClusterDecomposition {
     if component.node_indices.len() <= 1 {
         return ClusterDecomposition {
@@ -151,7 +148,7 @@ pub fn decompose_component(
                 target,
                 edge_count,
                 two_way_count,
-                weight: edge_count as f64 + (two_way_count as f64 * CLUSTER_TWO_WAY_BONUS),
+                weight: edge_count as f64 + (two_way_count as f64 * r.cluster_two_way_bonus),
             },
         )
         .collect::<Vec<_>>();
@@ -164,6 +161,7 @@ pub fn layout_cluster_graph(
     boxes: &[ClusterBox],
     links: &[ClusterGraphLink],
     cluster_ids: &[String],
+    r: &ResolvedLayoutParams,
 ) -> ClusterPlacement {
     if boxes.len() <= 1 {
         return ClusterPlacement {
@@ -173,10 +171,10 @@ pub fn layout_cluster_graph(
 
     let main_cluster = pick_main_cluster(boxes, cluster_ids);
     let mut centers =
-        initial_cluster_centers(component_id, boxes, links, cluster_ids, main_cluster);
-    let mut temperature = CLUSTER_TEMPERATURE_INITIAL;
+        initial_cluster_centers(component_id, boxes, links, cluster_ids, main_cluster, r);
+    let mut temperature = r.cluster_temperature_initial;
 
-    for _ in 0..CLUSTER_ITERATIONS {
+    for _ in 0..r.cluster_iterations {
         let mut displacements = vec![Vec2::default(); boxes.len()];
 
         for left in 0..boxes.len() {
@@ -186,15 +184,16 @@ pub fn layout_cluster_graph(
                     delta,
                     deterministic_unit(hash_pair(component_id, left, right)),
                 );
-                let desired = projected_gap(boxes[left], boxes[right], direction, CLUSTER_BOX_GAP);
-                let distance = delta.length().max(MIN_DISTANCE);
+                let desired =
+                    projected_gap(boxes[left], boxes[right], direction, r.cluster_box_gap);
+                let distance = delta.length().max(r.min_distance);
 
                 if distance < desired {
                     let push = direction * ((desired - distance) * 0.7);
                     displacements[left] += push;
                     displacements[right] -= push;
                 } else {
-                    let soft_push = direction * (CLUSTER_REPULSION_SOFT / distance.max(desired));
+                    let soft_push = direction * (r.cluster_repulsion_soft / distance.max(desired));
                     displacements[left] += soft_push;
                     displacements[right] -= soft_push;
                 }
@@ -207,12 +206,12 @@ pub fn layout_cluster_graph(
                 delta,
                 deterministic_unit(hash_pair(component_id, link.source, link.target) ^ 0x55AA_3311),
             );
-            let distance = delta.length().max(MIN_DISTANCE);
+            let distance = delta.length().max(r.min_distance);
             let desired = projected_gap(
                 boxes[link.source],
                 boxes[link.target],
                 direction,
-                CLUSTER_LINK_DISTANCE_BASE / (1.0 + 0.22 * link.weight),
+                r.cluster_link_distance_base / (1.0 + 0.22 * link.weight),
             );
 
             if distance > desired {
@@ -224,19 +223,19 @@ pub fn layout_cluster_graph(
 
         for (index, displacement) in displacements.iter_mut().enumerate() {
             if index == main_cluster {
-                *displacement -= centers[index] * CLUSTER_CENTER_PULL;
+                *displacement -= centers[index] * r.cluster_center_pull;
             } else {
-                *displacement -= centers[index] * (CLUSTER_CENTER_PULL * 1.15);
+                *displacement -= centers[index] * (r.cluster_center_pull * 1.15);
             }
         }
 
         for (index, displacement) in displacements.iter().enumerate() {
             let magnitude = displacement.length();
-            if magnitude <= MIN_DISTANCE {
+            if magnitude <= r.min_distance {
                 continue;
             }
             let limited =
-                *displacement * (temperature.min(magnitude) / magnitude.max(MIN_DISTANCE));
+                *displacement * (temperature.min(magnitude) / magnitude.max(r.min_distance));
             centers[index] += limited;
         }
 
@@ -245,9 +244,10 @@ pub fn layout_cluster_graph(
             boxes,
             &mut centers,
             cluster_ids,
-            CLUSTER_BOX_GAP,
+            r.cluster_box_gap,
+            r.min_distance,
         );
-        temperature = (temperature * CLUSTER_TEMPERATURE_DECAY).max(0.8);
+        temperature = (temperature * r.cluster_temperature_decay).max(0.8);
     }
 
     resolve_box_collisions(
@@ -255,7 +255,8 @@ pub fn layout_cluster_graph(
         boxes,
         &mut centers,
         cluster_ids,
-        CLUSTER_BOX_GAP,
+        r.cluster_box_gap,
+        r.min_distance,
     );
     ClusterPlacement {
         centers: centers.iter().map(|center| [center.x, center.y]).collect(),
@@ -295,17 +296,7 @@ fn core_based_clusters(
         let mut clusters = collect_mask_components(&topology.neighbors, &in_core);
         let non_core = in_core.iter().map(|flag| !flag).collect::<Vec<_>>();
         clusters.extend(collect_mask_components(&topology.neighbors, &non_core));
-        clusters.sort_by(|left, right| {
-            let left_key = left
-                .iter()
-                .map(|slot| component_nodes[*slot])
-                .collect::<Vec<_>>();
-            let right_key = right
-                .iter()
-                .map(|slot| component_nodes[*slot])
-                .collect::<Vec<_>>();
-            left_key.cmp(&right_key)
-        });
+        sort_clusters_by_node_index(&mut clusters, component_nodes);
         return Some(clusters);
     }
 
@@ -321,6 +312,11 @@ fn core_based_clusters(
     let mut clusters = collect_mask_components(&topology.neighbors, &hub_mask);
     let non_hub = hub_mask.iter().map(|flag| !flag).collect::<Vec<_>>();
     clusters.extend(collect_mask_components(&topology.neighbors, &non_hub));
+    sort_clusters_by_node_index(&mut clusters, component_nodes);
+    Some(clusters)
+}
+
+fn sort_clusters_by_node_index(clusters: &mut [Vec<usize>], component_nodes: &[usize]) {
     clusters.sort_by(|left, right| {
         let left_key = left
             .iter()
@@ -332,7 +328,6 @@ fn core_based_clusters(
             .collect::<Vec<_>>();
         left_key.cmp(&right_key)
     });
-    Some(clusters)
 }
 
 fn collect_mask_components(neighbors: &[Vec<usize>], mask: &[bool]) -> Vec<Vec<usize>> {
@@ -408,12 +403,13 @@ fn initial_cluster_centers(
     links: &[ClusterGraphLink],
     cluster_ids: &[String],
     main_cluster: usize,
+    r: &ResolvedLayoutParams,
 ) -> Vec<Vec2> {
     let adjacency = build_link_adjacency(boxes.len(), links);
     let order = bfs_cluster_order(&adjacency, cluster_ids, main_cluster);
-    let phase = unit_angle(fnv64(component_id.as_bytes()) ^ FIXED_RANDOM_SEED);
+    let phase = unit_angle(fnv64(component_id.as_bytes()) ^ r.fixed_random_seed);
     let base_radius =
-        boxes[main_cluster].width.max(boxes[main_cluster].height) * 0.5 + CLUSTER_BOX_GAP;
+        boxes[main_cluster].width.max(boxes[main_cluster].height) * 0.5 + r.cluster_box_gap;
     let mut centers = vec![Vec2::default(); boxes.len()];
 
     centers[main_cluster] = Vec2::default();
@@ -423,7 +419,7 @@ fn initial_cluster_centers(
         }
         let ring = ((rank as f64).sqrt().floor() + 1.0).max(1.0);
         let angle = phase + TAU * (rank as f64) / (order.len().max(1) as f64);
-        let radius = base_radius + ring * (CLUSTER_LINK_DISTANCE_BASE * 0.7);
+        let radius = base_radius + ring * (r.cluster_link_distance_base * 0.7);
         centers[cluster_index] = Vec2::new(radius * angle.cos(), radius * angle.sin());
     }
 
@@ -491,6 +487,7 @@ fn resolve_box_collisions(
     centers: &mut [Vec2],
     cluster_ids: &[String],
     gap: f64,
+    min_distance: f64,
 ) {
     for _ in 0..16 {
         let mut any_overlap = false;
@@ -508,7 +505,7 @@ fn resolve_box_collisions(
 
                 any_overlap = true;
                 if overlap_x < overlap_y {
-                    let sign = if dx.abs() <= MIN_DISTANCE {
+                    let sign = if dx.abs() <= min_distance {
                         deterministic_unit(hash_pair(component_id, left, right))
                             .x
                             .signum()
@@ -520,7 +517,7 @@ fn resolve_box_collisions(
                     centers[left].x -= sign * shift;
                     centers[right].x += sign * shift;
                 } else {
-                    let sign = if dy.abs() <= MIN_DISTANCE {
+                    let sign = if dy.abs() <= min_distance {
                         deterministic_unit(hash_pair(component_id, left, right) ^ 0x9911_AA55)
                             .y
                             .signum()
@@ -584,9 +581,10 @@ fn hash_pair(component_id: &str, left: usize, right: usize) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        decompose_component, layout_cluster_graph, ClusterBox, ClusterEdgeRef,
-        ConnectedComponentSpec,
+        ClusterBox, ClusterEdgeRef, ConnectedComponentSpec, decompose_component,
+        layout_cluster_graph,
     };
+    use crate::layout::resolved_params::ResolvedLayoutParams;
 
     #[test]
     fn decomposes_branchy_tree_into_stable_clusters() {
@@ -624,7 +622,8 @@ mod tests {
             "e".to_string(),
         ];
 
-        let decomposition = decompose_component(&component, &node_ids);
+        let resolved = ResolvedLayoutParams::from_payload(None);
+        let decomposition = decompose_component(&component, &node_ids, &resolved);
 
         assert_eq!(decomposition.clusters.len(), 4);
         assert_eq!(decomposition.links.len(), 3);
@@ -682,7 +681,8 @@ mod tests {
             "branch-b".to_string(),
         ];
 
-        let placement = layout_cluster_graph("core", &boxes, &links, &cluster_ids);
+        let resolved = ResolvedLayoutParams::from_payload(None);
+        let placement = layout_cluster_graph("core", &boxes, &links, &cluster_ids, &resolved);
 
         for left in 0..boxes.len() {
             for right in (left + 1)..boxes.len() {

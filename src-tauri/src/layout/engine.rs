@@ -13,12 +13,6 @@ use crate::layout::cluster::{
 use crate::layout::component_graph::{
     component_key_from_node_indices, component_seed, split_connected_components,
 };
-use crate::layout::constants::{
-    ATTRACTIVE_DIRECTION_SALT, COLLISION_DIRECTION_SALT, COLLISION_PASSES_PER_ITERATION,
-    COMPONENT_GAP, EARLY_STOP_STREAK, EARLY_STOP_THRESHOLD, FINAL_COLLISION_PASSES,
-    FINAL_COLLISION_SALT, ISOLATED_NODE_HORIZONTAL_GAP, MIN_DISTANCE,
-    POST_LAYOUT_COMPACTION_PASSES, SHELF_ROW_MAX_WIDTH,
-};
 use crate::layout::math::{Vec2, deterministic_unit, safe_direction, unit_angle};
 use crate::layout::params::{AdaptiveComponentConfig, build_adaptive_component_config};
 pub(crate) use crate::layout::prepare::{LayoutEdge, LayoutNode};
@@ -117,7 +111,7 @@ fn layout_connected_component(
         .iter()
         .map(|node| node.id.clone())
         .collect::<Vec<_>>();
-    let decomposition = decompose_component(component, &node_ids);
+    let decomposition = decompose_component(component, &node_ids, &prepared.resolved_params);
 
     let mut cluster_layouts = decomposition
         .clusters
@@ -136,6 +130,7 @@ fn layout_connected_component(
                     })
                     .collect(),
                 &prepared.nodes,
+                &prepared.resolved_params,
             );
             layout_component(prepared, &config)
         })
@@ -171,6 +166,7 @@ fn layout_connected_component(
         &cluster_boxes,
         &decomposition.links,
         &cluster_ids,
+        &prepared.resolved_params,
     );
 
     log_cluster_stage(component, &decomposition, &cluster_boxes, &placement);
@@ -195,6 +191,7 @@ fn layout_component(
         };
     }
 
+    let r = &prepared.resolved_params;
     let component_seed = component_seed(prepared, component_nodes);
     let node_count = component_nodes.len();
     let mut positions =
@@ -237,7 +234,7 @@ fn layout_component(
                     deterministic_unit(component_seed ^ ((left as u64) << 32) ^ right as u64),
                 );
                 let force =
-                    config.params.fr_scale * config.params.fr_scale / distance.max(MIN_DISTANCE);
+                    config.params.fr_scale * config.params.fr_scale / distance.max(r.min_distance);
                 let movement = direction * force;
                 displacements[left] += movement;
                 displacements[right] -= movement;
@@ -251,13 +248,13 @@ fn layout_component(
                 delta,
                 deterministic_unit(
                     component_seed
-                        ^ ATTRACTIVE_DIRECTION_SALT
+                        ^ r.attractive_direction_salt
                         ^ ((edge.source as u64) << 32)
                         ^ edge.target as u64,
                 ),
             );
-            let force = edge.attraction_weight * distance.max(MIN_DISTANCE).powi(2)
-                / edge.target_length.max(MIN_DISTANCE);
+            let force = edge.attraction_weight * distance.max(r.min_distance).powi(2)
+                / edge.target_length.max(r.min_distance);
             let movement = direction * force;
             displacements[edge.source] -= movement;
             displacements[edge.target] += movement;
@@ -267,12 +264,12 @@ fn layout_component(
 
         for (slot, displacement) in displacements.iter().enumerate() {
             let magnitude = displacement.length();
-            if magnitude <= MIN_DISTANCE {
+            if magnitude <= r.min_distance {
                 continue;
             }
 
             let limited =
-                *displacement * (temperature.min(magnitude) / magnitude.max(MIN_DISTANCE));
+                *displacement * (temperature.min(magnitude) / magnitude.max(r.min_distance));
             positions[slot] += limited;
             max_movement = max_movement.max(limited.length());
         }
@@ -282,14 +279,14 @@ fn layout_component(
             component_nodes,
             &mut positions,
             component_seed,
-            COLLISION_PASSES_PER_ITERATION,
+            r.collision_passes_per_iteration,
         );
 
         if temperature <= config.params.minimum_temperature * 1.4
-            && max_movement < EARLY_STOP_THRESHOLD
+            && max_movement < r.early_stop_threshold
         {
             early_stop_streak += 1;
-            if early_stop_streak >= EARLY_STOP_STREAK {
+            if early_stop_streak >= r.early_stop_streak {
                 break;
             }
         } else {
@@ -304,14 +301,14 @@ fn layout_component(
         prepared,
         component_nodes,
         &mut positions,
-        component_seed ^ FINAL_COLLISION_SALT,
-        FINAL_COLLISION_PASSES,
+        component_seed ^ r.final_collision_salt,
+        r.final_collision_passes,
     );
     compact_component_shape(
         prepared,
         component_nodes,
         &mut positions,
-        component_seed ^ FINAL_COLLISION_SALT,
+        component_seed ^ r.final_collision_salt,
         &topology,
         &config.params,
     );
@@ -319,8 +316,8 @@ fn layout_component(
         prepared,
         component_nodes,
         &mut positions,
-        component_seed ^ FINAL_COLLISION_SALT ^ COLLISION_DIRECTION_SALT,
-        FINAL_COLLISION_PASSES,
+        component_seed ^ r.final_collision_salt ^ r.collision_direction_salt,
+        r.final_collision_passes,
     );
 
     let bounds = normalize_component_bounds(prepared, component_nodes, &mut positions);
@@ -470,6 +467,7 @@ fn resolve_collisions(
     component_seed: u64,
     passes: usize,
 ) {
+    let r = &prepared.resolved_params;
     for _ in 0..passes {
         let mut any_overlap = false;
 
@@ -481,7 +479,7 @@ fn resolve_collisions(
                 let delta = positions[right] - positions[left];
                 let distance = delta.length();
 
-                if distance + MIN_DISTANCE >= minimum_distance {
+                if distance + r.min_distance >= minimum_distance {
                     continue;
                 }
 
@@ -490,7 +488,7 @@ fn resolve_collisions(
                     delta,
                     deterministic_unit(
                         component_seed
-                            ^ COLLISION_DIRECTION_SALT
+                            ^ r.collision_direction_salt
                             ^ ((component_nodes[left] as u64) << 32)
                             ^ component_nodes[right] as u64,
                     ),
@@ -531,8 +529,11 @@ fn compact_component_shape(
         return;
     }
 
-    for _ in 0..POST_LAYOUT_COMPACTION_PASSES {
-        let Some((centroid, major_axis, linearity)) = principal_axis_signature(positions) else {
+    let r = &prepared.resolved_params;
+    for _ in 0..r.post_layout_compaction_passes {
+        let Some((centroid, major_axis, linearity)) =
+            principal_axis_signature(positions, r.min_distance)
+        else {
             return;
         };
         let axis_strength =
@@ -542,15 +543,15 @@ fn compact_component_shape(
         let branch_strength = params.branch_smoothing_strength.clamp(0.0, 0.32);
         let leaf_strength = params.leaf_pull_strength.clamp(0.0, 0.38);
 
-        if axis_strength <= MIN_DISTANCE
-            && radial_strength <= MIN_DISTANCE
-            && branch_strength <= MIN_DISTANCE
-            && leaf_strength <= MIN_DISTANCE
+        if axis_strength <= r.min_distance
+            && radial_strength <= r.min_distance
+            && branch_strength <= r.min_distance
+            && leaf_strength <= r.min_distance
         {
             return;
         }
 
-        if axis_strength > MIN_DISTANCE {
+        if axis_strength > r.min_distance {
             for position in positions.iter_mut() {
                 let relative = *position - centroid;
                 let longitudinal = relative.dot(major_axis);
@@ -560,17 +561,24 @@ fn compact_component_shape(
             }
         }
 
-        if radial_strength > MIN_DISTANCE {
-            apply_radial_pull(positions, topology, centroid, radial_strength);
+        if radial_strength > r.min_distance {
+            apply_radial_pull(
+                positions,
+                topology,
+                centroid,
+                radial_strength,
+                r.min_distance,
+            );
         }
 
-        if branch_strength > MIN_DISTANCE || leaf_strength > MIN_DISTANCE {
+        if branch_strength > r.min_distance || leaf_strength > r.min_distance {
             apply_branch_compaction(
                 positions,
                 topology,
                 centroid,
                 branch_strength,
                 leaf_strength,
+                r.min_distance,
             );
         }
 
@@ -583,6 +591,7 @@ fn apply_radial_pull(
     topology: &LocalComponentTopology,
     centroid: Vec2,
     radial_strength: f64,
+    min_distance: f64,
 ) {
     let snapshot = positions.to_vec();
     let radial_mean = snapshot
@@ -594,7 +603,7 @@ fn apply_radial_pull(
     for (slot, position) in positions.iter_mut().enumerate() {
         let relative = snapshot[slot] - centroid;
         let distance = relative.length();
-        if distance <= MIN_DISTANCE {
+        if distance <= min_distance {
             continue;
         }
 
@@ -614,9 +623,9 @@ fn apply_radial_pull(
                 .sum::<f64>()
                 / topology.neighbors[slot].len() as f64
         };
-        let far_bias = ((distance / radial_mean.max(MIN_DISTANCE)) - 0.95).clamp(0.0, 1.2);
+        let far_bias = ((distance / radial_mean.max(min_distance)) - 0.95).clamp(0.0, 1.2);
         let outward_bias =
-            ((distance - neighbor_mean) / distance.max(MIN_DISTANCE)).clamp(0.0, 1.0);
+            ((distance - neighbor_mean) / distance.max(min_distance)).clamp(0.0, 1.0);
         let strength = radial_strength
             * (0.3 + 0.7 * leafish)
             * (0.25 + 0.75 * far_bias)
@@ -632,6 +641,7 @@ fn apply_branch_compaction(
     centroid: Vec2,
     branch_strength: f64,
     leaf_strength: f64,
+    min_distance: f64,
 ) {
     let snapshot = positions.to_vec();
 
@@ -650,9 +660,9 @@ fn apply_branch_compaction(
         let distance = (current - centroid).length();
         let neighbor_distance = (neighbor_center - centroid).length();
         let outward_bias =
-            ((distance - neighbor_distance) / distance.max(MIN_DISTANCE)).clamp(0.0, 1.0);
+            ((distance - neighbor_distance) / distance.max(min_distance)).clamp(0.0, 1.0);
 
-        if degree <= 2 && branch_strength > MIN_DISTANCE {
+        if degree <= 2 && branch_strength > min_distance {
             let target = neighbor_center + ((centroid - neighbor_center) * 0.18);
             let shift = (target - current)
                 * branch_strength
@@ -661,7 +671,7 @@ fn apply_branch_compaction(
             positions[slot] += shift;
         }
 
-        if degree == 1 && leaf_strength > MIN_DISTANCE {
+        if degree == 1 && leaf_strength > min_distance {
             let target = (neighbor_center * 0.68) + (centroid * 0.32);
             let shift = (target - current) * leaf_strength * (0.45 + 0.55 * outward_bias);
             positions[slot] += shift;
@@ -669,7 +679,7 @@ fn apply_branch_compaction(
     }
 }
 
-fn principal_axis_signature(positions: &[Vec2]) -> Option<(Vec2, Vec2, f64)> {
+fn principal_axis_signature(positions: &[Vec2], min_distance: f64) -> Option<(Vec2, Vec2, f64)> {
     if positions.len() < 2 {
         return None;
     }
@@ -696,12 +706,12 @@ fn principal_axis_signature(positions: &[Vec2]) -> Option<(Vec2, Vec2, f64)> {
     yy /= positions.len() as f64;
 
     let trace = xx + yy;
-    if trace <= MIN_DISTANCE {
+    if trace <= min_distance {
         return None;
     }
 
     let delta = ((xx - yy) * (xx - yy) + 4.0 * xy * xy).sqrt();
-    let major = ((trace + delta) * 0.5).max(MIN_DISTANCE);
+    let major = ((trace + delta) * 0.5).max(min_distance);
     let minor = ((trace - delta) * 0.5).max(0.0);
     let theta = 0.5 * (2.0 * xy).atan2(xx - yy);
     let major_axis = Vec2::new(theta.cos(), theta.sin());
@@ -744,6 +754,7 @@ fn place_components(
     prepared: &PreparedLayoutRequest,
     mut components: Vec<ComponentLayout>,
 ) -> BTreeMap<String, Vec2> {
+    let r = &prepared.resolved_params;
     let mut main_components = Vec::new();
     let mut isolated_components = Vec::new();
 
@@ -768,18 +779,23 @@ fn place_components(
         .sort_by(|left, right| component_key(prepared, left).cmp(&component_key(prepared, right)));
 
     let mut placed = BTreeMap::new();
-    let main_bottom =
-        place_component_group(prepared, &main_components, COMPONENT_GAP, 0.0, &mut placed);
+    let main_bottom = place_component_group(
+        prepared,
+        &main_components,
+        r.component_gap,
+        0.0,
+        &mut placed,
+    );
     let isolated_start_y = if main_components.is_empty() {
         0.0
     } else {
-        main_bottom + COMPONENT_GAP
+        main_bottom + r.component_gap
     };
 
     let _ = place_component_group(
         prepared,
         &isolated_components,
-        ISOLATED_NODE_HORIZONTAL_GAP,
+        r.isolated_node_horizontal_gap,
         isolated_start_y,
         &mut placed,
     );
@@ -794,14 +810,15 @@ fn place_component_group(
     start_y: f64,
     placed: &mut BTreeMap<String, Vec2>,
 ) -> f64 {
+    let r = &prepared.resolved_params;
     let mut cursor_x = 0.0;
     let mut cursor_y = start_y;
     let mut row_height = 0.0;
 
     for component in components {
-        if cursor_x > 0.0 && cursor_x + component.bounds.width > SHELF_ROW_MAX_WIDTH {
+        if cursor_x > 0.0 && cursor_x + component.bounds.width > r.shelf_row_max_width {
             cursor_x = 0.0;
-            cursor_y += row_height + COMPONENT_GAP;
+            cursor_y += row_height + r.component_gap;
             row_height = 0.0;
         }
 
@@ -905,6 +922,7 @@ mod tests {
             node_origin: None,
             nodes: Vec::new(),
             edges: Vec::new(),
+            params: None,
         });
 
         let response = compute_layout(&prepared);
@@ -919,6 +937,7 @@ mod tests {
             node_origin: Some([0.0, 0.0]),
             nodes: vec![node("a", 120.0, 60.0)],
             edges: vec![edge("a", "a")],
+            params: None,
         });
 
         let response = compute_layout(&prepared);
@@ -949,6 +968,7 @@ mod tests {
                     kind: Some(LayoutEdgeKind::TwoWay),
                 },
             ],
+            params: None,
         });
 
         assert_eq!(prepared.layout_edges.len(), 1);
@@ -967,6 +987,7 @@ mod tests {
                 node("e", 120.0, 70.0),
             ],
             edges: vec![edge("a", "b"), edge("c", "d")],
+            params: None,
         });
 
         let response = compute_layout(&prepared);
@@ -987,6 +1008,7 @@ mod tests {
                 node("c", 100.0, 100.0),
             ],
             edges: vec![edge("a", "b"), edge("b", "c"), edge("c", "a")],
+            params: None,
         };
 
         let first = compute_layout(&prepare_request(request.clone()));
@@ -1001,6 +1023,7 @@ mod tests {
             node_origin: Some([0.5, 0.5]),
             nodes: vec![node("a", 80.0, 40.0)],
             edges: Vec::new(),
+            params: None,
         };
 
         let response = compute_layout(&prepare_request(request));
@@ -1015,6 +1038,7 @@ mod tests {
             node_origin: None,
             nodes: vec![node("a", 90.0, 90.0), node("b", 90.0, 90.0)],
             edges: vec![edge("a", "b")],
+            params: None,
         };
         let prepared = prepare_request(request);
         let key = cache_key(&prepared).to_string();
@@ -1038,6 +1062,7 @@ mod tests {
                 node("d", 48.0, 48.0),
             ],
             edges: vec![edge("a", "b"), edge("b", "c"), edge("c", "d")],
+            params: None,
         });
         let component_nodes = vec![0usize, 1, 2, 3];
         let local_edges = vec![
@@ -1068,7 +1093,8 @@ mod tests {
             Vec2::new(240.0, 240.0),
         ];
         let (centroid, major_axis, _) =
-            principal_axis_signature(&positions).expect("signature should exist");
+            principal_axis_signature(&positions, prepared.resolved_params.min_distance)
+                .expect("signature should exist");
         let before_extent = positions
             .iter()
             .map(|position| (*position - centroid).dot(major_axis).abs())
@@ -1084,7 +1110,8 @@ mod tests {
         );
 
         let (centroid, major_axis, _) =
-            principal_axis_signature(&positions).expect("signature should exist");
+            principal_axis_signature(&positions, prepared.resolved_params.min_distance)
+                .expect("signature should exist");
         let after_extent = positions
             .iter()
             .map(|position| (*position - centroid).dot(major_axis).abs())
@@ -1104,6 +1131,7 @@ mod tests {
                 node("tip", 48.0, 48.0),
             ],
             edges: vec![edge("core", "mid"), edge("mid", "tip")],
+            params: None,
         });
         let component_nodes = vec![0usize, 1, 2];
         let local_edges = vec![
@@ -1152,6 +1180,7 @@ mod tests {
                 node("d", 180.0, 120.0),
             ],
             edges: vec![edge("a", "b"), edge("b", "c"), edge("c", "d")],
+            params: None,
         });
 
         let response = compute_layout(&prepared);

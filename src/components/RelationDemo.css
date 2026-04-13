@@ -102,17 +102,99 @@
     color: var(--fc-color-danger);
 }
 
+.relation-demo__workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(20rem, 26rem);
+    gap: 1rem;
+    align-items: start;
+    min-height: 0;
+}
+
 .relation-demo__graph-shell {
     min-height: 0;
+    height: 640px;
     padding: 0.75rem;
     border: 1px solid var(--fc-color-border);
     border-radius: 0.5rem;
     background: var(--fc-color-bg-elevated);
 }
 
+.relation-demo--embedded .relation-demo__graph-shell {
+    height: 720px;
+}
+
 .relation-demo__graph-shell .fc-rg {
     border-radius: 0.25rem;
     overflow: hidden;
+}
+
+.relation-demo__sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-height: 720px;
+    overflow-y: auto;
+}
+
+.relation-demo__panel {
+    border: 1px solid var(--fc-color-border);
+    border-radius: 0.5rem;
+    background: var(--fc-color-bg-elevated);
+}
+
+.relation-demo__panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem 0.65rem;
+}
+
+.relation-demo__panel-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--fc-color-text);
+}
+
+.relation-demo__panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0 1rem 1rem;
+}
+
+.relation-demo__field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.relation-demo__button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.relation-demo__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.relation-demo__field label {
+    font-size: 0.75rem;
+    color: var(--fc-color-text-secondary);
+}
+
+.relation-demo__field input {
+    width: 100%;
+    min-height: 2.2rem;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--fc-color-border);
+    border-radius: 0.5rem;
+    background: var(--fc-color-bg);
+    color: var(--fc-color-text);
 }
 
 .relation-demo-node {

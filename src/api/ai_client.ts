@@ -1,4 +1,4 @@
-import { command } from './base'
+import {command} from './base'
 
 export type AiPluginKind = 'llm' | 'image' | 'tts'
 
@@ -85,6 +85,11 @@ export const AI_EVENT_TOOL_CALL = 'ai:tool_call'
 export const AI_EVENT_TURN_END = 'ai:turn_end'
 export const AI_EVENT_ERROR = 'ai:error'
 
+export interface ToolStatus {
+    name: string
+    enabled: boolean
+}
+
 export const ai_list_plugins = (kind: AiPluginKind) =>
   command<PluginInfo[]>('ai_list_plugins', { kind })
 
@@ -149,3 +154,17 @@ export const ai_speak = ({ pluginId, apiKey, model, text, voiceId }: AiSpeakPara
 
 export const ai_play_tts = ({ pluginId, apiKey, model, text, voiceId }: AiSpeakParams) =>
   command<void>('ai_play_tts', { pluginId, apiKey, model, text, voiceId })
+
+// ── 工具管理 ──────────────────────────────────────────────────────────────────
+
+export const ai_enable_tool = (name: string) =>
+    command<boolean>('ai_enable_tool', {name})
+
+export const ai_disable_tool = (name: string) =>
+    command<boolean>('ai_disable_tool', {name})
+
+export const ai_is_enabled = (name: string) =>
+    command<boolean>('ai_is_enabled', {name})
+
+export const ai_list_tools = () =>
+    command<ToolStatus[]>('ai_list_tools')

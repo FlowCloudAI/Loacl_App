@@ -205,5 +205,166 @@ pub fn register_worldflow_tools(
         },
     );
 
+    // ⑦ update_entry_title - 更新词条标题
+    registry.register_async::<WorldflowToolState, _>(
+        "update_entry_title",
+        "更新指定词条的标题",
+        vec![
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("title", "string")
+                .required(true)
+                .desc("新标题"),
+        ],
+        |_state, args| {
+            let app_state = _state.app_state.clone().unwrap();
+            Box::pin(async move {
+                let entry_id = arg_str(args, "entry_id")?;
+                let title = arg_str(args, "title")?;
+
+                let app_state_guard = app_state.lock().await;
+                let entry =
+                    tools::update_entry_title(&*app_state_guard, entry_id, title.to_string())
+                        .await
+                        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+                Ok(format::format_entry(&entry))
+            })
+        },
+    );
+
+    // ⑧ update_entry_summary - 更新词条摘要
+    registry.register_async::<WorldflowToolState, _>(
+        "update_entry_summary",
+        "更新指定词条的摘要；传入空字符串可清空摘要",
+        vec![
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("summary", "string")
+                .required(true)
+                .desc("新摘要内容"),
+        ],
+        |_state, args| {
+            let app_state = _state.app_state.clone().unwrap();
+            Box::pin(async move {
+                let entry_id = arg_str(args, "entry_id")?;
+                let summary = arg_str(args, "summary")?;
+                let summary = if summary.is_empty() {
+                    None
+                } else {
+                    Some(summary.to_string())
+                };
+
+                let app_state_guard = app_state.lock().await;
+                let entry = tools::update_entry_summary(&*app_state_guard, entry_id, summary)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+                Ok(format::format_entry(&entry))
+            })
+        },
+    );
+
+    // ⑨ update_entry_content - 更新词条正文
+    registry.register_async::<WorldflowToolState, _>(
+        "update_entry_content",
+        "更新指定词条的正文内容；传入空字符串可清空正文",
+        vec![
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("content", "string")
+                .required(true)
+                .desc("新正文内容，支持 Markdown"),
+        ],
+        |_state, args| {
+            let app_state = _state.app_state.clone().unwrap();
+            Box::pin(async move {
+                let entry_id = arg_str(args, "entry_id")?;
+                let content = arg_str(args, "content")?;
+                let content = if content.is_empty() {
+                    None
+                } else {
+                    Some(content.to_string())
+                };
+
+                let app_state_guard = app_state.lock().await;
+                let entry = tools::update_entry_content(&*app_state_guard, entry_id, content)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+                Ok(format::format_entry(&entry))
+            })
+        },
+    );
+
+    // ⑩ update_entry_type - 更新词条类型
+    registry.register_async::<WorldflowToolState, _>(
+        "update_entry_type",
+        "更新指定词条的类型",
+        vec![
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("entry_type", "string")
+                .required(true)
+                .desc("词条类型（如 character, item, location, event, faction）"),
+        ],
+        |_state, args| {
+            let app_state = _state.app_state.clone().unwrap();
+            Box::pin(async move {
+                let entry_id = arg_str(args, "entry_id")?;
+                let entry_type = arg_str(args, "entry_type")?;
+
+                let app_state_guard = app_state.lock().await;
+                let entry = tools::update_entry_type(
+                    &*app_state_guard,
+                    entry_id,
+                    Some(entry_type.to_string()),
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+                Ok(format::format_entry(&entry))
+            })
+        },
+    );
+
+    // ⑪ update_entry_tags - 更新词条标签（全量替换）
+    registry.register_async::<WorldflowToolState, _>(
+        "update_entry_tags",
+        "全量替换指定词条的标签列表；调用前建议先用 list_tag_schemas 确认可用标签",
+        vec![
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("tags", "array")
+                .required(true)
+                .desc("标签对象数组，每个对象包含 schema_id（或 name）和 value"),
+        ],
+        |_state, args| {
+            let app_state = _state.app_state.clone().unwrap();
+            Box::pin(async move {
+                let entry_id = arg_str(args, "entry_id")?;
+                let tags_json = args
+                    .get("tags")
+                    .ok_or_else(|| anyhow::anyhow!("缺少 tags 参数"))?;
+
+                let tags: Vec<worldflow_core::models::EntryTag> =
+                    serde_json::from_value(tags_json.clone())
+                        .map_err(|e| anyhow::anyhow!("tags 格式错误: {}", e))?;
+
+                let app_state_guard = app_state.lock().await;
+                let entry = tools::update_entry_tags(&*app_state_guard, entry_id, tags)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+                Ok(format::format_entry(&entry))
+            })
+        },
+    );
+
     Ok(())
 }

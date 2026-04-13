@@ -1,5 +1,4 @@
 use crate::layout::cluster::{ClusterEdgeRef, ConnectedComponentSpec};
-use crate::layout::constants::FIXED_RANDOM_SEED;
 use crate::layout::math::fnv64;
 use crate::layout::prepare::PreparedLayoutRequest;
 use crate::layout::topology::build_undirected_topology;
@@ -81,5 +80,5 @@ pub(crate) fn component_seed(prepared: &PreparedLayoutRequest, component_nodes: 
         bytes.extend_from_slice(prepared.nodes[node_index].id.as_bytes());
         bytes.push(0x1f);
     }
-    fnv64(bytes.as_slice()) ^ FIXED_RANDOM_SEED
+    fnv64(bytes.as_slice()) ^ prepared.resolved_params.fixed_random_seed
 }

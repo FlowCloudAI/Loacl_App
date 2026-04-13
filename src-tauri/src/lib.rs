@@ -22,8 +22,8 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::sync::Arc;
 use tauri::{
-    http::{header::CONTENT_TYPE, Response, StatusCode}, AppHandle, Manager, Runtime, UriSchemeContext,
-    WindowBuilder,
+    AppHandle, Manager, Runtime, UriSchemeContext, WindowBuilder,
+    http::{Response, StatusCode, header::CONTENT_TYPE},
 };
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_log;
@@ -192,6 +192,10 @@ pub fn run() {
             ai_merge_images,
             ai_speak,
             ai_play_tts,
+            ai_enable_tool,
+            ai_disable_tool,
+            ai_is_enabled,
+            ai_list_tools,
             // App Settings
             setting_get_settings,
             setting_update_settings,

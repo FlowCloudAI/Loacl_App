@@ -1,6 +1,9 @@
-use crate::layout::constants::{COLLISION_PADDING, HASH_FLOAT_SCALE, MIN_NODE_SIZE};
+use crate::layout::constants::{HASH_FLOAT_SCALE, MIN_NODE_SIZE};
 use crate::layout::math::fnv64_hex;
-use crate::layout::types::{LayoutEdgeInput, LayoutEdgeKind, LayoutNodeInput, LayoutRequest};
+use crate::layout::resolved_params::ResolvedLayoutParams;
+use crate::layout::types::{
+    LayoutEdgeInput, LayoutEdgeKind, LayoutNodeInput, LayoutParamsPayload, LayoutRequest,
+};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -9,6 +12,8 @@ pub struct PreparedLayoutRequest {
     pub(crate) node_origin: [f64; 2],
     pub(crate) nodes: Vec<LayoutNode>,
     pub(crate) layout_edges: Vec<LayoutEdge>,
+    pub(crate) params: Option<LayoutParamsPayload>,
+    pub(crate) resolved_params: ResolvedLayoutParams,
     cache_key: String,
     pub(crate) layout_hash: String,
 }
@@ -34,6 +39,7 @@ struct NormalizedCacheInput {
     node_origin: [i64; 2],
     nodes: Vec<NormalizedNode>,
     edges: Vec<NormalizedEdge>,
+    params: Option<LayoutParamsPayload>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -64,7 +70,8 @@ struct PairFlags {
 
 pub fn prepare_request(request: LayoutRequest) -> PreparedLayoutRequest {
     let node_origin = normalize_node_origin(request.node_origin);
-    let normalized_nodes = normalize_nodes(request.nodes);
+    let resolved_params = ResolvedLayoutParams::from_payload(request.params.clone());
+    let normalized_nodes = normalize_nodes(request.nodes, resolved_params.collision_padding);
     let node_index_by_id = normalized_nodes
         .iter()
         .enumerate()
@@ -98,6 +105,7 @@ pub fn prepare_request(request: LayoutRequest) -> PreparedLayoutRequest {
                 kind: edge.kind.as_ref().map(kind_name),
             })
             .collect(),
+        params: request.params.clone(),
     };
 
     let cache_key = serde_json::to_string(&cache_input)
@@ -108,6 +116,8 @@ pub fn prepare_request(request: LayoutRequest) -> PreparedLayoutRequest {
         node_origin,
         nodes: normalized_nodes,
         layout_edges,
+        params: request.params,
+        resolved_params,
         cache_key,
         layout_hash,
     }
@@ -117,7 +127,7 @@ pub fn cache_key(prepared: &PreparedLayoutRequest) -> &str {
     &prepared.cache_key
 }
 
-fn normalize_nodes(nodes: Vec<LayoutNodeInput>) -> Vec<LayoutNode> {
+fn normalize_nodes(nodes: Vec<LayoutNodeInput>, collision_padding: f64) -> Vec<LayoutNode> {
     let mut ordered = nodes
         .into_iter()
         .enumerate()
@@ -145,7 +155,7 @@ fn normalize_nodes(nodes: Vec<LayoutNodeInput>) -> Vec<LayoutNode> {
             id: node.id,
             width,
             height,
-            radius: (width.max(height) * 0.5) + COLLISION_PADDING,
+            radius: (width.max(height) * 0.5) + collision_padding,
         });
     }
 
