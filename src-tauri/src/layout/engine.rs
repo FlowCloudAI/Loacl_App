@@ -8,7 +8,7 @@
 //!   连通分量成员由本模块自行稳定遍历收集。
 
 use crate::layout::cluster::{
-    decompose_component, layout_cluster_graph, ClusterBox, ClusterPlacement, ConnectedComponentSpec,
+    ClusterBox, ClusterPlacement, ConnectedComponentSpec, decompose_component, layout_cluster_graph,
 };
 use crate::layout::component_graph::{
     component_key_from_node_indices, component_seed, split_connected_components,
@@ -19,11 +19,11 @@ use crate::layout::constants::{
     FINAL_COLLISION_SALT, ISOLATED_NODE_HORIZONTAL_GAP, MIN_DISTANCE,
     POST_LAYOUT_COMPACTION_PASSES, SHELF_ROW_MAX_WIDTH,
 };
-use crate::layout::math::{deterministic_unit, safe_direction, unit_angle, Vec2};
-use crate::layout::params::{build_adaptive_component_config, AdaptiveComponentConfig};
-pub use crate::layout::prepare::{cache_key, prepare_request, PreparedLayoutRequest};
+use crate::layout::math::{Vec2, deterministic_unit, safe_direction, unit_angle};
+use crate::layout::params::{AdaptiveComponentConfig, build_adaptive_component_config};
 pub(crate) use crate::layout::prepare::{LayoutEdge, LayoutNode};
-use crate::layout::topology::{build_undirected_topology, UndirectedTopology};
+pub use crate::layout::prepare::{PreparedLayoutRequest, cache_key, prepare_request};
+use crate::layout::topology::{UndirectedTopology, build_undirected_topology};
 use crate::layout::types::{LayoutBounds, LayoutPosition, LayoutResponse};
 use std::collections::{BTreeMap, HashMap};
 use std::f64::consts::TAU;
@@ -855,8 +855,8 @@ fn component_key(prepared: &PreparedLayoutRequest, component: &ComponentLayout) 
 #[cfg(test)]
 mod tests {
     use super::{
-        build_local_topology, cache_key, compact_component_shape, compute_layout, prepare_request,
-        principal_axis_signature, Vec2,
+        Vec2, build_local_topology, cache_key, compact_component_shape, compute_layout,
+        prepare_request, principal_axis_signature,
     };
     use crate::layout::cache::LayoutCache;
     use crate::layout::constants::COLLISION_PADDING;
@@ -1071,7 +1071,7 @@ mod tests {
             principal_axis_signature(&positions).expect("signature should exist");
         let before_extent = positions
             .iter()
-            .map(|position| ((*position - centroid).dot(major_axis)).abs())
+            .map(|position| (*position - centroid).dot(major_axis).abs())
             .fold(0.0_f64, f64::max);
 
         compact_component_shape(
@@ -1087,7 +1087,7 @@ mod tests {
             principal_axis_signature(&positions).expect("signature should exist");
         let after_extent = positions
             .iter()
-            .map(|position| ((*position - centroid).dot(major_axis)).abs())
+            .map(|position| (*position - centroid).dot(major_axis).abs())
             .fold(0.0_f64, f64::max);
 
         assert!(after_extent < before_extent);

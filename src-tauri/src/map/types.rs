@@ -15,12 +15,12 @@ where
             formatter.write_str("an integer or a string representing an integer")
         }
 
-        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
-            Ok(Some(value))
-        }
-
         fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
             Ok(Some(value as u64))
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+            Ok(Some(value))
         }
 
         fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>

@@ -1163,7 +1163,7 @@ export default function EntryEditor({
         if (removedSchemaIds.length > 0) {
             setPinnedTagSchemaIds((current) => current.filter((id) => !removedSchemaIds.includes(id)))
         }
-    }, [entryId, localTagSchemas, draft.type])
+    }, [entryId, localTagSchemas, draft.type, draft.tags])
 
     const handleSave = useCallback(async () => {
         if (!entry || !canSave) return
@@ -1216,7 +1216,9 @@ export default function EntryEditor({
 
             for (const draftRelation of relationDrafts) {
                 if (hasInvalidRelationDraft(draftRelation, entry.id)) {
-                    throw new Error('存在未完成的词条关系，请先选择目标词条。')
+                    setError('存在未完成的词条关系，请先选择目标词条。')
+                    setSaving(false)
+                    return
                 }
 
                 const payload = resolveRelationPayload(entry.id, draftRelation)

@@ -1,6 +1,6 @@
 import {type PointerEvent, useEffect, useRef, useState, type WheelEvent} from 'react'
 import {Button, RollingBox, useAlert} from 'flowcloudai-ui'
-import {open_entry_image_path} from '../api/worldflow'
+import {open_entry_image_path} from '../api'
 import './EntryImageLightbox.css'
 
 type LightboxImage = {

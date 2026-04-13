@@ -25,8 +25,8 @@ impl NetworkState {
 
 /// 解析后的数据目录路径（db 和 plugins）
 pub struct PathsState {
-    pub db_path: std::path::PathBuf,
-    pub plugins_path: std::path::PathBuf,
+    pub db_path: PathBuf,
+    pub plugins_path: PathBuf,
 }
 
 // ── AppState ──────────────────────────────────────────────────────────────────

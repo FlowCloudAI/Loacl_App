@@ -166,8 +166,8 @@ async fn market_update(
         .ok_or_else(|| anyhow::anyhow!("无效文件名"))?
         .to_string_lossy()
         .to_string();
-    let part = reqwest::multipart::Part::bytes(bytes).file_name(filename);
-    let form = reqwest::multipart::Form::new().part("file", part);
+    let part = multipart::Part::bytes(bytes).file_name(filename);
+    let form = multipart::Form::new().part("file", part);
     let res = client
         .put(format!("{}/{}", MARKET_BASE, id))
         .multipart(form)
