@@ -2,11 +2,10 @@ import {StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
 
 import App from './App.tsx'
-import {showWindow, setting_get_settings} from './api'
-import {AlertProvider, ThemeProvider, ContextMenuProvider} from 'flowcloudai-ui'
+import {setting_get_settings, showWindow} from './api'
+import {AlertProvider, ContextMenuProvider, ThemeProvider} from 'flowcloudai-ui'
 // @ts-expect-error - CSS import, no types needed
 import 'flowcloudai-ui/style';
-import './index.css'
 import './i18n' // 初始化 i18n
 
 function isTauriRuntime(): boolean {

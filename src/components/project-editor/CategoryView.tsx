@@ -68,6 +68,7 @@ function sortEntries(entries: EntryBrief[], mode: SortMode): EntryBrief[] {
 
 interface CategoryViewProps {
     categoryId: string
+    categoryName?: string
     projectId: string
     entryTypes: EntryTypeView[]
     tagSchemas: TagSchema[]
@@ -76,7 +77,16 @@ interface CategoryViewProps {
     onOpenEntry?: (entry: { id: string; title: string }) => void
 }
 
-function CategoryView({categoryId, projectId, entryTypes, tagSchemas, refreshToken = 0, onEntryCreated, onOpenEntry}: CategoryViewProps) {
+function CategoryView({
+                          categoryId,
+                          categoryName = '',
+                          projectId,
+                          entryTypes,
+                          tagSchemas,
+                          refreshToken = 0,
+                          onEntryCreated,
+                          onOpenEntry
+                      }: CategoryViewProps) {
     const [entries, setEntries] = useState<EntryBrief[]>([])
     const [loading, setLoading] = useState(false)
     const [searchText, setSearchText] = useState('')
@@ -86,13 +96,23 @@ function CategoryView({categoryId, projectId, entryTypes, tagSchemas, refreshTok
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const loadEntries = useCallback(async (query: string, type: string | null) => {
+        const trimmedQuery = query.trim()
+        const requestLabel = trimmedQuery ? 'search' : 'list'
+        console.info('[CategoryView] 开始加载词条', {
+            requestLabel,
+            projectId,
+            categoryId,
+            typeFilter: type,
+            rawQuery: query,
+            trimmedQuery,
+        })
         setLoading(true)
         try {
             let result: EntryBrief[]
-            if (query.trim()) {
+            if (trimmedQuery) {
                 result = await db_search_entries({
                     projectId,
-                    query: query.trim(),
+                    query: trimmedQuery,
                     categoryId,
                     entryType: type,
                     limit: 200,
@@ -106,9 +126,26 @@ function CategoryView({categoryId, projectId, entryTypes, tagSchemas, refreshTok
                     offset: 0,
                 })
             }
+            console.info('[CategoryView] 词条加载完成', {
+                requestLabel,
+                resultCount: result.length,
+                resultPreview: result.slice(0, 5).map((entry) => ({
+                    id: entry.id,
+                    title: entry.title,
+                    type: entry.type,
+                    categoryId: entry.category_id,
+                })),
+            })
             setEntries(result)
         } catch (e) {
-            console.error('load entries failed', e)
+            console.error('[CategoryView] 词条加载失败', {
+                requestLabel,
+                projectId,
+                categoryId,
+                typeFilter: type,
+                rawQuery: query,
+                error: e,
+            })
         } finally {
             setLoading(false)
         }
@@ -125,9 +162,21 @@ function CategoryView({categoryId, projectId, entryTypes, tagSchemas, refreshTok
     }, [])
 
     const handleSearchChange = (value: string) => {
+        console.info('[CategoryView] 搜索框输入变化', {
+            value,
+            trimmedValue: value.trim(),
+            categoryId,
+            typeFilter,
+        })
         setSearchText(value)
         if (searchTimer.current) clearTimeout(searchTimer.current)
         searchTimer.current = setTimeout(() => {
+            console.info('[CategoryView] 触发防抖搜索', {
+                value,
+                trimmedValue: value.trim(),
+                categoryId,
+                typeFilter,
+            })
             void loadEntries(value, typeFilter)
         }, 300)
     }
@@ -137,33 +186,36 @@ function CategoryView({categoryId, projectId, entryTypes, tagSchemas, refreshTok
     return (
         <div className="pe-category-view">
             <div className="pe-category-toolbar">
-                <Input
-                    className="pe-search-input"
-                    placeholder="搜索词条…"
-                    value={searchText}
-                    onChange={handleSearchChange}
-                />
-                <div className="pe-category-toolbar-actions">
-                    <Button size="sm" onClick={() => setCreatorOpen(true)}>
-                        + 新建词条
-                    </Button>
-                </div>
-                <div className="pe-sort-tabs">
-                    {SORT_OPTIONS.map((opt) => (
+                <div className="pe-category-title">{categoryName}</div>
+                <div className="pe-category-toolbar-right">
+                    <Input
+                        className="pe-search-input"
+                        placeholder="搜索词条…"
+                        value={searchText}
+                        onChange={handleSearchChange}
+                    />
+                    <div className="pe-category-toolbar-actions">
+                        <Button size="sm" onClick={() => setCreatorOpen(true)}>
+                            + 新建词条
+                        </Button>
+                    </div>
+                    <div className="pe-sort-tabs">
+                        {SORT_OPTIONS.map((opt) => (
+                            <button
+                                key={opt.key}
+                                className={`pe-sort-tab${sortMode === opt.key ? ' active' : ''}`}
+                                onClick={() => setSortMode(opt.key)}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
                         <button
-                            key={opt.key}
-                            className={`pe-sort-tab${sortMode === opt.key ? ' active' : ''}`}
-                            onClick={() => setSortMode(opt.key)}
+                            className={`pe-sort-tab${sortMode === 'name-asc' || sortMode === 'name-desc' ? ' active' : ''}`}
+                            onClick={() => setSortMode(current => current === 'name-asc' ? 'name-desc' : 'name-asc')}
                         >
-                            {opt.label}
+                            {sortMode === 'name-desc' ? '标题 Z-A' : '标题 A-Z'}
                         </button>
-                    ))}
-                    <button
-                        className={`pe-sort-tab${sortMode === 'name-asc' || sortMode === 'name-desc' ? ' active' : ''}`}
-                        onClick={() => setSortMode(current => current === 'name-asc' ? 'name-desc' : 'name-asc')}
-                    >
-                        {sortMode === 'name-desc' ? '标题 Z-A' : '标题 A-Z'}
-                    </button>
+                    </div>
                 </div>
             </div>
 

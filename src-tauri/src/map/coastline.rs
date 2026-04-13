@@ -11,13 +11,22 @@ use crate::map::constants::{
     HASH_TEXT_PRIME, HASH_UNIT_INCREMENT, HASH_UNIT_MULTIPLIER, TAU,
 };
 use crate::map::geometry::{find_polygon_self_intersections, is_point_in_polygon};
-use crate::map::types::{MapEditorCanvas, MapKeyLocationDraft, MapShapeDraft, MapShapeVertex};
+use crate::map::types::{
+    CoastlineParams, MapEditorCanvas, MapKeyLocationDraft, MapShapeDraft, MapShapeVertex,
+};
 use std::time::Instant;
+
+macro_rules! param {
+    ($params:expr, $field:ident, $default:expr) => {
+        $params.and_then(|p| p.$field).unwrap_or($default)
+    };
+}
 
 pub fn build_natural_coastline_polygon(
     canvas: &MapEditorCanvas,
     shape: &MapShapeDraft,
     related_locations: &[MapKeyLocationDraft],
+    params: Option<&CoastlineParams>,
 ) -> Vec<[f64; 2]> {
     let started_at = Instant::now();
     log::info!(
@@ -37,7 +46,7 @@ pub fn build_natural_coastline_polygon(
         return to_polygon(&shape.vertices);
     }
 
-    let naturalized = naturalize_vertices(canvas, shape);
+    let naturalized = naturalize_vertices(canvas, shape, params);
     if coastline_is_usable(&naturalized, related_locations) {
         log::info!(
             "海岸线计算成功：shape_id={}，分支=自然化，输出顶点数={}，耗时={}ms",
@@ -79,8 +88,16 @@ pub fn build_natural_coastline_polygon(
 
     let smoothed = relax_polygon(
         &shape.vertices,
-        COASTLINE_FALLBACK_RELAX_PASSES,
-        COASTLINE_FALLBACK_RELAX_WEIGHT,
+        param!(
+            params,
+            fallback_relax_passes,
+            COASTLINE_FALLBACK_RELAX_PASSES
+        ),
+        param!(
+            params,
+            fallback_relax_weight,
+            COASTLINE_FALLBACK_RELAX_WEIGHT
+        ),
     );
     if coastline_is_usable(&smoothed, related_locations) {
         log::info!(
@@ -101,7 +118,11 @@ pub fn build_natural_coastline_polygon(
     to_polygon(&shape.vertices)
 }
 
-fn naturalize_vertices(canvas: &MapEditorCanvas, shape: &MapShapeDraft) -> Vec<MapShapeVertex> {
+fn naturalize_vertices(
+    canvas: &MapEditorCanvas,
+    shape: &MapShapeDraft,
+    params: Option<&CoastlineParams>,
+) -> Vec<MapShapeVertex> {
     let vertices = &shape.vertices;
     let perimeter = polygon_perimeter(vertices).max(1.0);
     let average_edge_length = perimeter / vertices.len() as f64;
@@ -111,7 +132,7 @@ fn naturalize_vertices(canvas: &MapEditorCanvas, shape: &MapShapeDraft) -> Vec<M
     } else {
         1.0
     };
-    let seed = hash_text(&format!("{}:{}", shape.id, shape.name));
+    let seed = hash_text(&format!("{}:{}", shape.id, shape.name), params);
 
     let mut refined = Vec::new();
     refined.push(vertices[0].clone());
@@ -129,11 +150,21 @@ fn naturalize_vertices(canvas: &MapEditorCanvas, shape: &MapShapeDraft) -> Vec<M
         }
 
         let normalized_length = (edge_length / average_edge_length).clamp(
-            COASTLINE_NORMALIZED_LENGTH_MIN,
-            COASTLINE_NORMALIZED_LENGTH_MAX,
+            param!(
+                params,
+                normalized_length_min,
+                COASTLINE_NORMALIZED_LENGTH_MIN
+            ),
+            param!(
+                params,
+                normalized_length_max,
+                COASTLINE_NORMALIZED_LENGTH_MAX
+            ),
         );
-        let segment_count = segment_count_for_edge(edge_length, perimeter, normalized_length);
-        let amplitude = displacement_amplitude(edge_length, canvas_scale, normalized_length);
+        let segment_count =
+            segment_count_for_edge(edge_length, perimeter, normalized_length, params);
+        let amplitude =
+            displacement_amplitude(edge_length, canvas_scale, normalized_length, params);
         let outward_normal = (
             outward_sign * dy / edge_length,
             outward_sign * -dx / edge_length,
@@ -149,7 +180,7 @@ fn naturalize_vertices(canvas: &MapEditorCanvas, shape: &MapShapeDraft) -> Vec<M
             let base_x = start.x + dx * t;
             let base_y = start.y + dy * t;
             let envelope = (std::f64::consts::PI * t).sin().powf(1.15);
-            let signed_noise = layered_edge_noise(seed, edge_index, t);
+            let signed_noise = layered_edge_noise(seed, edge_index, t, params);
             let offset = amplitude * envelope * signed_noise;
 
             refined.push(MapShapeVertex {
@@ -161,8 +192,19 @@ fn naturalize_vertices(canvas: &MapEditorCanvas, shape: &MapShapeDraft) -> Vec<M
     }
 
     let raw_refined_len = refined.len();
-    let refined = dedupe_adjacent_vertices(refined);
-    let relaxed = relax_polygon(&refined, COASTLINE_RELAX_PASSES, COASTLINE_RELAX_WEIGHT);
+    let refined = dedupe_adjacent_vertices(
+        refined,
+        param!(
+            params,
+            deduplicate_distance_squared,
+            COASTLINE_DEDUPLICATE_DISTANCE_SQUARED
+        ),
+    );
+    let relaxed = relax_polygon(
+        &refined,
+        param!(params, relax_passes, COASTLINE_RELAX_PASSES),
+        param!(params, relax_weight, COASTLINE_RELAX_WEIGHT),
+    );
     log::info!(
         "自然化细节：shape_id={}，原始顶点数={}，细分后顶点数={}，去重后顶点数={}，平滑后顶点数={}，跳过零长度边数={}",
         shape.id,
@@ -226,20 +268,50 @@ fn relax_polygon(vertices: &[MapShapeVertex], passes: usize, weight: f64) -> Vec
     current
 }
 
-fn segment_count_for_edge(edge_length: f64, perimeter: f64, normalized_length: f64) -> usize {
+fn segment_count_for_edge(
+    edge_length: f64,
+    perimeter: f64,
+    normalized_length: f64,
+    params: Option<&CoastlineParams>,
+) -> usize {
     let edge_ratio = (edge_length / perimeter).clamp(0.02, 0.35);
-    let desired = (COASTLINE_SEGMENT_BASE
-        + normalized_length * COASTLINE_SEGMENT_LENGTH_FACTOR
-        + edge_ratio * COASTLINE_SEGMENT_EDGE_RATIO_FACTOR)
-        .round() as usize;
-    desired.clamp(COASTLINE_MIN_SEGMENTS, COASTLINE_MAX_SEGMENTS)
+    let desired = (param!(params, segment_base, COASTLINE_SEGMENT_BASE)
+        + normalized_length
+            * param!(
+                params,
+                segment_length_factor,
+                COASTLINE_SEGMENT_LENGTH_FACTOR
+            )
+        + edge_ratio
+            * param!(
+                params,
+                segment_edge_ratio_factor,
+                COASTLINE_SEGMENT_EDGE_RATIO_FACTOR
+            ))
+    .round() as usize;
+    desired.clamp(
+        param!(params, min_segments, COASTLINE_MIN_SEGMENTS),
+        param!(params, max_segments, COASTLINE_MAX_SEGMENTS),
+    )
 }
 
-fn displacement_amplitude(edge_length: f64, canvas_scale: f64, normalized_length: f64) -> f64 {
-    let amplitude = edge_length * COASTLINE_AMPLITUDE_BASE * normalized_length.sqrt();
+fn displacement_amplitude(
+    edge_length: f64,
+    canvas_scale: f64,
+    normalized_length: f64,
+    params: Option<&CoastlineParams>,
+) -> f64 {
+    let amplitude = edge_length
+        * param!(params, amplitude_base, COASTLINE_AMPLITUDE_BASE)
+        * normalized_length.sqrt();
     amplitude.clamp(
-        COASTLINE_AMPLITUDE_MIN,
-        canvas_scale * COASTLINE_AMPLITUDE_CANVAS_RATIO_MAX,
+        param!(params, amplitude_min, COASTLINE_AMPLITUDE_MIN),
+        canvas_scale
+            * param!(
+                params,
+                amplitude_canvas_ratio_max,
+                COASTLINE_AMPLITUDE_CANVAS_RATIO_MAX
+            ),
     )
 }
 
@@ -265,31 +337,72 @@ fn signed_area(vertices: &[MapShapeVertex]) -> f64 {
     area * 0.5
 }
 
-fn layered_edge_noise(seed: u64, edge_index: usize, t: f64) -> f64 {
-    let phase_a = hash_unit(seed ^ (edge_index as u64 + 1).wrapping_mul(COASTLINE_NOISE_SALT_A));
-    let phase_b = hash_unit(seed ^ (edge_index as u64 + 7).wrapping_mul(COASTLINE_NOISE_SALT_B));
-    let phase_c = hash_unit(seed ^ (edge_index as u64 + 17).wrapping_mul(COASTLINE_NOISE_SALT_C));
+fn layered_edge_noise(
+    seed: u64,
+    edge_index: usize,
+    t: f64,
+    params: Option<&CoastlineParams>,
+) -> f64 {
+    let phase_a = hash_unit(
+        seed ^ (edge_index as u64 + 1).wrapping_mul(param!(
+            params,
+            noise_salt_a,
+            COASTLINE_NOISE_SALT_A
+        )),
+        params,
+    );
+    let phase_b = hash_unit(
+        seed ^ (edge_index as u64 + 7).wrapping_mul(param!(
+            params,
+            noise_salt_b,
+            COASTLINE_NOISE_SALT_B
+        )),
+        params,
+    );
+    let phase_c = hash_unit(
+        seed ^ (edge_index as u64 + 17).wrapping_mul(param!(
+            params,
+            noise_salt_c,
+            COASTLINE_NOISE_SALT_C
+        )),
+        params,
+    );
 
-    let wave_a =
-        (TAU * (COASTLINE_WAVE_A_BASE + phase_a * COASTLINE_WAVE_A_SPAN) * t + phase_b * TAU).sin();
-    let wave_b =
-        (TAU * (COASTLINE_WAVE_B_BASE + phase_b * COASTLINE_WAVE_B_SPAN) * t + phase_c * TAU).sin();
-    let wave_c =
-        (TAU * (COASTLINE_WAVE_C_BASE + phase_c * COASTLINE_WAVE_C_SPAN) * t + phase_a * TAU).sin();
+    let wave_a = (TAU
+        * (param!(params, wave_a_base, COASTLINE_WAVE_A_BASE)
+            + phase_a * param!(params, wave_a_span, COASTLINE_WAVE_A_SPAN))
+        * t
+        + phase_b * TAU)
+        .sin();
+    let wave_b = (TAU
+        * (param!(params, wave_b_base, COASTLINE_WAVE_B_BASE)
+            + phase_b * param!(params, wave_b_span, COASTLINE_WAVE_B_SPAN))
+        * t
+        + phase_c * TAU)
+        .sin();
+    let wave_c = (TAU
+        * (param!(params, wave_c_base, COASTLINE_WAVE_C_BASE)
+            + phase_c * param!(params, wave_c_span, COASTLINE_WAVE_C_SPAN))
+        * t
+        + phase_a * TAU)
+        .sin();
 
-    (wave_a * COASTLINE_WAVE_A_WEIGHT
-        + wave_b * COASTLINE_WAVE_B_WEIGHT
-        + wave_c * COASTLINE_WAVE_C_WEIGHT)
-        .clamp(-1.0, 1.0)
+    (wave_a * param!(params, wave_a_weight, COASTLINE_WAVE_A_WEIGHT)
+        + wave_b * param!(params, wave_b_weight, COASTLINE_WAVE_B_WEIGHT)
+        + wave_c * param!(params, wave_c_weight, COASTLINE_WAVE_C_WEIGHT))
+    .clamp(-1.0, 1.0)
 }
 
-fn dedupe_adjacent_vertices(vertices: Vec<MapShapeVertex>) -> Vec<MapShapeVertex> {
+fn dedupe_adjacent_vertices(
+    vertices: Vec<MapShapeVertex>,
+    distance_squared: f64,
+) -> Vec<MapShapeVertex> {
     let mut deduped = Vec::new();
     for vertex in vertices {
         let should_push = deduped.last().is_none_or(|previous: &MapShapeVertex| {
             let dx = previous.x - vertex.x;
             let dy = previous.y - vertex.y;
-            dx * dx + dy * dy > COASTLINE_DEDUPLICATE_DISTANCE_SQUARED
+            dx * dx + dy * dy > distance_squared
         });
         if should_push {
             deduped.push(vertex);
@@ -302,7 +415,7 @@ fn dedupe_adjacent_vertices(vertices: Vec<MapShapeVertex>) -> Vec<MapShapeVertex
         if let (Some(first), Some(last)) = (first, last) {
             let dx = first.x - last.x;
             let dy = first.y - last.y;
-            if dx * dx + dy * dy <= COASTLINE_DEDUPLICATE_DISTANCE_SQUARED {
+            if dx * dx + dy * dy <= distance_squared {
                 deduped.pop();
             }
         }
@@ -315,20 +428,21 @@ fn to_polygon(vertices: &[MapShapeVertex]) -> Vec<[f64; 2]> {
     vertices.iter().map(|vertex| [vertex.x, vertex.y]).collect()
 }
 
-fn hash_text(value: &str) -> u64 {
-    let mut hash = HASH_TEXT_OFFSET_BASIS;
+fn hash_text(value: &str, params: Option<&CoastlineParams>) -> u64 {
+    let mut hash = param!(params, hash_text_offset_basis, HASH_TEXT_OFFSET_BASIS);
+    let prime = param!(params, hash_text_prime, HASH_TEXT_PRIME);
     for byte in value.as_bytes() {
         hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(HASH_TEXT_PRIME);
+        hash = hash.wrapping_mul(prime);
     }
     hash
 }
 
-fn hash_unit(seed: u64) -> f64 {
+fn hash_unit(seed: u64, params: Option<&CoastlineParams>) -> f64 {
     let mixed = seed
-        .wrapping_mul(HASH_UNIT_MULTIPLIER)
+        .wrapping_mul(param!(params, hash_unit_multiplier, HASH_UNIT_MULTIPLIER))
         .rotate_left(17)
-        .wrapping_add(HASH_UNIT_INCREMENT);
+        .wrapping_add(param!(params, hash_unit_increment, HASH_UNIT_INCREMENT));
     (mixed as f64) / (u64::MAX as f64)
 }
 
@@ -372,6 +486,7 @@ mod tests {
             },
             &build_shape(),
             &[],
+            None,
         );
 
         assert!(polygon.len() > 4);
@@ -395,6 +510,7 @@ mod tests {
                 biz_id: None,
                 ext: None,
             }],
+            None,
         );
 
         let vertices = polygon

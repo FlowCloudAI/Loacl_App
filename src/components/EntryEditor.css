@@ -20,6 +20,7 @@
     flex-direction: column;
     width: 100%;
     min-height: 100%;
+    user-select: none;
 }
 
 .entry-editor-hero,
@@ -289,6 +290,7 @@
     font: inherit;
     padding: 0.75rem 0.9rem;
     outline: none;
+    user-select: text;
 }
 
 .entry-editor-title-input {
@@ -370,6 +372,7 @@
 }
 
 .entry-editor-workspace {
+    position: relative;
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -382,11 +385,16 @@
 }
 
 .entry-editor-workspace__header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
     display: flex;
     justify-content: space-between;
     gap: 1rem;
     align-items: center;
-    padding: 1rem 1.5rem 0;
+    padding: 1rem 1.5rem 0.85rem;
+    background: var(--fc-color-bg);
+    border-bottom: 1px solid var(--fc-color-border);
 }
 
 .entry-editor-workspace__toolbar {
@@ -433,6 +441,7 @@
     position: relative;
     min-height: 0;
     flex: 1;
+    user-select: text;
 }
 
 .entry-editor-workspace.is-editing .entry-editor-markdown {
@@ -459,12 +468,14 @@
     line-height: 1.2;
     font-weight: 700;
     color: var(--fc-color-text);
+    user-select: text;
 }
 
 .entry-editor-readonly-summary {
     min-height: 4.8rem;
     color: var(--fc-color-text);
     line-height: 1.6;
+    user-select: text;
 }
 
 .entry-editor-readonly-summary.is-empty {
@@ -543,6 +554,7 @@
     background: color-mix(in srgb, var(--fc-color-bg-elevated) 96%, white 3%);
     box-shadow: 0 18px 48px color-mix(in srgb, var(--fc-color-bg) 30%, transparent);
     overflow: hidden;
+    user-select: text;
 }
 
 .entry-editor-wikilink-popover {
@@ -574,27 +586,19 @@
     color: var(--fc-color-text);
 }
 
-.entry-editor-wikilink-popover__list,
-.entry-editor-backlinks__list {
+.entry-editor-wikilink-popover__list {
     display: flex;
     flex-direction: column;
-}
-
-.entry-editor-wikilink-popover__list {
     max-height: 18rem;
     overflow-y: auto;
 }
 
-.entry-editor-wikilink-option,
-.entry-editor-backlinks__item {
+.entry-editor-wikilink-option {
     border: none;
     background: transparent;
     color: inherit;
     text-align: left;
     cursor: pointer;
-}
-
-.entry-editor-wikilink-option {
     padding: 0.85rem 0.9rem;
     display: flex;
     flex-direction: column;
@@ -602,8 +606,7 @@
 }
 
 .entry-editor-wikilink-option:hover,
-.entry-editor-wikilink-option.is-active,
-.entry-editor-backlinks__item:hover {
+.entry-editor-wikilink-option.is-active {
     background: color-mix(in srgb, var(--fc-color-primary) 10%, transparent);
 }
 
@@ -611,15 +614,12 @@
     border-top: 1px solid color-mix(in srgb, var(--fc-color-border) 92%, transparent);
 }
 
-.entry-editor-wikilink-option__title,
-.entry-editor-backlinks__item-title {
+.entry-editor-wikilink-option__title {
     font-size: 0.86rem;
     color: var(--fc-color-text);
 }
 
-.entry-editor-wikilink-option__meta,
-.entry-editor-backlinks__item-meta,
-.entry-editor-backlinks__item-excerpt {
+.entry-editor-wikilink-option__meta {
     font-size: 0.75rem;
     color: var(--fc-color-text-secondary);
     line-height: 1.5;
@@ -687,11 +687,13 @@
     color: var(--fc-color-text-secondary);
 }
 
+.entry-editor-relations,
 .entry-editor-backlinks,
 .entry-editor-outgoing-links {
     overflow: hidden;
 }
 
+.entry-editor-relations__toggle,
 .entry-editor-backlinks__toggle,
 .entry-editor-outgoing-links__toggle {
     width: 100%;
@@ -705,8 +707,10 @@
     cursor: pointer;
     font-size: 0.84rem;
     font-weight: 600;
+    gap: 0.5rem;
 }
 
+.entry-editor-relations__count,
 .entry-editor-backlinks__count,
 .entry-editor-outgoing-links__count {
     min-width: 1.5rem;
@@ -714,47 +718,86 @@
     border-radius: 999px;
     background: color-mix(in srgb, var(--fc-color-primary) 14%, transparent);
     color: var(--fc-color-primary);
+    margin-left: auto;
 }
 
+.entry-editor-relations__body,
 .entry-editor-backlinks__body,
 .entry-editor-outgoing-links__body {
     border-top: 1px solid color-mix(in srgb, var(--fc-color-border) 92%, transparent);
 }
 
+.entry-editor-toggle__arrow {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+}
+
+.entry-editor-relations.is-expanded .entry-editor-relations__toggle .entry-editor-toggle__arrow,
+.entry-editor-backlinks.is-expanded .entry-editor-backlinks__toggle .entry-editor-toggle__arrow,
+.entry-editor-outgoing-links.is-expanded .entry-editor-outgoing-links__toggle .entry-editor-toggle__arrow {
+    transform: rotate(90deg);
+}
+
 .entry-editor-backlinks__list,
 .entry-editor-outgoing-links__list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 0.75rem;
+    padding: 0.75rem 1rem 1rem;
 }
 
-.entry-editor-backlinks__item,
-.entry-editor-outgoing-links__item {
-    padding: 0.85rem 1rem;
+.entry-editor-link-card {
     display: flex;
     flex-direction: column;
-    gap: 0.18rem;
-    border: none;
-    background: transparent;
-    color: inherit;
+    gap: 0.55rem;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid color-mix(in srgb, var(--fc-color-border) 88%, transparent);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--fc-color-bg) 92%, white 2%);
     text-align: left;
     cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
 }
 
-.entry-editor-outgoing-links__item:hover,
-.entry-editor-outgoing-links__item.is-active {
-    background: color-mix(in srgb, var(--fc-color-primary) 10%, transparent);
+.entry-editor-link-card:hover {
+    background: color-mix(in srgb, var(--fc-color-primary) 6%, var(--fc-color-bg) 94%);
+    border-color: color-mix(in srgb, var(--fc-color-primary) 35%, var(--fc-color-border) 65%);
+    transform: translateY(-1px);
 }
 
-.entry-editor-outgoing-links__item-title,
-.entry-editor-outgoing-links__item-meta {
+.entry-editor-link-card__content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.entry-editor-link-card__title {
     font-size: 0.86rem;
+    font-weight: 600;
     color: var(--fc-color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.entry-editor-outgoing-links__item-meta {
+.entry-editor-link-card__meta {
+    font-size: 0.72rem;
+    color: var(--fc-color-text-secondary);
+    line-height: 1.45;
+}
+
+.entry-editor-link-card__excerpt {
     font-size: 0.75rem;
     color: var(--fc-color-text-secondary);
     line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: 0.1rem;
 }
 
 @media (max-width: 960px) {

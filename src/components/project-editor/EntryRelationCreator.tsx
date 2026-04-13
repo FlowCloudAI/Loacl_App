@@ -1,4 +1,4 @@
-import {Button, Select} from 'flowcloudai-ui'
+import {Button, Select, useAlert} from 'flowcloudai-ui'
 import type {Category, EntryBrief} from '../../api'
 import './EntryRelationEditor.css'
 
@@ -59,8 +59,17 @@ export default function EntryRelationCreator({
         onChange(drafts.map((draft, draftIndex) => (draftIndex === index ? updater(draft) : draft)))
     }
 
+    const {showAlert} = useAlert()
+
     const handleDraftRemove = (index: number) => {
-        onChange(drafts.filter((_, draftIndex) => draftIndex !== index))
+        const draft = drafts[index]
+        const otherEntry = selectableEntries.find((entry) => entry.id === draft.otherEntryId)
+        const title = otherEntry?.title ?? '未选择词条'
+        void showAlert(`确定要删除与「${title}」的关系吗？`, 'warning', 'confirm').then((res) => {
+            if (res === 'yes') {
+                onChange(drafts.filter((_, draftIndex) => draftIndex !== index))
+            }
+        })
     }
 
     const handleDraftAdd = () => {
@@ -70,10 +79,6 @@ export default function EntryRelationCreator({
     return (
         <div className="entry-relation-editor">
             <div className="entry-relation-editor__header">
-                <div>
-                    <h3 className="entry-relation-editor__title">词条关系</h3>
-                    <p className="entry-relation-editor__desc">维护结构化关系，独立于正文中的 `[[双链]]` 引用。</p>
-                </div>
                 <Button size="sm" variant="outline" disabled={disabled} onClick={handleDraftAdd}>
                     + 新增关系
                 </Button>
@@ -132,11 +137,32 @@ export default function EntryRelationCreator({
                                             placeholder="选择关系方向"
                                         />
                                     </div>
+
+                                    <div className="entry-relation-editor__actions">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={!otherEntry}
+                                            onClick={() => {
+                                                if (!otherEntry) return
+                                                onOpenEntry?.({id: otherEntry.id, title: otherEntry.title})
+                                            }}
+                                        >
+                                            打开关联词条
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={disabled}
+                                            onClick={() => handleDraftRemove(index)}
+                                        >
+                                            删除
+                                        </Button>
+                                    </div>
                                 </div>
 
                                 <div className="entry-relation-editor__row">
                                     <div className="entry-relation-editor__field entry-relation-editor__field--content">
-                                        <label className="entry-relation-editor__label">关系说明</label>
                                         <input
                                             className="entry-relation-editor__input"
                                             type="text"
@@ -151,28 +177,6 @@ export default function EntryRelationCreator({
                                             placeholder="例如：依赖、引用、属于、对立、协作"
                                             disabled={disabled}
                                         />
-                                    </div>
-
-                                    <div className="entry-relation-editor__actions">
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            disabled={!otherEntry}
-                                            onClick={() => {
-                                                if (!otherEntry) return
-                                                onOpenEntry?.({id: otherEntry.id, title: otherEntry.title})
-                                            }}
-                                        >
-                                            打开词条
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            disabled={disabled}
-                                            onClick={() => handleDraftRemove(index)}
-                                        >
-                                            删除
-                                        </Button>
                                     </div>
                                 </div>
 

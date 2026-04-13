@@ -38,7 +38,7 @@ import {
 import EntryImageLightbox from './EntryImageLightbox'
 import HighLightTagItem from './HighLightTagItem'
 import TagCreator from './TagCreator'
-import {buildEntryTagsPayload, ensureTypeTargetTagValues,} from './entryTagUtils'
+import {buildEntryTagsPayload, ensureTypeTargetTagValues, getSchemaDefaultValue} from './entryTagUtils'
 import EntryRelationCreator, {type EntryRelationDraft} from './project-editor/EntryRelationCreator'
 import EntryRelationViewer from './project-editor/EntryRelationViewer'
 import EntryTypeIcon from './project-editor/EntryTypeIcon'
@@ -603,6 +603,7 @@ export default function EntryEditor({
     const [entryCache, setEntryCache] = useState<Record<string, Entry>>({})
     const [backlinksExpanded, setBacklinksExpanded] = useState(false)
     const [outgoingLinksExpanded, setOutgoingLinksExpanded] = useState(false)
+    const [relationsExpanded, setRelationsExpanded] = useState(false)
     const [wikiPopoverPosition, setWikiPopoverPosition] = useState<WikiPopoverPosition>({ top: 16, left: 16 })
     const [projectDataLoading, setProjectDataLoading] = useState(false)
     const [outgoingLinks, setOutgoingLinks] = useState<EntryLink[]>([])
@@ -635,6 +636,8 @@ export default function EntryEditor({
     const projectEntriesLoadPromiseRef = useRef<Promise<void> | null>(null)
     const canSaveRef = useRef(false)
     const saveActionRef = useRef<(() => void) | null>(null)
+    const prevTypeRef = useRef<string | null>(null)
+    const autoAddedTagSchemaIdsRef = useRef<Set<string>>(new Set())
     projectEntriesRef.current = projectEntries
     onDirtyChangeRef.current = onDirtyChange
     const { showAlert } = useAlert()
@@ -646,6 +649,8 @@ export default function EntryEditor({
     useEffect(() => {
         setPinnedTagSchemaIds([])
         setTagSchemaPickerValue(undefined)
+        prevTypeRef.current = null
+        autoAddedTagSchemaIdsRef.current = new Set()
     }, [entryId])
 
     const clearLinkPreviewCloseTimer = useCallback(() => {
@@ -1116,15 +1121,48 @@ export default function EntryEditor({
     }, [autoVisibleTagSchemaIds])
 
     useEffect(() => {
-        setDraft((current) => {
-            const { tags: nextTags } = ensureTypeTargetTagValues(current.tags, localTagSchemas, current.type)
-            return nextTags === current.tags
-                ? current
-                : {
-                    ...current,
-                    tags: nextTags,
+        const prevType = prevTypeRef.current
+        const nextType = draft.type
+        let workingTags = draft.tags
+        const removedSchemaIds: string[] = []
+
+        if (prevType !== null && prevType !== nextType && autoAddedTagSchemaIdsRef.current.size > 0) {
+            const schemasToCheck = localTagSchemas.filter((schema) => autoAddedTagSchemaIdsRef.current.has(schema.id))
+            let tagsModified = false
+            const nextTags = {...workingTags}
+
+            for (const schema of schemasToCheck) {
+                if (!isSchemaImplantedForType(schema, nextType)) {
+                    const currentValue = getComparableTagValue(workingTags, schema)
+                    const defaultValue = getSchemaDefaultValue(schema)
+
+                    if (currentValue === defaultValue || (currentValue === null && defaultValue === null)) {
+                        delete nextTags[schema.id]
+                        delete nextTags[schema.name]
+                        autoAddedTagSchemaIdsRef.current.delete(schema.id)
+                        removedSchemaIds.push(schema.id)
+                        tagsModified = true
+                    }
                 }
-        })
+            }
+
+            if (tagsModified) {
+                workingTags = nextTags
+            }
+        }
+
+        const {tags: ensuredTags, addedSchemaIds} = ensureTypeTargetTagValues(workingTags, localTagSchemas, nextType)
+
+        addedSchemaIds.forEach((id) => autoAddedTagSchemaIdsRef.current.add(id))
+        prevTypeRef.current = nextType
+
+        if (ensuredTags !== workingTags || workingTags !== draft.tags) {
+            setDraft((current) => ({...current, tags: ensuredTags}))
+        }
+
+        if (removedSchemaIds.length > 0) {
+            setPinnedTagSchemaIds((current) => current.filter((id) => !removedSchemaIds.includes(id)))
+        }
     }, [entryId, localTagSchemas, draft.type])
 
     const handleSave = useCallback(async () => {
@@ -2138,24 +2176,42 @@ export default function EntryEditor({
                     </div>
                 </section>
 
-                    <section className="entry-editor-relations">
-                        {isBrowseMode ? (
-                            <EntryRelationViewer
-                                drafts={relationDrafts}
-                                entries={projectEntries}
-                                categories={categories}
-                                onOpenEntry={onOpenEntry}
-                            />
-                        ) : (
-                            <EntryRelationCreator
-                                drafts={relationDrafts}
-                                entries={projectEntries}
-                                categories={categories}
-                                currentEntryId={entryId}
-                                disabled={saving || projectDataLoading}
-                                onChange={setRelationDrafts}
-                                onOpenEntry={onOpenEntry}
-                            />
+                    <section className={`entry-editor-relations ${relationsExpanded ? 'is-expanded' : ''}`}>
+                        <button
+                            type="button"
+                            className="entry-editor-relations__toggle"
+                            onClick={() => setRelationsExpanded((current) => !current)}
+                        >
+                            <svg className="entry-editor-toggle__arrow" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" strokeWidth="2"
+                                      strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            <span>词条关系</span>
+                            <span className="entry-editor-relations__count">{relationDrafts.length}</span>
+                        </button>
+
+                        {relationsExpanded && (
+                            <div className="entry-editor-relations__body">
+                                {isBrowseMode ? (
+                                    <EntryRelationViewer
+                                        drafts={relationDrafts}
+                                        entries={projectEntries}
+                                        categories={categories}
+                                        currentEntryTitle={entry?.title ?? '本词条'}
+                                        onOpenEntry={onOpenEntry}
+                                    />
+                                ) : (
+                                    <EntryRelationCreator
+                                        drafts={relationDrafts}
+                                        entries={projectEntries}
+                                        categories={categories}
+                                        currentEntryId={entryId}
+                                        disabled={saving || projectDataLoading}
+                                        onChange={setRelationDrafts}
+                                        onOpenEntry={onOpenEntry}
+                                    />
+                                )}
+                            </div>
                         )}
                     </section>
 
@@ -2165,6 +2221,10 @@ export default function EntryEditor({
                             className="entry-editor-outgoing-links__toggle"
                             onClick={() => setOutgoingLinksExpanded((current) => !current)}
                         >
+                            <svg className="entry-editor-toggle__arrow" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" strokeWidth="2"
+                                      strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
                             <span>正向链接</span>
                             <span className="entry-editor-outgoing-links__count">{outgoingLinks.length}</span>
                         </button>
@@ -2183,17 +2243,23 @@ export default function EntryEditor({
                                                 <button
                                                     key={link.id}
                                                     type="button"
-                                                    className="entry-editor-outgoing-links__item"
+                                                    className="entry-editor-link-card"
                                                     onClick={() => onOpenEntry?.({
                                                         id: link.b_id,
                                                         title: target?.title ?? '未命名词条'
                                                     })}
                                                 >
-                                                    <span
-                                                        className="entry-editor-outgoing-links__item-title">{target?.title ?? '未命名词条'}</span>
-                                                    <span className="entry-editor-outgoing-links__item-meta">
-                                                    {target ? getCategoryName(categories, target.category_id) : ''}
-                                                </span>
+                                                    <div className="entry-editor-link-card__content">
+                                                        <span
+                                                            className="entry-editor-link-card__title">{target?.title ?? '未命名词条'}</span>
+                                                        <span className="entry-editor-link-card__meta">
+                                                            {target ? getCategoryName(categories, target.category_id) : ''}
+                                                        </span>
+                                                        {target?.summary ? (
+                                                            <span
+                                                                className="entry-editor-link-card__excerpt">{buildExcerpt(target.summary, 60)}</span>
+                                                        ) : null}
+                                                    </div>
                                                 </button>
                                             )
                                         })}
@@ -2209,6 +2275,10 @@ export default function EntryEditor({
                         className="entry-editor-backlinks__toggle"
                         onClick={() => setBacklinksExpanded((current) => !current)}
                     >
+                        <svg className="entry-editor-toggle__arrow" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" strokeWidth="2"
+                                  strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
                         <span>反向链接</span>
                         <span className="entry-editor-backlinks__count">{backlinks.length}</span>
                     </button>
@@ -2225,14 +2295,17 @@ export default function EntryEditor({
                                         <button
                                             key={item.id}
                                             type="button"
-                                            className="entry-editor-backlinks__item"
+                                            className="entry-editor-link-card"
                                             onClick={() => onOpenEntry?.({ id: item.id, title: item.title })}
                                         >
-                                            <span className="entry-editor-backlinks__item-title">{item.title}</span>
-                                            <span className="entry-editor-backlinks__item-meta">
-                                                {getCategoryName(categories, item.category_id)} · {formatDate(item.updated_at as string | null | undefined)}
-                                            </span>
-                                            <span className="entry-editor-backlinks__item-excerpt">{buildExcerpt(item.content, 96)}</span>
+                                            <div className="entry-editor-link-card__content">
+                                                <span className="entry-editor-link-card__title">{item.title}</span>
+                                                <span className="entry-editor-link-card__meta">
+                                                    {getCategoryName(categories, item.category_id)} · {formatDate(item.updated_at as string | null | undefined)}
+                                                </span>
+                                                <span
+                                                    className="entry-editor-link-card__excerpt">{buildExcerpt(item.content, 60)}</span>
+                                            </div>
                                         </button>
                                     ))}
                                 </div>

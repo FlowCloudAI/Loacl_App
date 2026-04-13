@@ -1,6 +1,145 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::Visitor};
 
 pub type DeckColor = [u8; 4];
+
+fn deserialize_u64_from_string_or_number<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct U64OrString;
+
+    impl<'de> Visitor<'de> for U64OrString {
+        type Value = Option<u64>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("an integer or a string representing an integer")
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+            Ok(Some(value))
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+            Ok(Some(value as u64))
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return Ok(None);
+            }
+            if let Some(stripped) = trimmed.strip_prefix("0x") {
+                u64::from_str_radix(stripped, 16)
+                    .map(Some)
+                    .map_err(E::custom)
+            } else {
+                trimmed.parse::<u64>().map(Some).map_err(E::custom)
+            }
+        }
+    }
+
+    deserializer.deserialize_any(U64OrString)
+}
+
+/// 海岸线生成参数覆盖。
+/// 前端可通过 request.meta.ext 传入，未提供的字段将使用 constants.rs 中的默认值。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CoastlineParams {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_segments: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_segments: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normalized_length_min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normalized_length_max: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment_base: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment_length_factor: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment_edge_ratio_factor: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amplitude_base: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amplitude_min: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub amplitude_canvas_ratio_max: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relax_passes: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relax_weight: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_relax_passes: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_relax_weight: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deduplicate_distance_squared: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_a_base: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_a_span: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_b_base: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_b_span: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_c_base: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_c_span: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_a_weight: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_b_weight: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_c_weight: Option<f64>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_u64_from_string_or_number"
+    )]
+    pub noise_salt_a: Option<u64>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_u64_from_string_or_number"
+    )]
+    pub noise_salt_b: Option<u64>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_u64_from_string_or_number"
+    )]
+    pub noise_salt_c: Option<u64>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_u64_from_string_or_number"
+    )]
+    pub hash_text_offset_basis: Option<u64>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_u64_from_string_or_number"
+    )]
+    pub hash_text_prime: Option<u64>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_u64_from_string_or_number"
+    )]
+    pub hash_unit_multiplier: Option<u64>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_u64_from_string_or_number"
+    )]
+    pub hash_unit_increment: Option<u64>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

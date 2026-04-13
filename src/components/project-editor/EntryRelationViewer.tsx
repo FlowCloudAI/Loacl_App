@@ -6,6 +6,7 @@ interface EntryRelationViewerProps {
     categories: Category[]
     drafts: EntryRelationDraft[]
     entries: EntryBrief[]
+    currentEntryTitle: string
     onOpenEntry?: (entry: { id: string; title: string }) => void
 }
 
@@ -14,10 +15,29 @@ function getCategoryName(categories: Category[], categoryId?: string | null): st
     return categories.find((category) => category.id === categoryId)?.name ?? '未分类'
 }
 
-function getDirectionLabel(direction: EntryRelationDraft['direction']): string {
-    if (direction === 'incoming') return '对方指向我'
-    if (direction === 'two_way') return '双向关系'
-    return '我指向对方'
+function stripMarkdown(value: string): string {
+    return value
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
+        .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+        .replace(/[#>*_~-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+function buildExcerpt(value?: string | null, maxLength = 120): string {
+    const normalized = stripMarkdown(value ?? '')
+    if (!normalized) return '暂无正文'
+    return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}…` : normalized
+}
+
+function buildRelationLabel(draft: EntryRelationDraft): string {
+    const content = draft.content || '关联'
+    if (draft.direction === 'two_way') {
+        return `互相${content}`
+    }
+    return content
 }
 
 export default function EntryRelationViewer({
@@ -28,14 +48,6 @@ export default function EntryRelationViewer({
                                             }: EntryRelationViewerProps) {
     return (
         <div className="entry-relation-editor">
-            <div className="entry-relation-editor__header">
-                <div>
-                    <h3 className="entry-relation-editor__title">词条关系</h3>
-                    <p className="entry-relation-editor__desc">这里展示当前词条的结构化关系，不包含正文自动解析出的引用链接。</p>
-                </div>
-                <div className="entry-relation-editor__count">{drafts.length} 条</div>
-            </div>
-
             {drafts.length === 0 ? (
                 <div className="entry-relation-editor__empty">
                     当前词条还没有结构化关系。
@@ -44,28 +56,32 @@ export default function EntryRelationViewer({
                 <div className="entry-relation-editor__list">
                     {drafts.map((draft, index) => {
                         const otherEntry = entries.find((entry) => entry.id === draft.otherEntryId)
-                        const title = otherEntry?.title ?? '未命名词条'
-                        const meta = otherEntry ? getCategoryName(categories, otherEntry.category_id) : '词条不存在或已被删除'
+                        const otherTitle = otherEntry?.title ?? '未命名词条'
 
                         return (
                             <button
                                 key={draft.id ?? `draft-${index}`}
                                 type="button"
-                                className="entry-relation-editor__viewer-item"
+                                className="entry-editor-link-card"
                                 onClick={() => {
                                     if (!otherEntry) return
                                     onOpenEntry?.({id: otherEntry.id, title: otherEntry.title})
                                 }}
                                 disabled={!otherEntry}
                             >
-                                <div className="entry-relation-editor__viewer-main">
-                                    <span className="entry-relation-editor__viewer-title">{title}</span>
-                                    <span
-                                        className="entry-relation-editor__viewer-badge">{getDirectionLabel(draft.direction)}</span>
+                                <div className="entry-editor-link-card__content">
+                                    <span className="entry-editor-link-card__title">{otherTitle}</span>
+                                    <span className="entry-editor-link-card__meta">
+                                        {otherEntry
+                                            ? `${getCategoryName(categories, otherEntry.category_id)} · ${buildRelationLabel(draft)}`
+                                            : '词条不存在或已被删除'}
+                                    </span>
+                                    {otherEntry?.summary ? (
+                                        <span className="entry-editor-link-card__excerpt">
+                                            {buildExcerpt(otherEntry.summary, 60)}
+                                        </span>
+                                    ) : null}
                                 </div>
-                                <div className="entry-relation-editor__viewer-meta">{meta}</div>
-                                <div
-                                    className="entry-relation-editor__viewer-content">{draft.content || '未填写关系说明'}</div>
                             </button>
                         )
                     })}

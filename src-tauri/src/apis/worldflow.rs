@@ -427,6 +427,14 @@ pub async fn db_list_entries(
     limit: usize,
     offset: usize,
 ) -> Result<Vec<EntryBrief>, String> {
+    log::info!(
+        "[worldflow] db_list_entries 请求 project_id={} category_id={:?} entry_type={:?} limit={} offset={}",
+        project_id,
+        category_id,
+        entry_type,
+        limit,
+        offset
+    );
     let project_id = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let category_id = category_id
         .map(|cid| Uuid::parse_str(&cid).map_err(|e| e.to_string()))
@@ -434,17 +442,37 @@ pub async fn db_list_entries(
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
     let category_id_ref = category_id.as_ref();
-    db.list_entries(
-        &project_id,
-        EntryFilter {
-            category_id: category_id_ref,
-            entry_type: entry_type.as_deref(),
-        },
-        limit,
-        offset,
-    )
-    .await
-    .map_err(|e| e.to_string())
+    let result = db
+        .list_entries(
+            &project_id,
+            EntryFilter {
+                category_id: category_id_ref,
+                entry_type: entry_type.as_deref(),
+            },
+            limit,
+            offset,
+        )
+        .await;
+
+    match &result {
+        Ok(entries) => {
+            let preview = entries
+                .iter()
+                .take(5)
+                .map(|entry| entry.title.as_str())
+                .collect::<Vec<_>>();
+            log::info!(
+                "[worldflow] db_list_entries 返回 count={} preview_titles={:?}",
+                entries.len(),
+                preview
+            );
+        }
+        Err(err) => {
+            log::error!("[worldflow] db_list_entries 失败: {}", err);
+        }
+    }
+
+    result.map_err(|e| e.to_string())
 }
 
 /// 全文搜索词条（FTS）；可按分类和词条类型过滤
@@ -457,6 +485,14 @@ pub async fn db_search_entries(
     entry_type: Option<String>,
     limit: usize,
 ) -> Result<Vec<EntryBrief>, String> {
+    log::info!(
+        "[worldflow] db_search_entries 请求 project_id={} category_id={:?} entry_type={:?} limit={} query={:?}",
+        project_id,
+        category_id,
+        entry_type,
+        limit,
+        query
+    );
     let project_id = Uuid::parse_str(&project_id).map_err(|e| e.to_string())?;
     let category_id = category_id
         .map(|cid| Uuid::parse_str(&cid).map_err(|e| e.to_string()))
@@ -464,17 +500,37 @@ pub async fn db_search_entries(
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
     let category_id_ref = category_id.as_ref();
-    db.search_entries(
-        &project_id,
-        &query,
-        EntryFilter {
-            category_id: category_id_ref,
-            entry_type: entry_type.as_deref(),
-        },
-        limit,
-    )
-    .await
-    .map_err(|e| e.to_string())
+    let result = db
+        .search_entries(
+            &project_id,
+            &query,
+            EntryFilter {
+                category_id: category_id_ref,
+                entry_type: entry_type.as_deref(),
+            },
+            limit,
+        )
+        .await;
+
+    match &result {
+        Ok(entries) => {
+            let preview = entries
+                .iter()
+                .take(5)
+                .map(|entry| entry.title.as_str())
+                .collect::<Vec<_>>();
+            log::info!(
+                "[worldflow] db_search_entries 返回 count={} preview_titles={:?}",
+                entries.len(),
+                preview
+            );
+        }
+        Err(err) => {
+            log::error!("[worldflow] db_search_entries 失败: {}", err);
+        }
+    }
+
+    result.map_err(|e| e.to_string())
 }
 
 /// 统计词条数量；可按分类和词条类型过滤

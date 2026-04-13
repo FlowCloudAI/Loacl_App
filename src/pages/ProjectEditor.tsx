@@ -1,6 +1,8 @@
 import React, {memo, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {Tree, flatToTree, type DropPosition} from 'flowcloudai-ui'
+import {type DropPosition, flatToTree, Tree} from 'flowcloudai-ui'
 import {
+    type Category,
+    type CustomEntryType,
     db_count_entries,
     db_create_category,
     db_delete_category,
@@ -10,8 +12,6 @@ import {
     db_list_tag_schemas,
     db_update_category,
     db_update_project,
-    type Category,
-    type CustomEntryType,
     type EntryTypeView,
     type Project,
     type TagSchema,
@@ -400,6 +400,7 @@ function ProjectEditorInner({projectId, activeEntryId = null, openEntryIds = [],
                         onMove={handleMove}
                         searchable
                         collapseDuration={0.13}
+                        indentSize={7}
                     />
                 </div>
             </div>
@@ -456,6 +457,7 @@ function ProjectEditorInner({projectId, activeEntryId = null, openEntryIds = [],
                         <CategoryView
                             key={selection.id}
                             categoryId={selection.id}
+                            categoryName={categories.find(c => c.id === selection.id)?.name ?? ''}
                             projectId={projectId}
                             entryTypes={entryTypes}
                             tagSchemas={tagSchemas}

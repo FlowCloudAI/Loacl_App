@@ -33,6 +33,7 @@
     font-weight: 600;
     color: var(--fc-color-text);
     min-width: 0;
+    user-select: text;
 }
 
 .highlight-tag-item__badge {
@@ -87,6 +88,7 @@
     font-size: 0.88rem;
     line-height: 1.5;
     font-weight: 500;
+    user-select: text;
 }
 
 .highlight-tag-item__value.is-empty {

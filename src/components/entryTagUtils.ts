@@ -84,7 +84,7 @@ export function normalizeEntryTagValue(value: unknown): EntryTagRuntimeValue {
     return null
 }
 
-function getSchemaDefaultValue(schema: TagSchema): EntryTagRuntimeValue {
+export function getSchemaDefaultValue(schema: TagSchema): EntryTagRuntimeValue {
     const raw = typeof schema.default_val === 'string' ? schema.default_val.trim() : ''
     if (!raw) return null
 

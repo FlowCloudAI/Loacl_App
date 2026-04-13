@@ -7,9 +7,10 @@ use crate::map::geometry::{
     find_polygon_self_intersections, get_distance_squared, is_point_in_polygon,
 };
 use crate::map::types::{
-    MapEditorCanvas, MapKeyLocationDraft, MapPreviewKeyLocation, MapPreviewScene, MapPreviewShape,
-    MapProtocolVersion, MapSaveMeta, MapScenario, MapShapeDraft, MapShapeFieldError, MapShapeKind,
-    MapShapeSaveErrorResponse, MapShapeSaveRequest, MapShapeSaveResponse, MapShapeVertex,
+    CoastlineParams, MapEditorCanvas, MapKeyLocationDraft, MapPreviewKeyLocation, MapPreviewScene,
+    MapPreviewShape, MapProtocolVersion, MapSaveMeta, MapScenario, MapShapeDraft,
+    MapShapeFieldError, MapShapeKind, MapShapeSaveErrorResponse, MapShapeSaveRequest,
+    MapShapeSaveResponse, MapShapeVertex,
 };
 use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -36,10 +37,19 @@ pub fn save_map_shape_scene(
     validate_request(&request, &request_id)?;
 
     let meta_ext = request.meta.as_ref().and_then(|meta| meta.ext.clone());
+    let coastline_params: Option<CoastlineParams> = meta_ext
+        .as_ref()
+        .and_then(|ext| ext.get("coastlineParams").cloned())
+        .and_then(|v| serde_json::from_value(v).ok());
 
     let scene = MapPreviewScene {
         canvas: request.canvas.clone(),
-        shapes: build_preview_shapes(&request.canvas, &request.shapes, &request.key_locations),
+        shapes: build_preview_shapes(
+            &request.canvas,
+            &request.shapes,
+            &request.key_locations,
+            coastline_params.as_ref(),
+        ),
         key_locations: build_preview_key_locations(&request.key_locations),
         ext: None,
     };
@@ -371,6 +381,7 @@ fn build_preview_shapes(
     canvas: &MapEditorCanvas,
     shapes: &[MapShapeDraft],
     key_locations: &[MapKeyLocationDraft],
+    params: Option<&CoastlineParams>,
 ) -> Vec<MapPreviewShape> {
     shapes
         .iter()
@@ -392,7 +403,7 @@ fn build_preview_shapes(
             let preview_shape = MapPreviewShape {
                 id: shape.id.clone(),
                 name: shape.name.clone(),
-                polygon: build_natural_coastline_polygon(canvas, shape, &related_locations),
+                polygon: build_natural_coastline_polygon(canvas, shape, &related_locations, params),
                 fill_color: shape_fill_color(index, shape.fill.as_deref()),
                 line_color: shape_line_color(index, shape.stroke.as_deref()),
                 biz_id: shape.biz_id.clone(),

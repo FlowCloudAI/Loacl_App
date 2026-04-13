@@ -10,6 +10,7 @@ import Plugins from "./pages/Plugins";
 import type {Project} from "./api";
 import RelationDemo from "./components/RelationDemo";
 import MapShapeEditorDemo from "./components/MapShapeEditorDemo";
+import TimelineDemo from "./components/TimelineDemo";
 
 type EntryTabMeta = {
     projectId: string
@@ -119,14 +120,9 @@ function App() {
         showHomeWorkspace();
     }, [showHomeWorkspace, touchRecentPage]);
 
-    const handleBackToProject = useCallback(async (projectId: string) => {
-        const entryTabKey = activeKey
-        if (entryTabMap[entryTabKey]?.projectId === projectId && entryDirtyMap[entryTabKey]) {
-            const res = await showAlert('当前词条有未保存更改，返回会丢失这些修改。是否继续返回？', 'warning', 'confirm')
-            if (res !== 'yes') return
-        }
+    const handleBackToProject = useCallback((projectId: string) => {
         activateProjectTab(projectId);
-    }, [activeKey, activateProjectTab, entryDirtyMap, entryTabMap, showAlert]);
+    }, [activateProjectTab]);
 
     const handleTabChange = useCallback((key: string) => {
         const shouldShowHomeWorkspace = Boolean(projectTabMap[key] || entryTabMap[key])
@@ -286,6 +282,19 @@ function App() {
             />
         </svg>)
 
+    const TimelineIcon = (
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
+            <path
+                d="M4 6.75h16M4 12h16M4 17.25h16"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+            />
+            <circle cx="7" cy="6.75" r="1.75" fill="currentColor"/>
+            <circle cx="13" cy="12" r="1.75" fill="currentColor"/>
+            <circle cx="18" cy="17.25" r="1.75" fill="currentColor"/>
+        </svg>)
+
     const SettingsIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <circle cx="12" cy="12" r="3" strokeWidth="1.5"/>
@@ -298,6 +307,7 @@ function App() {
         {key: 'home', label: '首页', icon: HomeIcon},
         {key: 'idea', label: '灵感便签', icon: IdeaIcon},
         {key: 'relation', label: '关系图谱', icon: RelationIcon},
+        {key: 'timeline', label: '时间线', icon: TimelineIcon},
         {key: 'map-editor', label: '地图编辑', icon: MapIcon},
         {key: 'plugins', label: '插件管理', icon: PluginsIcon},
     ]
@@ -432,6 +442,9 @@ function App() {
                     </div>
                     <div className={`page-wrapper ${selectedKey === 'relation' ? 'active' : ''}`}>
                         <RelationDemo/>
+                    </div>
+                    <div className={`page-wrapper ${selectedKey === 'timeline' ? 'active' : ''}`}>
+                        <TimelineDemo/>
                     </div>
                     <div className={`page-wrapper ${selectedKey === 'map-editor' ? 'active' : ''}`}>
                         <MapShapeEditorDemo/>
