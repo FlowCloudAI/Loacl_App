@@ -1,8 +1,8 @@
 // cSpell:ignore msword openxmlformats officedocument wordprocessingml
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Select, TagItem, useAlert } from 'flowcloudai-ui';
-import { listen } from '@tauri-apps/api/event';
-import { List, type ListImperativeAPI } from 'react-window';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {Button, Select, TagItem, useAlert} from 'flowcloudai-ui';
+import {listen} from '@tauri-apps/api/event';
+import {List, type ListImperativeAPI} from 'react-window';
 import {
     ai_close_session,
     ai_create_llm_session,
@@ -142,10 +142,10 @@ export default function AIChat() {
     }, [inputValue]);
 
     // -------------------- 会话创建 --------------------
-    const createSession = useCallback(async (convId: string) => {
+    const createSession = useCallback(async (convId: string): Promise<string | null> => {
         if (!selectedPlugin || !selectedModel) {
             void showAlert('请填写完整的配置信息', 'warning', 'toast', 2000);
-            return false;
+            return null;
         }
 
         const newSessionId = `session_${Date.now()}`;
@@ -153,17 +153,16 @@ export default function AIChat() {
             await ai_create_llm_session({
                 sessionId: newSessionId,
                 pluginId: selectedPlugin,
-                apiKey: '',
                 model: selectedModel,
             });
             setSessionId(newSessionId);
             setConversations(prev => prev.map(c =>
                 c.id === convId ? { ...c, sessionId: newSessionId } : c
             ));
-            return true;
+            return newSessionId;
         } catch (e) {
             void showAlert(`创建会话失败: ${e}`, 'error', 'toast', 3000);
-            return false;
+            return null;
         }
     }, [selectedPlugin, selectedModel, showAlert]);
 
@@ -256,9 +255,8 @@ export default function AIChat() {
         try {
             let currentSessionId = sessionId;
             if (!currentSessionId) {
-                const success = await createSession(activeConversationId);
-                if (!success) return;
-                currentSessionId = `session_${Date.now()}`;
+                currentSessionId = await createSession(activeConversationId);
+                if (!currentSessionId) return;
             }
             setIsStreaming(true);
             setCurrentAssistantMessage('');
@@ -416,9 +414,8 @@ export default function AIChat() {
 
         let currentSessionId = sessionId;
         if (!currentSessionId) {
-            const success = await createSession(activeConversationId);
-            if (!success) return;
-            currentSessionId = `session_${Date.now()}`;
+            currentSessionId = await createSession(activeConversationId);
+            if (!currentSessionId) return;
         }
 
         let content = trimmed;

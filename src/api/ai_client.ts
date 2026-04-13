@@ -13,7 +13,6 @@ export interface PluginInfo {
 export interface AiCreateLlmSessionParams {
   sessionId: string
   pluginId: string
-  apiKey: string
   model?: string | null
   temperature?: number | null
   maxTokens?: number | null
@@ -96,7 +95,6 @@ export const ai_list_plugins = (kind: AiPluginKind) =>
 export const ai_create_llm_session = ({
   sessionId,
   pluginId,
-  apiKey,
   model,
   temperature,
   maxTokens,
@@ -104,7 +102,6 @@ export const ai_create_llm_session = ({
   command<void>('ai_create_llm_session', {
     sessionId,
     pluginId,
-    apiKey,
     model,
     temperature,
     maxTokens,

@@ -102,11 +102,14 @@ pub async fn ai_create_llm_session(
     ai_state: State<'_, AiState>,
     session_id: String,
     plugin_id: String,
-    api_key: String,
     model: Option<String>,
     temperature: Option<f64>,
     max_tokens: Option<i64>,
 ) -> Result<(), String> {
+    use crate::ApiKeyStore;
+    let api_key = ApiKeyStore::get(&plugin_id)
+        .ok_or_else(|| format!("插件 '{}' 未配置 API Key，请在设置中配置", plugin_id))?;
+
     let client = ai_state.client.lock().await;
     let mut session = client
         .create_llm_session(&plugin_id, &api_key)

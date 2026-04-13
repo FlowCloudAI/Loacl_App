@@ -23,7 +23,7 @@ futures = "0.3"
 tauri-plugin-single-instance = "2"
 tauri-plugin-log = "2"
 serde = { version = "1.0", features = ["derive"] }
-keyring = "3"
+keyring = { version = "3", features = ["windows-native"] }
 anyhow = "1"
 worldflow_core = { git = "ssh://git@github.com/FlowCloudAI/Worldflow_Core", branch = "main" }
 flowcloudai_client = { git = "ssh://git@github.com/FlowCloudAI/AI_Client_Core", branch = "main" }
