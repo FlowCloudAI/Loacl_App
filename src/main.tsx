@@ -31,6 +31,17 @@ const initApp = async () => {
         document.body.classList.add('is-tauri')
     }
 
+    // 在 React 渲染前同步写入 data-theme，避免首帧闪白
+    const resolvedTheme = initialTheme === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : initialTheme
+    document.documentElement.setAttribute('data-theme', resolvedTheme)
+
+    // data-theme 已同步写入，下一帧再显示窗口，确保浏览器绘制的第一帧已带有正确主题
+    requestAnimationFrame(() => {
+        showWindow().catch(console.error)
+    })
+
     createRoot(document.getElementById('root')!).render(
         <StrictMode>
             <ThemeProvider defaultTheme={initialTheme as 'system' | 'light' | 'dark'}>
@@ -42,10 +53,6 @@ const initApp = async () => {
             </ThemeProvider>
         </StrictMode>,
     )
-
-    const result = showWindow().then()
-    result.then(console.log)
-    result.catch(console.error)
 }
 
 initApp().catch(console.error)
