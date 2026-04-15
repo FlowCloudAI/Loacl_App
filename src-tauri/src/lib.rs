@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::sync::Arc;
 use tauri::{
-    AppHandle, Manager, Runtime, UriSchemeContext, WindowBuilder,
+    AppHandle, Emitter, Manager, Runtime, UriSchemeContext, WindowBuilder,
     http::{Response, StatusCode, header::CONTENT_TYPE},
 };
 use tauri_plugin_dialog::DialogExt;
@@ -54,6 +54,12 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            // 禁用 release 模式下的 WebView 右键菜单
+            #[cfg(not(debug_assertions))]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.disable_context_menu();
+            }
+
             let app_handle = app.handle().clone();
 
             // HTTP 客户端（连接池在进程生命周期内共享）
@@ -81,6 +87,12 @@ pub fn run() {
                 .as_deref()
                 .map(PathBuf::from)
                 .unwrap_or_else(|| data_root.join("plugins"));
+
+            // 搜索引擎状态（供 AI 工具实时读取，随设置更新）
+            let search_engine_arc = std::sync::Arc::new(Mutex::new(settings.search_engine.clone()));
+            app.manage(SearchEngineState {
+                engine: search_engine_arc.clone(),
+            });
 
             app.manage(SettingsState {
                 settings: Mutex::new(settings),
@@ -111,12 +123,14 @@ pub fn run() {
 
                             // 再初始化 AI 客户端（需要 AppState）
                             std::fs::create_dir_all(&resolved_plugins_path).ok();
-                            match AiState::new(resolved_plugins_path, app_state) {
+                            match AiState::new(resolved_plugins_path, app_state, search_engine_arc)
+                            {
                                 Ok(ai_state) => {
                                     app.manage(ai_state);
                                 }
                                 Err(e) => log::warn!("AI 客户端初始化失败（无插件）: {}", e),
                             }
+                            app.emit("backend-ready", ()).ok();
                         }) {
                             log::error!("run_on_main_thread failed: {}", e);
                             fatal(&app_handle, &format!("run_on_main_thread failed: {}", e));

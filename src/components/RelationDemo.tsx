@@ -84,7 +84,6 @@ export default function RelationDemo({
     onBack,
 }: RelationDemoProps) {
     const [graphKey, setGraphKey] = useState(0)
-    const [nodeOrigin, setNodeOrigin] = useState<[number, number]>([0, 0])
     const [layoutState, setLayoutState] = useState<RelationLayoutState>(INITIAL_LAYOUT_STATE)
     const [layoutHash, setLayoutHash] = useState<string | null>(null)
     const [layoutParams, setLayoutParams] = useState<LayoutParamsPayload>(DEFAULT_LAYOUT_PARAMS)
@@ -162,9 +161,6 @@ export default function RelationDemo({
         )
     }, [layoutParams, updateLayoutParam])
 
-    const originLabel = nodeOrigin[0] === 0.5 && nodeOrigin[1] === 0.5
-        ? '中心点 [0.5, 0.5]'
-        : '左上角 [0, 0]'
     const viewTitle = title ?? '关系图谱 RelationGraph'
     const viewDescription = description ?? '这个页面现在按真实宿主数据结构工作：先使用 `EntryBrief[] / EntryRelation[]` 组装业务数据，再映射成 `RelationGraph` 需要的 `nodes / edges` 协议，`layoutFn` 只负责调用 Tauri `compute_layout`。'
     const eyebrow = embedded ? 'ProjectEditor 内嵌视图' : '临时测试入口'
@@ -209,23 +205,6 @@ export default function RelationDemo({
                             返回概览
                         </Button>
                     )}
-                    <Button
-                        size="sm"
-                        variant={nodeOrigin[0] === 0 ? 'outline' : 'ghost'}
-                        onClick={() => setNodeOrigin([0, 0])}
-                    >
-                        左上角原点
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant={nodeOrigin[0] === 0.5 ? 'outline' : 'ghost'}
-                        onClick={() => setNodeOrigin([0.5, 0.5])}
-                    >
-                        中心点原点
-                    </Button>
-                    <Button size="sm" onClick={handleRelayout}>
-                        重新布局
-                    </Button>
                 </div>
             </div>
 
@@ -241,10 +220,6 @@ export default function RelationDemo({
                                     ? '已完成'
                                     : '待开始'}
                     </span>
-                </div>
-                <div className="relation-demo__meta-card">
-                    <span className="relation-demo__meta-label">节点原点</span>
-                    <span className="relation-demo__meta-value">{originLabel}</span>
                 </div>
                 <div className="relation-demo__meta-card">
                     <span className="relation-demo__meta-label">业务数据</span>
@@ -275,12 +250,12 @@ export default function RelationDemo({
             <div className="relation-demo__workspace">
                 <div className="relation-demo__graph-shell">
                     <RelationGraph
-                        key={`${graphKey}-${nodeOrigin.join('-')}`}
+                        key={graphKey}
                         nodes={nodes}
                         edges={edges}
                         layoutFn={layoutFn}
                         renderNode={renderNode}
-                        nodeOrigin={nodeOrigin}
+                        nodeOrigin={[0, 0]}
                         height="100%"
                         fitPadding={0.12}
                         fitDuration={500}
@@ -291,6 +266,7 @@ export default function RelationDemo({
                     <section className="relation-demo__panel">
                         <div className="relation-demo__panel-header">
                             <h3 className="relation-demo__panel-title">布局参数</h3>
+                            <Button size="sm" onClick={handleRelayout}>重新布局</Button>
                         </div>
                         <div className="relation-demo__panel-body">
                             <div className="relation-demo__field-row">

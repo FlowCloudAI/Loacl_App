@@ -31,8 +31,9 @@ tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 base64 = "0.22.1"
 quick-xml = "0.39"
-reqwest = { version = "0.12", features = ["json", "multipart"] }
+reqwest = { version = "0.13.2", features = ["json", "multipart"] }
 zip = { version = "8", default-features = false, features = ["deflate"] }
 uuid = { version = "1", features = ["v4"] }
 mime_guess = "2"
 urlencoding = "2"
+scraper = "0.23"

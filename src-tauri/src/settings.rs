@@ -37,6 +37,10 @@ pub struct AppSettings {
     pub llm: LlmDefaults,
     pub image: ImageDefaults,
     pub tts: TtsDefaults,
+
+    // ── AI 工具配置 ────────────────────────
+    /// 网络搜索引擎："bing" | "baidu" | "duckduckgo"
+    pub search_engine: String,
 }
 
 impl Default for AppSettings {
@@ -53,6 +57,7 @@ impl Default for AppSettings {
             llm: LlmDefaults::default(),
             image: ImageDefaults::default(),
             tts: TtsDefaults::default(),
+            search_engine: "bing".to_string(),
         }
     }
 }

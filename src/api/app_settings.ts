@@ -1,4 +1,4 @@
-import { command } from './base'
+import {command} from './base'
 
 export interface LlmDefaults {
   plugin_id: string | null
@@ -33,6 +33,7 @@ export interface AppSettings {
   llm: LlmDefaults
   image: ImageDefaults
   tts: TtsDefaults
+    search_engine: string
 }
 
 export interface DefaultPaths {

@@ -1,4 +1,4 @@
-import {useMemo, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button, Timeline, type TimelineEvent} from 'flowcloudai-ui'
 import './TimelineDemo.css'
 
@@ -174,8 +174,8 @@ export default function TimelineDemo() {
         [presetKey],
     )
 
-    const selectedEvent = useMemo(
-        () => activePreset.events.find((event) => event.id === selectedEventId) ?? null,
+    const selectedIndex = useMemo(
+        () => activePreset.events.findIndex((event) => event.id === selectedEventId),
         [activePreset.events, selectedEventId],
     )
 
@@ -186,6 +186,47 @@ export default function TimelineDemo() {
         return {rangeEvents, pointEvents, hierarchyEvents}
     }, [activePreset.events])
 
+    const heroListRef = useRef<HTMLDivElement>(null)
+    const heroCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+    // 键盘左右键切换 Hero Card
+    useEffect(() => {
+        function handleKeyDown(e: KeyboardEvent) {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+            e.preventDefault()
+            const currentIndex = activePreset.events.findIndex((ev) => ev.id === selectedEventId)
+            if (currentIndex === -1) return
+            let nextIndex: number
+            if (e.key === 'ArrowLeft') {
+                nextIndex = Math.max(0, currentIndex - 1)
+            } else {
+                nextIndex = Math.min(activePreset.events.length - 1, currentIndex + 1)
+            }
+            if (nextIndex !== currentIndex) {
+                setSelectedEventId(activePreset.events[nextIndex].id)
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [activePreset.events, selectedEventId])
+
+    // Hero Card 切换时，滚动 Hero 列表到对应卡片
+    useEffect(() => {
+        if (!selectedEventId) return
+        const cardEl = heroCardRefs.current[selectedEventId]
+        const listEl = heroListRef.current
+        if (!cardEl || !listEl) return
+        const listRect = listEl.getBoundingClientRect()
+        const cardRect = cardEl.getBoundingClientRect()
+        const scrollLeft = listEl.scrollLeft + cardRect.left - listRect.left - (listRect.width - cardRect.width) / 2
+        listEl.scrollTo({left: scrollLeft, behavior: 'smooth'})
+    }, [selectedEventId])
+
+    const handleTimelineSelect = (eventId: string | null) => {
+        setSelectedEventId(eventId)
+    }
+
     return (
         <div className="timeline-demo">
             <div className="timeline-demo__header">
@@ -193,8 +234,7 @@ export default function TimelineDemo() {
                     <p className="timeline-demo__eyebrow">Timeline 本地联调入口</p>
                     <h1 className="timeline-demo__title">时间线 Demo</h1>
                     <p className="timeline-demo__description">
-                        这个页面使用前端假数据驱动 `Timeline`，重点覆盖 BCE/CE 跨越、持续区间、受控选中和
-                        `syncId` 协同滚动，便于快速验证滚轮缩放与事件点击联动。
+                        上方使用 Hero Card 列表通过左右键切换事件，下方 Timeline 自动滚动到对应位置；点击下方事件也会同步更新上方焦点。
                     </p>
                 </div>
                 <div className="timeline-demo__actions">
@@ -258,73 +298,64 @@ export default function TimelineDemo() {
                 </div>
             </div>
 
-            <div className="timeline-demo__layout">
-                <div className="timeline-demo__timeline-panel">
-                    <div className="timeline-demo__panel-head">
-                        <div>
-                            <h2 className="timeline-demo__panel-title">主时间线</h2>
-                            <p className="timeline-demo__panel-text">
-                                鼠标放在时间轴区域滚轮缩放，事件内容区域滚轮横向平滑滚动。
-                            </p>
-                        </div>
-                        <span className="timeline-demo__sync-tag">syncId: history-demo</span>
+            {/* Hero Card 列表 */}
+            <div className="timeline-demo__hero-panel">
+                <div className="timeline-demo__panel-head">
+                    <div>
+                        <h2 className="timeline-demo__panel-title">事件概览</h2>
+                        <p className="timeline-demo__panel-text">
+                            使用 ← → 方向键切换当前焦点事件，下方 Timeline 会自动跟随滚动。
+                        </p>
                     </div>
-                    <div className="timeline-demo__timeline-shell">
-                        <Timeline
-                            events={activePreset.events}
-                            yearStart={activePreset.yearStart}
-                            yearEnd={activePreset.yearEnd}
-                            syncId="history-demo"
-                            selectedEventId={selectedEventId}
-                            onEventSelect={setSelectedEventId}
-                        />
-                    </div>
+                    <span className="timeline-demo__sync-tag">
+                        {selectedIndex + 1} / {activePreset.events.length}
+                    </span>
                 </div>
-
-                <div className="timeline-demo__detail-panel">
-                    <div className="timeline-demo__panel-head">
-                        <div>
-                            <h2 className="timeline-demo__panel-title">当前选中</h2>
-                            <p className="timeline-demo__panel-text">
-                                这里使用受控 `selectedEventId` 展示当前焦点事件的详情。
-                            </p>
-                        </div>
-                    </div>
-                    {selectedEvent ? (
-                        <div className="timeline-demo__detail-card">
-                            <div className="timeline-demo__detail-title">{selectedEvent.title}</div>
-                            <div className="timeline-demo__detail-range">{formatRange(selectedEvent)}</div>
-                            <div className="timeline-demo__detail-meta">
-                                <span>事件 ID：{selectedEvent.id}</span>
-                                <span>父事件：{selectedEvent.parentId ?? '无'}</span>
+                <div className="timeline-demo__hero-list" ref={heroListRef}>
+                    {activePreset.events.map((event) => {
+                        const isSelected = event.id === selectedEventId
+                        return (
+                            <div
+                                key={event.id}
+                                ref={(el) => {
+                                    heroCardRefs.current[event.id] = el
+                                }}
+                                className={`timeline-demo__hero-card ${isSelected ? 'timeline-demo__hero-card--selected' : ''}`}
+                                onClick={() => setSelectedEventId(event.id)}
+                                tabIndex={0}
+                                role="button"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault()
+                                        setSelectedEventId(event.id)
+                                    }
+                                }}
+                            >
+                                <div className="timeline-demo__hero-title">{event.title}</div>
+                                <div className="timeline-demo__hero-range">{formatRange(event)}</div>
+                                <p className="timeline-demo__hero-desc">{event.description}</p>
                             </div>
-                            <p className="timeline-demo__detail-description">
-                                {selectedEvent.description ?? '当前事件未提供描述文本。'}
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="timeline-demo__detail-empty">
-                            当前未选中事件。点击时间线中的任意事件卡片即可联动刷新这里。
-                        </div>
-                    )}
+                        )
+                    })}
                 </div>
             </div>
 
-            <div className="timeline-demo__timeline-panel timeline-demo__timeline-panel--compact">
+            <div className="timeline-demo__timeline-panel">
                 <div className="timeline-demo__panel-head">
                     <div>
-                        <h2 className="timeline-demo__panel-title">同步滚动对照线</h2>
+                        <h2 className="timeline-demo__panel-title">主时间线</h2>
                         <p className="timeline-demo__panel-text">
-                            使用更少的概览事件共享同一个 `syncId`，只同步横向滚动位置，不同步缩放倍数。
+                            鼠标放在时间轴区域滚轮缩放，事件内容区域滚轮横向平滑滚动，点击事件卡片与上方 Hero 列表联动。
                         </p>
                     </div>
                 </div>
-                <div className="timeline-demo__timeline-shell timeline-demo__timeline-shell--compact">
+                <div className="timeline-demo__timeline-shell">
                     <Timeline
-                        events={activePreset.overviewEvents}
+                        events={activePreset.events}
                         yearStart={activePreset.yearStart}
                         yearEnd={activePreset.yearEnd}
-                        syncId="history-demo"
+                        selectedEventId={selectedEventId}
+                        onEventSelect={handleTimelineSelect}
                     />
                 </div>
             </div>

@@ -1,24 +1,18 @@
-import {useState, useEffect, useCallback, type CSSProperties} from 'react'
-import {
-    Button,
-    Input, RollingBox,
-    Select,
-    Slider, type Theme,
-    useAlert
-} from 'flowcloudai-ui'
+import {type CSSProperties, useCallback, useEffect, useState} from 'react'
+import {Button, Input, RollingBox, Select, Slider, type Theme, useAlert, useTheme} from 'flowcloudai-ui'
 import {open} from '@tauri-apps/plugin-dialog'
-import {useTheme} from "flowcloudai-ui";
+import {listen} from '@tauri-apps/api/event'
 import {
     ai_list_plugins,
-    setting_get_settings,
-    setting_update_settings,
-    setting_get_media_dir,
-    setting_get_default_paths,
-    setting_set_api_key,
-    setting_has_api_key,
-    setting_delete_api_key,
+    type AppSettings,
     type PluginInfo,
-    type AppSettings
+    setting_delete_api_key,
+    setting_get_default_paths,
+    setting_get_media_dir,
+    setting_get_settings,
+    setting_has_api_key,
+    setting_set_api_key,
+    setting_update_settings
 } from '../api'
 import './Settings.css'
 
@@ -86,7 +80,10 @@ export default function Settings() {
             }
             setApiKeyStatus(status)
         } catch (error) {
-            await showAlert('加载设置失败: ' + error, 'error')
+            const errStr = String(error)
+            if (!errStr.includes('state not managed')) {
+                await showAlert('加载设置失败: ' + error, 'error')
+            }
         } finally {
             setLoading(false)
         }
@@ -94,6 +91,16 @@ export default function Settings() {
 
     useEffect(() => {
         loadData().catch(console.error)
+    }, [loadData])
+
+    // 后端异步初始化完成后重新加载（AiState 在 DB 就绪后才 manage）
+    useEffect(() => {
+        const unlisten = listen('backend-ready', () => {
+            loadData().catch(console.error)
+        })
+        return () => {
+            unlisten.then(f => f())
+        }
     }, [loadData])
 
     useEffect(() => {
@@ -178,7 +185,8 @@ export default function Settings() {
                 default_model: null,
                 voice_id: null,
                 auto_play: true
-            }
+            },
+            search_engine: 'bing'
         }
         setSettings(defaultSettings)
         void showAlert('已重置为默认设置', 'info')
@@ -536,6 +544,29 @@ export default function Settings() {
                                 value={settings.tts.default_model || ''}
                                 onChange={(value) => handleAiConfigChange('tts', 'default_model', value ? String(value) : null)}
                                 disabled={!settings.tts.plugin_id}
+                                style={{flex: 1}}
+                            />
+                        </div>
+                    </div>
+                </section>
+
+                {/* AI 工具配置 */}
+                <section className="settings-section">
+                    <h2 className="settings-section-title">AI 工具配置</h2>
+                    <div className="settings-row">
+                        <div className="settings-field">
+                            <label className="settings-label">搜索引擎</label>
+                            <Select
+                                options={[
+                                    {value: 'bing', label: '必应 (Bing)'},
+                                    {value: 'baidu', label: '百度 (Baidu)'},
+                                    {value: 'duckduckgo', label: 'DuckDuckGo'},
+                                ]}
+                                value={settings.search_engine}
+                                onChange={(value) => setSettings(prev => prev ? {
+                                    ...prev,
+                                    search_engine: String(value)
+                                } : null)}
                                 style={{flex: 1}}
                             />
                         </div>

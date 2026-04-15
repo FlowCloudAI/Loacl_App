@@ -6,6 +6,13 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, mpsc};
 use worldflow_core::SqliteDb;
 
+// ── SearchEngineState ─────────────────────────────────────────────────────────
+
+/// 当前搜索引擎选择（与设置同步，供 AI 工具使用）
+pub struct SearchEngineState {
+    pub engine: Arc<Mutex<String>>,
+}
+
 // ── NetworkState ──────────────────────────────────────────────────────────────
 
 /// 全局共享 HTTP 客户端（连接池复用）
@@ -52,12 +59,20 @@ pub struct AiState {
 }
 
 impl AiState {
-    pub fn new(plugins_dir: PathBuf, app_state: Arc<Mutex<AppState>>) -> Result<Self> {
+    pub fn new(
+        plugins_dir: PathBuf,
+        app_state: Arc<Mutex<AppState>>,
+        search_engine: Arc<Mutex<String>>,
+    ) -> Result<Self> {
         let mut client = FlowCloudAIClient::new(plugins_dir)?;
 
         // 注册 Worldflow 工具（在创建任何 Session 之前）
         client.install_tools(|registry| {
-            crate::tools::register_worldflow_tools(registry, app_state.clone())
+            crate::tools::register_worldflow_tools(
+                registry,
+                app_state.clone(),
+                search_engine.clone(),
+            )
         })?;
 
         Ok(Self {

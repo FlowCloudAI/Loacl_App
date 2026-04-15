@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "cn.flowcloudai.www",
   "build": {
-    "frontendDist": "../build",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
@@ -41,7 +41,16 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
     "fileAssociations": [
       {
         "ext": ["fcplug"],
@@ -53,9 +62,18 @@
     ],
     "windows": {
       "wix": {
-        "fragmentPaths": [
-          "./install.wxs"
-        ]
+        "language": "SimpChinese"
+      },
+      "nsis": {
+        "installMode": "both",
+        "template": null,
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico",
+        "compression": "lzma"
       }
     }
   }

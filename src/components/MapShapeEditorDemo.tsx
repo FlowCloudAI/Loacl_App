@@ -564,7 +564,7 @@ export default function MapShapeEditorDemo() {
                         />
                     </div>
                 </section>
-                <RollingBox className="map-shape-editor-demo__sidebar" thumbSize="thin">
+                <div className="map-shape-editor-demo__sidebar">
                     <section className="map-shape-editor-demo__panel">
                         <div className="map-shape-editor-demo__panel-header">
                             <h3 className="map-shape-editor-demo__panel-title">预览与提交</h3>
@@ -616,7 +616,8 @@ export default function MapShapeEditorDemo() {
                         </div>
                     </section>
 
-                    <section className="map-shape-editor-demo__panel">
+                    <div className="map-shape-editor-demo__sidebar-scroll">
+                        <section className="map-shape-editor-demo__panel map-shape-editor-demo__params-panel">
                         <div className="map-shape-editor-demo__panel-header">
                             <h3 className="map-shape-editor-demo__panel-title">海岸线参数</h3>
                         </div>
@@ -1143,7 +1144,8 @@ export default function MapShapeEditorDemo() {
                             )}
                         </div>
                     </section>
-                </RollingBox>
+                    </div>
+                </div>
 
             </div>
 

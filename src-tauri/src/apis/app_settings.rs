@@ -1,3 +1,4 @@
+use crate::state::SearchEngineState;
 use crate::{ApiKeyStore, AppSettings, SettingsState};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
@@ -57,9 +58,15 @@ pub async fn setting_get_settings(
 /// 覆盖全部设置并持久化到 settings.json
 #[tauri::command]
 pub async fn setting_update_settings(
+    app: AppHandle,
     state: State<'_, SettingsState>,
     new_settings: AppSettings,
 ) -> Result<(), String> {
+    // 同步搜索引擎状态（供 AI 工具实时读取）
+    if let Some(se_state) = app.try_state::<SearchEngineState>() {
+        *se_state.engine.lock().await = new_settings.search_engine.clone();
+    }
+
     let mut s = state.settings.lock().await;
     *s = new_settings;
     s.save(&state.path).map_err(|e| e.to_string())
