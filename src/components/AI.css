@@ -435,7 +435,15 @@
 
 .ai-messages-container .fc-roll {
     scroll-behavior: smooth;
-    padding: 1rem 1.5rem 180px 1.5rem; /* 底部留出足够空间给悬浮输入框 */
+    padding: 1rem 1.5rem;
+}
+
+.ai-messages-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 50rem;
+    margin: 0 auto 220px;
 }
 
 /* 空状态 */
@@ -471,7 +479,7 @@
     flex-direction: column;
     gap: 16px;
     max-width: 50rem;
-    margin: 0 auto;
+    margin: 0 auto 220px;
 }
 
 .ai-message {
@@ -578,13 +586,14 @@
 
 /* ========== 滚动到底部按钮 ========== */
 .ai-scroll-to-bottom-sticky {
-    position: sticky;
-    bottom: 100px;
+    position: fixed;
+    bottom: 200px;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     justify-content: center;
     pointer-events: none;
     z-index: 101;
-    margin-top: 8px;
 }
 
 .ai-scroll-to-bottom-btn {

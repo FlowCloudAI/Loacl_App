@@ -849,7 +849,7 @@ export default function AIChat() {
 
                 {/* 编辑模式指示条 */}
                 {editingMessageId && (
-                    <div className={`ai-edit-indicator ai-edit-indicator--${viewMode}`}>
+                    <div className="ai-edit-indicator ai-edit-indicator--full">
                         <span>编辑模式</span>
                         <button onClick={() => {
                             setEditingMessageId(null);
