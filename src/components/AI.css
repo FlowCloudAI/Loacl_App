@@ -618,9 +618,9 @@
     justify-content: space-between;
     padding: 0.3rem 1.25rem;
     font-size: 0.8rem;
-    color: var(--ai-plugin-primary);
-    background: rgba(59, 130, 246, 0.08);
-    border-top: 1px solid rgba(59, 130, 246, 0.2);
+    color: var(--fc-color-primary);
+    background: var(--fc-color-primary-subtle);
+    border-top: 1px solid var(--fc-color-info-border);
 }
 
 .ai-edit-indicator--full {
@@ -642,15 +642,15 @@
 .ai-edit-indicator button {
     padding: 0.15rem 0.5rem;
     font-size: 0.78rem;
-    border: 1px solid rgba(59, 130, 246, 0.4);
-    border-radius: var(--ai-plugin-radius-sm);
+    border: 1px solid var(--fc-color-info-border);
+    border-radius: var(--fc-radius-sm);
     background: transparent;
-    color: var(--ai-plugin-primary);
+    color: var(--fc-color-primary);
     cursor: pointer;
 }
 
 .ai-edit-indicator button:hover {
-    background: rgba(59, 130, 246, 0.12);
+    background: var(--fc-color-primary-subtle);
 }
 
 /* ========== 悬浮输入框（根据视图模式切换定位方式） ========== */
