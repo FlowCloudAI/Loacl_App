@@ -3,6 +3,8 @@ import {MessageBox, RollingBox, Select, useAlert} from 'flowcloudai-ui'
 import {
     ai_close_session,
     ai_delete_conversation,
+    ai_disable_tool,
+    ai_enable_tool,
     ai_get_conversation,
     ai_list_conversations,
     ai_list_plugins,
@@ -100,6 +102,8 @@ export default function AIChat() {
     const [sessionParams, setSessionParams] = useState<SessionParams>(DEFAULT_SESSION_PARAMS)
     const [paramsExpanded, setParamsExpanded] = useState(false)
     const [tools, setTools] = useState<ToolStatus[]>([])
+    const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+    const [editModeEnabled, setEditModeEnabled] = useState(false)
 
     const activeConversation = conversations.find(c => c.id === activeConversationId)
     const messages = useMemo(() => activeConversation?.messages ?? [], [activeConversation])
@@ -167,7 +171,14 @@ export default function AIChat() {
 
     useEffect(() => {
         ai_list_plugins('llm').then(setPlugins).catch(console.error)
-        ai_list_tools().then(setTools).catch(console.error)
+        ai_list_tools().then(fetched => {
+            // 强制默认全部关闭：同步 UI 状态并禁用后端所有工具
+            const disableOps = fetched.map(t => ai_disable_tool(t.name))
+            void Promise.all(disableOps)
+            setTools(fetched.map(t => ({...t, enabled: false})))
+            setWebSearchEnabled(false)
+            setEditModeEnabled(false)
+        }).catch(console.error)
     }, [])
 
     // ── 自动选择默认模型 ──────────────────────────────────────
@@ -493,7 +504,27 @@ export default function AIChat() {
     const selectedPluginInfo = plugins.find(p => p.id === selectedPlugin)
     const toggleSidebar = () => setSidebarCollapsed(prev => !prev)
 
+    const toggleWebSearch = useCallback(async () => {
+        const next = !webSearchEnabled
+        const webNames = ['web_search', 'open_url']
+        setTools(prev => prev.map(t => webNames.includes(t.name) ? {...t, enabled: next} : t))
+        setWebSearchEnabled(next)
+        const ops = tools
+            .filter(t => webNames.includes(t.name))
+            .map(t => next ? ai_enable_tool(t.name) : ai_disable_tool(t.name))
+        await Promise.all(ops).catch(console.error)
+    }, [webSearchEnabled, tools])
 
+    const toggleEditMode = useCallback(async () => {
+        const next = !editModeEnabled
+        const webNames = ['web_search', 'open_url']
+        setTools(prev => prev.map(t => (!webNames.includes(t.name)) ? {...t, enabled: next} : t))
+        setEditModeEnabled(next)
+        const ops = tools
+            .filter(t => !webNames.includes(t.name))
+            .map(t => next ? ai_enable_tool(t.name) : ai_disable_tool(t.name))
+        await Promise.all(ops).catch(console.error)
+    }, [editModeEnabled, tools])
 
     // ── 渲染 ─────────────────────────────────────────────────
 
@@ -571,13 +602,6 @@ export default function AIChat() {
                     {/* 会话参数行 */}
                     <div className="ai-params-row">
                         <button
-                            className={`ai-param-chip ${sessionParams.thinking ? 'active' : ''}`}
-                            onClick={() => setSessionParams(prev => ({...prev, thinking: !prev.thinking}))}
-                            title="深度思考（需要模型支持）"
-                        >
-                            深度思考
-                        </button>
-                        <button
                             className="ai-param-expand-btn"
                             onClick={() => setParamsExpanded(p => !p)}
                             title="高级参数"
@@ -594,24 +618,6 @@ export default function AIChat() {
                         </button>
                         {paramsExpanded && (
                             <>
-                                <div className="ai-param-field">
-                                    <label>已注册工具 ({tools.length})</label>
-                                    <div className="ai-tools-list"
-                                         style={{maxHeight: 120, overflow: 'auto', fontSize: 12}}>
-                                        {tools.map(t => (
-                                            <div key={t.name} style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                padding: '2px 0'
-                                            }}>
-                                                <span>{t.name}</span>
-                                                <span
-                                                    style={{color: t.enabled ? '#22c55e' : '#ef4444'}}>{t.enabled ? '启用' : '禁用'}</span>
-                                            </div>
-                                        ))}
-                                        {tools.length === 0 && <span style={{color: '#888'}}>无工具</span>}
-                                    </div>
-                                </div>
                                 <div className="ai-param-field">
                                     <label>温度</label>
                                     <input
@@ -737,10 +743,7 @@ export default function AIChat() {
 
                 {/* 悬浮输入框 */}
                 <div className="ai-floating-input-wrapper ai-floating-input-wrapper--full">
-                    <div 
-                        className="ai-floating-input-inner"
-                        onClick={() => textareaRef.current?.focus()}
-                    >
+                    <div className="ai-floating-input-inner">
                         <textarea
                             ref={textareaRef}
                             className="ai-floating-textarea"
@@ -750,28 +753,53 @@ export default function AIChat() {
                             placeholder={activeConversationId ? '请输入消息...' : '请先创建新对话'}
                             disabled={session.isStreaming || !activeConversationId}
                         />
-                        <div className="ai-floating-actions">
-                            {showCharHint && (
-                                <span className="ai-floating-char-count">{charCount}/{MAX_CHARS}</span>
-                            )}
-                            {session.isStreaming ? (
-                                <button className="ai-floating-stop-btn" onClick={(e) => { e.stopPropagation(); handleStop(); }} title="停止生成">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                        <rect x="6" y="6" width="12" height="12" />
-                                    </svg>
-                                </button>
-                            ) : (
+                        <div className="ai-floating-footer">
+                            <div className="ai-floating-toolbar">
                                 <button
-                                    className="ai-floating-send-btn"
-                                    onClick={(e) => { e.stopPropagation(); void handleSend(); }}
-                                    disabled={!inputValue.trim() || !activeConversationId}
-                                    title="发送"
+                                    className={`ai-toolbar-btn ${sessionParams.thinking ? 'active' : ''}`}
+                                    onClick={(e) => { e.stopPropagation(); setSessionParams(prev => ({...prev, thinking: !prev.thinking})); }}
+                                    title="深度思考"
                                 >
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-                                    </svg>
+                                    深度思考
                                 </button>
-                            )}
+                                <button
+                                    className={`ai-toolbar-btn ${webSearchEnabled ? 'active' : ''}`}
+                                    onClick={(e) => { e.stopPropagation(); void toggleWebSearch(); }}
+                                    title="联网搜索"
+                                >
+                                    联网搜索
+                                </button>
+                                <button
+                                    className={`ai-toolbar-btn ${editModeEnabled ? 'active' : ''}`}
+                                    onClick={(e) => { e.stopPropagation(); void toggleEditMode(); }}
+                                    title={editModeEnabled ? '编辑模式' : '阅读模式'}
+                                >
+                                    {editModeEnabled ? '编辑模式' : '阅读模式'}
+                                </button>
+                            </div>
+                            <div className="ai-floating-actions">
+                                {showCharHint && (
+                                    <span className="ai-floating-char-count">{charCount}/{MAX_CHARS}</span>
+                                )}
+                                {session.isStreaming ? (
+                                    <button className="ai-floating-stop-btn" onClick={(e) => { e.stopPropagation(); handleStop(); }} title="停止生成">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                            <rect x="6" y="6" width="12" height="12" />
+                                        </svg>
+                                    </button>
+                                ) : (
+                                    <button
+                                        className="ai-floating-send-btn"
+                                        onClick={(e) => { e.stopPropagation(); void handleSend(); }}
+                                        disabled={!inputValue.trim() || !activeConversationId}
+                                        title="发送"
+                                    >
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
