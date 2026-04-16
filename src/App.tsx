@@ -6,12 +6,12 @@ import {type CSSProperties, useCallback, useEffect, useMemo, useState} from "rea
 import ProjectList from "./pages/ProjectList.tsx";
 import ProjectEditor from "./pages/ProjectEditor";
 import Settings from "./pages/Settings";
-import Plugins from "./pages/Plugins";
 import Idea from "./pages/Idea";
 import type {Project} from "./api";
 import RelationDemo from "./components/RelationDemo";
 import MapShapeEditorDemo from "./components/MapShapeEditorDemo";
 import TimelineDemo from "./components/TimelineDemo";
+import AIImageGenerator from "./components/AIImageGenerator";
 import EntryEditModal from "./components/EntryEditModal";
 
 type EntryTabMeta = {
@@ -246,14 +246,6 @@ function App() {
             />
         </svg>)
 
-    const PluginsIcon = (
-        <svg viewBox="-150 -150 1324 1324" xmlns="http://www.w3.org/2000/svg">
-            <path
-                d="M702.836 1021.673H104.727c-53.527 0-95.418-44.218-95.418-95.418V779.636c0-11.636 4.655-20.945 13.964-27.927 9.309-6.982 20.945-9.309 30.254-6.982 11.637 2.328 23.273 4.655 32.582 4.655 67.491 0 123.346-55.855 123.346-123.346S153.6 502.691 86.109 502.691c-9.309 0-20.945 2.327-32.582 4.654-11.636 2.328-20.945 0-30.254-6.981S9.309 484.073 9.309 472.436V325.818c0-53.527 44.218-95.418 95.418-95.418h107.055c-2.327-11.636-2.327-23.273-2.327-34.91 0-107.054 86.109-193.163 193.163-193.163s193.164 86.11 193.164 193.164c0 11.636 0 23.273-2.327 34.909h107.054c53.527 0 95.418 44.218 95.418 95.418v107.055h20.946c107.054 0 193.163 86.109 193.163 193.163S923.927 819.2 816.873 819.2h-20.946v107.055c4.655 51.2-39.563 95.418-93.09 95.418zM79.127 819.2v104.727c0 13.964 11.637 25.6 25.6 25.6h598.11c13.963 0 25.6-11.636 25.6-25.6V772.655c0-11.637 4.654-23.273 13.963-27.928 9.31-6.982 20.945-6.982 32.582-4.654 13.963 4.654 27.927 9.309 41.89 9.309 67.492 0 123.346-55.855 123.346-123.346s-55.854-123.345-123.345-123.345c-13.964 0-27.928 2.327-41.891 9.309-11.637 4.655-23.273 2.327-32.582-4.655-9.31-6.981-13.964-16.29-13.964-27.927v-153.6c0-13.963-11.636-25.6-25.6-25.6H546.91c-11.636 0-23.273-6.982-30.254-16.29-6.982-9.31-6.982-23.273-2.328-32.583 9.31-18.618 11.637-34.909 11.637-53.527 0-67.49-55.855-123.345-123.346-123.345s-123.345 55.854-123.345 123.345c0 18.618 4.654 37.237 11.636 53.527 4.655 11.637 4.655 23.273-2.327 32.582-6.982 9.31-18.618 16.291-30.255 16.291h-153.6c-13.963 0-25.6 11.637-25.6 25.6v104.727c109.382-4.654 200.146 83.782 200.146 193.164 0 107.055-86.11 193.164-193.164 193.164-2.327 2.327-4.654 2.327-6.982 2.327z"
-                fill="currentColor"
-            />
-        </svg>)
-
     const RelationIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
             <circle cx="5" cy="6" r="2.25" stroke="currentColor" strokeWidth="1.5"/>
@@ -297,6 +289,15 @@ function App() {
             <circle cx="18" cy="17.25" r="1.75" fill="currentColor"/>
         </svg>)
 
+    const AiImageIcon = (
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+            <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
+            <path d="M3 15l5-5 4 4 3-3 6 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4z" fill="currentColor" opacity="0.25"/>
+            <path d="M21 15l-6-6-3 3-4-4-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+                  strokeLinejoin="round"/>
+        </svg>)
+
     const SettingsIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <circle cx="12" cy="12" r="3" strokeWidth="1.5"/>
@@ -311,7 +312,7 @@ function App() {
         {key: 'relation', label: '关系图谱', icon: RelationIcon},
         {key: 'timeline', label: '时间线', icon: TimelineIcon},
         {key: 'map-editor', label: '地图编辑', icon: MapIcon},
-        {key: 'plugins', label: '插件管理', icon: PluginsIcon},
+        {key: 'ai-image', label: 'AI 绘图', icon: AiImageIcon},
     ]
     const bottomItems: SideBarItem[] = [
         {key: 'settings', label: '设置', icon: SettingsIcon},
@@ -442,9 +443,6 @@ function App() {
                     <div className={`page-wrapper ${selectedKey === 'idea' ? 'active' : ''}`}>
                         <Idea/>
                     </div>
-                    <div className={`page-wrapper ${selectedKey === 'plugins' ? 'active' : ''}`}>
-                        <Plugins/>
-                    </div>
                     <div className={`page-wrapper ${selectedKey === 'relation' ? 'active' : ''}`}>
                         <RelationDemo/>
                     </div>
@@ -453,6 +451,9 @@ function App() {
                     </div>
                     <div className={`page-wrapper ${selectedKey === 'map-editor' ? 'active' : ''}`}>
                         <MapShapeEditorDemo/>
+                    </div>
+                    <div className={`page-wrapper ${selectedKey === 'ai-image' ? 'active' : ''}`}>
+                        <AIImageGenerator/>
                     </div>
                     <div className={`page-wrapper ${selectedKey === 'settings' ? 'active' : ''}`}>
                         <Settings/>

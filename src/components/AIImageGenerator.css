@@ -1,0 +1,259 @@
+/* ============================================
+   AI 图像生成 Demo 样式
+   ============================================ */
+
+.ai-image-generator {
+    width: 100%;
+    height: 100%;
+    background: var(--fc-color-bg);
+    padding: 1.5rem 2rem 2rem;
+    box-sizing: border-box;
+}
+
+.ai-image-generator .fc-roll {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* ========== 头部 ========== */
+.ai-image-generator__header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ai-image-generator__eyebrow {
+    font-size: 0.75rem;
+    font-weight: var(--fc-font-weight-semibold);
+    color: var(--fc-color-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+.ai-image-generator__title {
+    font-size: 1.5rem;
+    font-weight: var(--fc-font-weight-bold);
+    color: var(--fc-color-text);
+    margin: 0;
+}
+
+.ai-image-generator__description {
+    font-size: 0.875rem;
+    color: var(--fc-color-text-secondary);
+    line-height: 1.6;
+    margin: 0;
+    max-width: 720px;
+}
+
+/* ========== 工作区 ========== */
+.ai-image-generator__workspace {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 1.5rem;
+    min-height: 0;
+    flex: 1;
+}
+
+@media (max-width: 900px) {
+    .ai-image-generator__workspace {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ========== 面板 ========== */
+.ai-image-generator__panel {
+    background: var(--fc-color-bg-secondary);
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.ai-image-generator__panel--result {
+    min-height: 400px;
+}
+
+.ai-image-generator__panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--fc-color-border);
+    background: var(--fc-color-bg-elevated);
+}
+
+.ai-image-generator__panel-title {
+    font-size: 0.95rem;
+    font-weight: var(--fc-font-weight-semibold);
+    color: var(--fc-color-text);
+    margin: 0;
+}
+
+.ai-image-generator__result-count {
+    font-size: 0.8rem;
+    color: var(--fc-color-text-secondary);
+}
+
+.ai-image-generator__panel-body {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    flex: 1;
+    overflow: auto;
+}
+
+/* ========== 表单字段 ========== */
+.ai-image-generator__field-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.ai-image-generator__field-row .ai-image-generator__field {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.ai-image-generator__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.ai-image-generator__label {
+    font-size: 0.8rem;
+    font-weight: var(--fc-font-weight-medium);
+    color: var(--fc-color-text-secondary);
+}
+
+.ai-image-generator__select .ai-select__control {
+    min-height: 36px !important;
+    background: var(--fc-color-bg) !important;
+    border-color: var(--fc-color-border) !important;
+    border-radius: var(--fc-radius-md) !important;
+    font-size: 0.85rem !important;
+}
+
+.ai-image-generator__select .ai-select__control--is-focused {
+    border-color: var(--fc-color-primary) !important;
+    box-shadow: 0 0 0 2px var(--fc-color-primary-subtle) !important;
+}
+
+.ai-image-generator__textarea {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-md);
+    background: var(--fc-color-bg);
+    color: var(--fc-color-text);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.ai-image-generator__textarea:focus {
+    border-color: var(--fc-color-primary);
+    box-shadow: 0 0 0 2px var(--fc-color-primary-subtle);
+}
+
+.ai-image-generator__textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ai-image-generator__hint {
+    font-size: 0.75rem;
+    color: var(--fc-color-text-secondary);
+}
+
+.ai-image-generator__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+}
+
+.ai-image-generator__error {
+    padding: 0.75rem 1rem;
+    background: var(--fc-color-danger-bg);
+    color: var(--fc-color-danger);
+    border: 1px solid var(--fc-color-danger-border);
+    border-radius: var(--fc-radius-md);
+    font-size: 0.85rem;
+}
+
+/* ========== 空状态 ========== */
+.ai-image-generator__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 3rem 1rem;
+    color: var(--fc-color-text-secondary);
+    text-align: center;
+}
+
+.ai-image-generator__empty p {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: var(--fc-font-weight-medium);
+}
+
+.ai-image-generator__empty span {
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+/* ========== 结果网格 ========== */
+.ai-image-generator__result-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.ai-image-generator__result-card {
+    background: var(--fc-color-bg);
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-md);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.15s;
+}
+
+.ai-image-generator__result-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ai-image-generator__result-image {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+    display: block;
+    aspect-ratio: 1 / 1;
+}
+
+.ai-image-generator__result-placeholder {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--fc-color-bg-secondary);
+    color: var(--fc-color-text-secondary);
+    font-size: 0.85rem;
+}
+
+.ai-image-generator__result-meta {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--fc-color-text-secondary);
+    border-top: 1px solid var(--fc-color-border);
+    text-align: center;
+}

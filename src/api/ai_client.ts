@@ -16,6 +16,14 @@ export interface AiCreateLlmSessionParams {
   model?: string | null
   temperature?: number | null
   maxTokens?: number | null
+  /** 续聊已有对话时传入其 ID，后端将回放历史并覆写原文件 */
+  conversationId?: string | null
+}
+
+export interface AiCreateLlmSessionResult {
+  session_id: string
+  conversation_id: string
+  run_id: string
 }
 
 export interface ImageData {
@@ -52,20 +60,24 @@ export interface AiSpeakParams {
 
 export interface AiEventReady {
   session_id: string
+  run_id: string
 }
 
 export interface AiEventDelta {
   session_id: string
+  run_id: string
   text: string
 }
 
 export interface AiEventReasoning {
   session_id: string
+  run_id: string
   text: string
 }
 
 export interface AiEventToolCall {
   session_id: string
+  run_id: string
   index: number
   name: string
   arguments?: string
@@ -73,18 +85,21 @@ export interface AiEventToolCall {
 
 export interface AiEventTurnEnd {
   session_id: string
+  run_id: string
   status: string
   node_id: number
 }
 
 export interface AiEventTurnBegin {
   session_id: string
+  run_id: string
   turn_id: number
   node_id: number
 }
 
 export interface AiEventToolResult {
   session_id: string
+  run_id: string
   index: number
   output: string
   result?: string
@@ -93,6 +108,7 @@ export interface AiEventToolResult {
 
 export interface AiEventError {
   session_id: string
+  run_id: string
   error: string
 }
 
@@ -119,13 +135,15 @@ export const ai_create_llm_session = ({
   model,
   temperature,
   maxTokens,
+                                        conversationId,
 }: AiCreateLlmSessionParams) =>
-  command<void>('ai_create_llm_session', {
+    command<AiCreateLlmSessionResult>('ai_create_llm_session', {
     sessionId,
     pluginId,
     model,
     temperature,
     maxTokens,
+      conversationId,
   })
 
 export const ai_send_message = (sessionId: string, message: string) =>
@@ -133,6 +151,12 @@ export const ai_send_message = (sessionId: string, message: string) =>
 
 export const ai_close_session = (sessionId: string) =>
   command<void>('ai_close_session', { sessionId })
+
+export const ai_close_all_sessions = () =>
+    command<number>('ai_close_all_sessions')
+
+export const ai_cancel_session = (sessionId: string) =>
+    command<void>('ai_cancel_session', {sessionId})
 
 export const ai_checkout = (sessionId: string, nodeId: number) =>
     command<void>('ai_checkout', {sessionId, nodeId})
@@ -197,20 +221,29 @@ export interface ConversationMeta {
 }
 
 export interface StoredMessage {
+  message_id?: string | null
+  node_id?: number | null
+  turn_id?: number | null
   role: string
   content: string | null
   reasoning: string | null
   timestamp: string
+  tool_call_id?: string | null
   tool_calls?: {
+    id?: string | null
     index: number
-    name: string
+    type?: string | null
+    name?: string
     arguments?: string
-    result?: string
-    is_error?: boolean
+    function?: {
+      name?: string
+      arguments?: string
+    }
   }[]
 }
 
 export interface StoredConversation extends ConversationMeta {
+  schema_version?: number
   messages: StoredMessage[]
 }
 

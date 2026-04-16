@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
-import {MessageBox, RollingBox, Select, useAlert, type MessageBoxBlock} from 'flowcloudai-ui'
+import {MessageBox, type MessageBoxBlock, RollingBox, Select, useAlert} from 'flowcloudai-ui'
 import {
     ai_close_session,
     ai_delete_conversation,
@@ -48,7 +48,7 @@ interface SessionParams {
 }
 
 const DEFAULT_SESSION_PARAMS: SessionParams = {
-    thinking: false,
+    thinking: true,
     temperature: '',
     maxTokens: '',
     topP: '',
@@ -63,6 +63,7 @@ interface Conversation {
     pluginId: string
     model: string
     sessionId: string | null
+    runId: string | null
     timestamp: number
 }
 
@@ -77,45 +78,119 @@ const generateTitleFromMessage = (content: string): string => {
     return cleaned.slice(0, 20) + '...'
 }
 
-const storedToMessage = (m: StoredMessage, index: number): Message => {
-    const base: Message = {
-        id: `loaded_${index}_${Date.now()}`,
-        role: m.role as 'user' | 'assistant',
-        content: m.content ?? '',
-        reasoning: m.reasoning || undefined,
-        timestamp: new Date(m.timestamp).getTime(),
-    }
-    // 旧格式转 blocks
-    if (m.role === 'assistant') {
-        const blocks: MessageBoxBlock[] = []
-        if (m.reasoning) {
-            blocks.push({type: 'reasoning', content: m.reasoning})
+const runtimeConversationKey = (sessionId: string, runId: string) => `${sessionId}::${runId}`
+
+const storedToMessages = (messages: StoredMessage[]): Message[] => {
+    const result: Message[] = []
+    let pendingAssistant: Message | null = null
+
+    const flushPendingAssistant = () => {
+        if (!pendingAssistant) return
+        if (pendingAssistant.blocks && pendingAssistant.blocks.length > 0) {
+            result.push(pendingAssistant)
         }
-        if (m.tool_calls && m.tool_calls.length > 0) {
-            m.tool_calls.forEach(tc => {
-                blocks.push({
-                    type: 'tool',
-                    tool: {
-                        index: tc.index,
-                        name: tc.name,
-                        args: tc.arguments,
-                        result: tc.result,
-                        isError: tc.is_error,
-                    },
-                    detail: 'verbose',
-                })
+        pendingAssistant = null
+    }
+
+    const ensureAssistant = (m: StoredMessage, index: number) => {
+        if (!pendingAssistant) {
+            pendingAssistant = {
+                id: m.message_id ?? `loaded_assistant_${index}_${Date.now()}`,
+                role: 'assistant',
+                content: '',
+                timestamp: new Date(m.timestamp).getTime(),
+                nodeId: m.node_id ?? undefined,
+                blocks: [],
+            }
+        }
+        return pendingAssistant
+    }
+
+    messages.forEach((m, index) => {
+        if (m.role === 'user') {
+            flushPendingAssistant()
+        }
+
+        if (m.role === 'tool') {
+            const assistant = pendingAssistant
+            if (!assistant?.blocks) return
+            const toolBlockIndex = assistant.blocks.findIndex(block => {
+                if (block.type !== 'tool') return false
+                return block.tool.result == null
             })
+            if (toolBlockIndex === -1) return
+
+            const nextBlocks = [...assistant.blocks]
+            const block = nextBlocks[toolBlockIndex]
+            if (block.type === 'tool') {
+                nextBlocks[toolBlockIndex] = {
+                    ...block,
+                    tool: {
+                        ...block.tool,
+                        result: m.content ?? '',
+                        isError: false,
+                    },
+                }
+                pendingAssistant = {...assistant, blocks: nextBlocks}
+            }
+            return
         }
+
+        if (m.role === 'assistant') {
+            const assistant = ensureAssistant(m, index)
+            const nextBlocks = [...(assistant.blocks ?? [])]
+
+            if (m.reasoning) {
+                nextBlocks.push({type: 'reasoning', content: m.reasoning})
+            }
+            if (m.tool_calls && m.tool_calls.length > 0) {
+                m.tool_calls.forEach(tc => {
+                    nextBlocks.push({
+                        type: 'tool',
+                        tool: {
+                            index: tc.index,
+                            name: tc.function?.name ?? tc.name ?? '',
+                            args: tc.function?.arguments ?? tc.arguments ?? '',
+                        },
+                        detail: 'verbose',
+                    })
+                })
+            }
+            if (m.content) {
+                nextBlocks.push({type: 'content', content: m.content, markdown: true})
+            }
+
+            pendingAssistant = {
+                ...assistant,
+                content: assistant.content + (m.content ?? ''),
+                reasoning: assistant.reasoning
+                    ? `${assistant.reasoning}${m.reasoning ?? ''}`
+                    : (m.reasoning || undefined),
+                timestamp: new Date(m.timestamp).getTime(),
+                nodeId: m.node_id ?? assistant.nodeId,
+                blocks: nextBlocks,
+            }
+            return
+        }
+
+        const base: Message = {
+            id: m.message_id ?? `loaded_${index}_${Date.now()}`,
+            role: m.role as 'user' | 'assistant',
+            content: m.content ?? '',
+            reasoning: m.reasoning || undefined,
+            timestamp: new Date(m.timestamp).getTime(),
+            nodeId: m.node_id ?? undefined,
+        }
+
         if (m.content) {
-            blocks.push({type: 'content', content: m.content, markdown: true})
+            base.blocks = [{type: 'content', content: m.content}]
         }
-        if (blocks.length > 0) {
-            base.blocks = blocks
-        }
-    } else if (m.content) {
-        base.blocks = [{type: 'content', content: m.content}]
-    }
-    return base
+
+        result.push(base)
+    })
+
+    flushPendingAssistant()
+    return result
 }
 
 // ── 组件 ─────────────────────────────────────────────────────
@@ -134,12 +209,11 @@ export default function AIChat() {
     const [attachments, setAttachments] = useState<Attachment[]>([])
     const [autoScroll, setAutoScroll] = useState(true)
     const [sessionParams, setSessionParams] = useState<SessionParams>(DEFAULT_SESSION_PARAMS)
-    const [paramsExpanded, setParamsExpanded] = useState(false)
     // 编辑模式：记录正在编辑的 user 消息 id
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
     const [tools, setTools] = useState<ToolStatus[]>([])
-    const [webSearchEnabled, setWebSearchEnabled] = useState(false)
-    const [editModeEnabled, setEditModeEnabled] = useState(false)
+    const [webSearchEnabled, setWebSearchEnabled] = useState(true)
+    const [editModeEnabled, setEditModeEnabled] = useState(true)
 
     const activeConversation = conversations.find(c => c.id === activeConversationId)
     const messages = useMemo(() => activeConversation?.messages ?? [], [activeConversation])
@@ -155,20 +229,34 @@ export default function AIChat() {
 
     // 稳定追踪当前活跃对话的 sessionId，供异步回调读取
     const activeSessionIdRef = useRef<string | null>(null)
+    const activeRunIdRef = useRef<string | null>(null)
     useEffect(() => {
         activeSessionIdRef.current = activeConversation?.sessionId ?? null
-    }, [activeConversation?.sessionId])
+        activeRunIdRef.current = activeConversation?.runId ?? null
+    }, [activeConversation?.sessionId, activeConversation?.runId])
 
     // 稳定追踪当前活跃对话，避免 useCallback 依赖频繁变化
     const activeConversationRef = useRef(activeConversation)
     useEffect(() => {
         activeConversationRef.current = activeConversation
     }, [activeConversation])
+    const runtimeConversationRef = useRef<Record<string, string>>({})
 
     // ── useAiSession ─────────────────────────────────────────
 
     const onMessage = useCallback((msg: SessionMessage) => {
-        const userSwitchedAway = activeSessionIdRef.current !== msg.sessionId
+        const userSwitchedAway = activeRunIdRef.current !== msg.runId
+        const targetConversationId =
+            runtimeConversationRef.current[runtimeConversationKey(msg.sessionId, msg.runId)]
+        console.log('[AI][onMessage]', {
+            msgSessionId: msg.sessionId,
+            msgRunId: msg.runId,
+            targetConversationId,
+            activeConversationId: activeConversationRef.current?.id ?? null,
+            activeSessionId: activeSessionIdRef.current,
+            activeRunId: activeRunIdRef.current,
+            userSwitchedAway,
+        })
 
         const message: Message = {
             id: msg.id,
@@ -179,14 +267,18 @@ export default function AIChat() {
             blocks: msg.blocks,
             nodeId: msg.nodeId,
         }
-        // 按 sessionId 路由，并在用户已切走时顺手清掉 sessionId
+        // 按 sessionId + runId 路由，并在用户已切走时顺手清掉运行态
         setConversations(prev => prev.map(conv => {
-            if (conv.sessionId !== msg.sessionId) return conv
+            const matchedByRuntime =
+                conv.sessionId === msg.sessionId && conv.runId === msg.runId
+            const matchedByMap = targetConversationId != null && conv.id === targetConversationId
+            if (!matchedByRuntime && !matchedByMap) return conv
             return {
                 ...conv,
                 messages: [...conv.messages, message],
-                // 用户切走了：清掉 sessionId，下次续聊会重建 session
+                // 用户切走了：清掉 sessionId / runId，下次续聊会重建 session
                 sessionId: userSwitchedAway ? null : conv.sessionId,
+                runId: userSwitchedAway ? null : conv.runId,
             }
         }))
 
@@ -209,12 +301,12 @@ export default function AIChat() {
     useEffect(() => {
         ai_list_plugins('llm').then(setPlugins).catch(console.error)
         ai_list_tools().then(fetched => {
-            // 强制默认全部关闭：同步 UI 状态并禁用后端所有工具
-            const disableOps = fetched.map(t => ai_disable_tool(t.name))
-            void Promise.all(disableOps)
-            setTools(fetched.map(t => ({...t, enabled: false})))
-            setWebSearchEnabled(false)
-            setEditModeEnabled(false)
+            // 默认全部开启：联网搜索与编辑模式都处于激活态
+            const enableOps = fetched.map(t => ai_enable_tool(t.name))
+            void Promise.all(enableOps)
+            setTools(fetched.map(t => ({...t, enabled: true})))
+            setWebSearchEnabled(true)
+            setEditModeEnabled(true)
         }).catch(console.error)
     }, [])
 
@@ -238,12 +330,12 @@ export default function AIChat() {
     // checkout 到它时 backend 会自动重跑该消息（用于重说）
 
     useEffect(() => {
-        if (!session.lastUserNodeId || !session.sessionId) return
+        if (!session.lastUserNodeId || !session.sessionId || !session.runId) return
 
         // 使用 requestAnimationFrame 延迟状态更新，避免级联渲染
         const frameId = requestAnimationFrame(() => {
             setConversations(prev => prev.map(conv => {
-                if (conv.sessionId !== session.sessionId) return conv
+                if (conv.sessionId !== session.sessionId || conv.runId !== session.runId) return conv
                 // 找最后一条还没有 nodeId 的 user 消息
                 const idx = conv.messages.reduceRight<number>(
                     (found, m, i) => found === -1 && m.role === 'user' && !m.nodeId ? i : found,
@@ -257,18 +349,28 @@ export default function AIChat() {
         })
 
         return () => cancelAnimationFrame(frameId)
-    }, [session.lastUserNodeId, session.sessionId])
+    }, [session.lastUserNodeId, session.sessionId, session.runId])
 
     // ── 会话参数同步到后端 ────────────────────────────────────
 
     useEffect(() => {
         if (!session.sessionId) return
         const p: Record<string, unknown> = {thinking: sessionParams.thinking}
-        if (sessionParams.temperature !== '') p.temperature = parseFloat(sessionParams.temperature)
-        if (sessionParams.maxTokens !== '') p.maxTokens = parseInt(sessionParams.maxTokens, 10)
-        if (sessionParams.topP !== '') p.topP = parseFloat(sessionParams.topP)
-        if (sessionParams.frequencyPenalty !== '') p.frequencyPenalty = parseFloat(sessionParams.frequencyPenalty)
-        if (sessionParams.presencePenalty !== '') p.presencePenalty = parseFloat(sessionParams.presencePenalty)
+        const parseNumber = (value: string) => {
+            if (value === '') return null
+            const parsed = Number(value)
+            return Number.isFinite(parsed) ? parsed : null
+        }
+        const parseInteger = (value: string) => {
+            if (value === '') return null
+            const parsed = Number.parseInt(value, 10)
+            return Number.isFinite(parsed) ? parsed : null
+        }
+        p.temperature = parseNumber(sessionParams.temperature)
+        p.maxTokens = parseInteger(sessionParams.maxTokens)
+        p.topP = parseNumber(sessionParams.topP)
+        p.frequencyPenalty = parseNumber(sessionParams.frequencyPenalty)
+        p.presencePenalty = parseNumber(sessionParams.presencePenalty)
         void ai_update_session(session.sessionId, p).catch(console.error)
     }, [sessionParams, session.sessionId])
 
@@ -356,6 +458,7 @@ export default function AIChat() {
             pluginId: selectedPlugin,
             model: selectedModel,
             sessionId: null,
+            runId: null,
             timestamp: Date.now(),
         }
 
@@ -384,6 +487,7 @@ export default function AIChat() {
                     pluginId: m.plugin_id,
                     model: m.model,
                     sessionId: null,
+                    runId: null,
                     timestamp: new Date(m.updated_at).getTime(),
                 }))
 
@@ -395,7 +499,7 @@ export default function AIChat() {
                 if (stored) {
                     convs[0] = {
                         ...convs[0],
-                        messages: stored.messages.map(storedToMessage),
+                        messages: storedToMessages(stored.messages),
                     }
                 }
                 
@@ -407,7 +511,7 @@ export default function AIChat() {
                 const newId = `conv_${Date.now()}`
                 setConversations([{
                     id: newId, title: '新对话', messages: [],
-                    pluginId: '', model: '', sessionId: null, timestamp: Date.now(),
+                    pluginId: '', model: '', sessionId: null, runId: null, timestamp: Date.now(),
                 }])
                 setActiveConversationId(newId)
             }
@@ -440,7 +544,7 @@ export default function AIChat() {
                 if (stored) {
                     setConversations(prev => prev.map(c =>
                         c.id === convId
-                            ? {...c, messages: stored.messages.map(storedToMessage)}
+                            ? {...c, messages: storedToMessages(stored.messages)}
                             : c
                     ))
                 }
@@ -455,7 +559,7 @@ export default function AIChat() {
         const conv = conversations.find(c => c.id === convId)
 
         if (activeConversationId === convId && session.isStreaming) {
-            abortControllerRef.current?.abort()
+            await session.cancelSession(conv?.sessionId)
         }
 
         if (conv?.sessionId) {
@@ -517,6 +621,8 @@ export default function AIChat() {
         // 若当前 session 属于另一个对话（后台残留），先关掉再为本对话新建
         const sessionBelongsHere = session.sessionId != null
             && session.sessionId === activeConversationRef.current?.sessionId
+            && session.runId != null
+            && session.runId === activeConversationRef.current?.runId
         if (session.sessionId && !sessionBelongsHere) {
             await session.closeSession()
         }
@@ -526,19 +632,60 @@ export default function AIChat() {
         // 因为 pending 对话在创建 session 后 id 会变，不能再用 activeConversationId（stale）
         let effectiveConvId = currentConvId
         if (!currentSid) {
-            currentSid = await session.createSession(selectedPlugin, selectedModel)
-            if (!currentSid) return
+            // 创建 session 前同步最新工具状态（session 存活时无法修改 tool registry）
+            // 通过 setTools functional form 读取最新 tools，避免 stale closure
+            await new Promise<void>(resolve => {
+                setTools(latest => {
+                    Promise.all(
+                        latest.map(t => t.enabled ? ai_enable_tool(t.name) : ai_disable_tool(t.name))
+                    ).catch(console.error).finally(resolve)
+                    return latest
+                })
+            })
+
+            // 对于已有后端记录的对话（非 pending），复用其 id 作为 session id，
+            // 防止后端以新 session id 创建重复对话文件
+            const isPending = currentConvId.startsWith('conv_')
+            const desiredSessionId = isPending ? undefined : currentConvId
+            const created = await session.createSession(selectedPlugin, selectedModel, desiredSessionId)
+            if (!created) return
+            console.log('[AI][handleSend][createSession]', {
+                currentConvId,
+                isPending,
+                desiredSessionId: desiredSessionId ?? null,
+                createdConversationId: created.conversationId,
+                createdSessionId: created.sessionId,
+                createdRunId: created.runId,
+            })
+            currentSid = created.sessionId
             const oldId = currentConvId
-            if (oldId?.startsWith('conv_')) {
-                // pending 对话：将 id 提升为 session_id，使本地 id === 后端文件名
-                effectiveConvId = currentSid
+            if (isPending) {
+                // pending 对话：切换到后端分配的 conversation_id，sessionId 仅表示当前活跃实例
+                effectiveConvId = created.conversationId
+                runtimeConversationRef.current[
+                    runtimeConversationKey(created.sessionId, created.runId)
+                    ] = created.conversationId
+                console.log('[AI][handleSend][runtimeMap][pending]', {
+                    key: runtimeConversationKey(created.sessionId, created.runId),
+                    conversationId: created.conversationId,
+                })
                 setConversations(prev => prev.map(c =>
-                    c.id === oldId ? {...c, id: currentSid!, sessionId: currentSid!} : c
+                    c.id === oldId
+                        ? {...c, id: created.conversationId, sessionId: currentSid!, runId: created.runId}
+                        : c
                 ))
-                setActiveConversationId(currentSid!)
+                setActiveConversationId(created.conversationId)
             } else {
+                // 已有对话：保持 conversation_id 不变，仅刷新活跃 sessionId
+                runtimeConversationRef.current[
+                    runtimeConversationKey(created.sessionId, created.runId)
+                    ] = currentConvId
+                console.log('[AI][handleSend][runtimeMap][resume]', {
+                    key: runtimeConversationKey(created.sessionId, created.runId),
+                    conversationId: currentConvId,
+                })
                 setConversations(prev => prev.map(c =>
-                    c.id === currentConvId ? {...c, sessionId: currentSid!} : c
+                    c.id === currentConvId ? {...c, sessionId: currentSid!, runId: created.runId} : c
                 ))
             }
         }
@@ -550,7 +697,7 @@ export default function AIChat() {
         }
 
         const userMessage: Message = {
-            id: Date.now().toString(),
+            id: `u_${Date.now()}`,
             role: 'user',
             content,
             timestamp: Date.now(),
@@ -571,12 +718,13 @@ export default function AIChat() {
         setAttachments([])
 
         await session.sendMessage(content, currentSid)
-    }, [inputValue, attachments, session, selectedPlugin, selectedModel, showAlert, editingMessageId])
+    }, [inputValue, attachments, session, selectedPlugin, selectedModel, showAlert, editingMessageId, tools])
 
 
     const handleStop = useCallback(() => {
         abortControllerRef.current?.abort()
-    }, [])
+        void session.cancelSession()
+    }, [session])
 
     // ── 重说 ──────────────────────────────────────────────────
 
@@ -644,22 +792,28 @@ export default function AIChat() {
         const webNames = ['web_search', 'open_url']
         setTools(prev => prev.map(t => webNames.includes(t.name) ? {...t, enabled: next} : t))
         setWebSearchEnabled(next)
-        const ops = tools
-            .filter(t => webNames.includes(t.name))
-            .map(t => next ? ai_enable_tool(t.name) : ai_disable_tool(t.name))
-        await Promise.all(ops).catch(console.error)
-    }, [webSearchEnabled, tools])
+        // session 存活时后端不允许修改 tool registry，等下次创建 session 时统一同步
+        if (!session.sessionId) {
+            const ops = tools
+                .filter(t => webNames.includes(t.name))
+                .map(t => next ? ai_enable_tool(t.name) : ai_disable_tool(t.name))
+            await Promise.all(ops).catch(console.error)
+        }
+    }, [webSearchEnabled, tools, session.sessionId])
 
     const toggleEditMode = useCallback(async () => {
         const next = !editModeEnabled
         const webNames = ['web_search', 'open_url']
         setTools(prev => prev.map(t => (!webNames.includes(t.name)) ? {...t, enabled: next} : t))
         setEditModeEnabled(next)
-        const ops = tools
-            .filter(t => !webNames.includes(t.name))
-            .map(t => next ? ai_enable_tool(t.name) : ai_disable_tool(t.name))
-        await Promise.all(ops).catch(console.error)
-    }, [editModeEnabled, tools])
+        // session 存活时后端不允许修改 tool registry，等下次创建 session 时统一同步
+        if (!session.sessionId) {
+            const ops = tools
+                .filter(t => !webNames.includes(t.name))
+                .map(t => next ? ai_enable_tool(t.name) : ai_disable_tool(t.name))
+            await Promise.all(ops).catch(console.error)
+        }
+    }, [editModeEnabled, tools, session.sessionId])
 
     // ── 渲染 ─────────────────────────────────────────────────
 
@@ -736,84 +890,65 @@ export default function AIChat() {
 
                     {/* 会话参数行 */}
                     <div className="ai-params-row">
-                        <button
-                            className="ai-param-expand-btn"
-                            onClick={() => setParamsExpanded(p => !p)}
-                            title="高级参数"
-                        >
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor"
-                                 strokeWidth="1.5"
-                                 style={{
-                                     transform: paramsExpanded ? 'rotate(180deg)' : undefined,
-                                     transition: 'transform 0.15s'
-                                 }}>
-                                <path d="M2 4l4 4 4-4"/>
-                            </svg>
-                            高级
-                        </button>
-                        {paramsExpanded && (
-                            <>
-                                <div className="ai-param-field">
-                                    <label>温度</label>
-                                    <input
-                                        type="number" min="0" max="2" step="0.05"
-                                        className="ai-param-input"
-                                        value={sessionParams.temperature}
-                                        onChange={e => setSessionParams(prev => ({
-                                            ...prev,
-                                            temperature: e.target.value
-                                        }))}
-                                        placeholder="默认"
-                                    />
-                                </div>
-                                <div className="ai-param-field">
-                                    <label>最大 Token</label>
-                                    <input
-                                        type="number" min="1" step="256"
-                                        className="ai-param-input"
-                                        value={sessionParams.maxTokens}
-                                        onChange={e => setSessionParams(prev => ({...prev, maxTokens: e.target.value}))}
-                                        placeholder="默认"
-                                    />
-                                </div>
-                                <div className="ai-param-field">
-                                    <label>Top P</label>
-                                    <input
-                                        type="number" min="0" max="1" step="0.05"
-                                        className="ai-param-input"
-                                        value={sessionParams.topP}
-                                        onChange={e => setSessionParams(prev => ({...prev, topP: e.target.value}))}
-                                        placeholder="默认"
-                                    />
-                                </div>
-                                <div className="ai-param-field">
-                                    <label>频率惩罚</label>
-                                    <input
-                                        type="number" min="-2" max="2" step="0.1"
-                                        className="ai-param-input"
-                                        value={sessionParams.frequencyPenalty}
-                                        onChange={e => setSessionParams(prev => ({
-                                            ...prev,
-                                            frequencyPenalty: e.target.value
-                                        }))}
-                                        placeholder="默认"
-                                    />
-                                </div>
-                                <div className="ai-param-field">
-                                    <label>存在惩罚</label>
-                                    <input
-                                        type="number" min="-2" max="2" step="0.1"
-                                        className="ai-param-input"
-                                        value={sessionParams.presencePenalty}
-                                        onChange={e => setSessionParams(prev => ({
-                                            ...prev,
-                                            presencePenalty: e.target.value
-                                        }))}
-                                        placeholder="默认"
-                                    />
-                                </div>
-                            </>
-                        )}
+                        <div className="ai-param-field">
+                            <label>温度</label>
+                            <input
+                                type="number" min="0" max="2" step="0.05"
+                                className="ai-param-input"
+                                value={sessionParams.temperature}
+                                onChange={e => setSessionParams(prev => ({
+                                    ...prev,
+                                    temperature: e.target.value
+                                }))}
+                                placeholder="默认"
+                            />
+                        </div>
+                        <div className="ai-param-field">
+                            <label>最大 Token</label>
+                            <input
+                                type="number" min="1" step="256"
+                                className="ai-param-input"
+                                value={sessionParams.maxTokens}
+                                onChange={e => setSessionParams(prev => ({...prev, maxTokens: e.target.value}))}
+                                placeholder="默认"
+                            />
+                        </div>
+                        <div className="ai-param-field">
+                            <label>Top P</label>
+                            <input
+                                type="number" min="0" max="1" step="0.05"
+                                className="ai-param-input"
+                                value={sessionParams.topP}
+                                onChange={e => setSessionParams(prev => ({...prev, topP: e.target.value}))}
+                                placeholder="默认"
+                            />
+                        </div>
+                        <div className="ai-param-field">
+                            <label>频率惩罚</label>
+                            <input
+                                type="number" min="-2" max="2" step="0.1"
+                                className="ai-param-input"
+                                value={sessionParams.frequencyPenalty}
+                                onChange={e => setSessionParams(prev => ({
+                                    ...prev,
+                                    frequencyPenalty: e.target.value
+                                }))}
+                                placeholder="默认"
+                            />
+                        </div>
+                        <div className="ai-param-field">
+                            <label>存在惩罚</label>
+                            <input
+                                type="number" min="-2" max="2" step="0.1"
+                                className="ai-param-input"
+                                value={sessionParams.presencePenalty}
+                                onChange={e => setSessionParams(prev => ({
+                                    ...prev,
+                                    presencePenalty: e.target.value
+                                }))}
+                                placeholder="默认"
+                            />
+                        </div>
                     </div>
                 </div>
 

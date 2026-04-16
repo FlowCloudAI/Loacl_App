@@ -625,6 +625,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-min-segments">最小段数</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线细分后每条边至少保留的段数。调大：短边也会被进一步细分；调小：小岛更接近原始草稿。</span>
                                     <input id="map-demo-min-segments" type="number" step={1}
                                            value={coastlineParams.minSegments ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -634,6 +636,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-max-segments">最大段数</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线细分后每条边允许的最大段数。调大：长边能生成更多细节，但顶点数和计算量上升；调小：轮廓更克制。</span>
                                     <input id="map-demo-max-segments" type="number" step={1}
                                            value={coastlineParams.maxSegments ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -645,6 +649,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-normalized-length-min">归一长度下限</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">边长归一化时的下限，避免超短边振幅塌缩到几乎不可见。调大：短边获得更大的归一化长度，细分和振幅更显著；调小：短边更接近真实长度，但可能细节消失。</span>
                                     <input id="map-demo-normalized-length-min" type="number" step={0.1}
                                            value={coastlineParams.normalizedLengthMin ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -654,6 +660,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-normalized-length-max">归一长度上限</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">边长归一化时的上限，避免超长边振幅和细分数过度膨胀。调大：长边归一化更充分，细分预算和振幅更多；调小：长边被抑制，轮廓更克制。</span>
                                     <input id="map-demo-normalized-length-max" type="number" step={0.1}
                                            value={coastlineParams.normalizedLengthMax ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -665,6 +673,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-segment-base">细分基础</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">细分公式中的基础项。调大：所有边都会变得更碎；调小：整体更接近原始轮廓。</span>
                                     <input id="map-demo-segment-base" type="number" step={1}
                                            value={coastlineParams.segmentBase ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -674,6 +684,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-segment-length-factor">长度因子</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">细分公式中长度归一值的权重。调大：长边和短边的细分差异更明显；调小：边长差异影响减弱。</span>
                                     <input id="map-demo-segment-length-factor" type="number" step={1}
                                            value={coastlineParams.segmentLengthFactor ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -685,6 +697,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-segment-edge-ratio-factor">边长比例因子</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">细分公式中边长占周长比例的权重。调大：超长边更容易得到高细分预算；调小：更均匀。</span>
                                     <input id="map-demo-segment-edge-ratio-factor" type="number" step={1}
                                            value={coastlineParams.segmentEdgeRatioFactor ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -694,6 +708,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-amplitude-base">振幅基础</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">位移振幅相对边长的基础比例。调大：海岸线起伏更明显；调小：更平顺。</span>
                                     <input id="map-demo-amplitude-base" type="number" step={0.1}
                                            value={coastlineParams.amplitudeBase ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -705,6 +721,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-amplitude-min">振幅最小</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">振幅最小值，保证短边也有可见细节。调大：即使短边也有更明显的起伏；调小：短边可能过于平直。</span>
                                     <input id="map-demo-amplitude-min" type="number" step={0.5}
                                            value={coastlineParams.amplitudeMin ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -714,6 +732,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-amplitude-canvas-ratio-max">振幅画布比例上限</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">振幅相对于画布尺度的上限。调大：大轮廓可以更野；调小：避免轮廓过度失真。</span>
                                     <input id="map-demo-amplitude-canvas-ratio-max" type="number" step={0.001}
                                            value={coastlineParams.amplitudeCanvasRatioMax ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -725,6 +745,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-relax-passes">平滑轮数</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线第一次平滑的轮数。调大：轮廓更圆润，但可能磨平细节；调小：保留更多原始锯齿感。</span>
                                     <input id="map-demo-relax-passes" type="number" step={1} min={0}
                                            value={coastlineParams.relaxPasses ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -734,6 +756,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-relax-weight">平滑权重</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线第一次平滑的权重。调大：轮廓更圆润；调小：保留更多噪声感。</span>
                                     <input id="map-demo-relax-weight" type="number" step={0.01} min={0} max={0.5}
                                            value={coastlineParams.relaxWeight ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -745,6 +769,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-fallback-relax-passes">回退平滑轮数</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">当自然海岸线不可用时，回退平滑的轮数。调大：回退结果更圆滑；调小：回退轮廓更粗糙，贴近原始草稿。</span>
                                     <input id="map-demo-fallback-relax-passes" type="number" step={1} min={0}
                                            value={coastlineParams.fallbackRelaxPasses ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -754,6 +780,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-fallback-relax-weight">回退平滑权重</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">当自然海岸线不可用时，回退平滑的权重。调大：回退结果更圆滑；调小：更贴近原始草稿。</span>
                                     <input id="map-demo-fallback-relax-weight" type="number" step={0.01} min={0}
                                            max={0.5} value={coastlineParams.fallbackRelaxWeight ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -765,6 +793,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-deduplicate-distance-squared">去重距离平方</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">去重相邻顶点时允许的最小平方距离。调大：会更积极地删除近邻点；调小：保留更多细节。</span>
                                     <input id="map-demo-deduplicate-distance-squared" type="number" step={0.1}
                                            value={coastlineParams.deduplicateDistanceSquared ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -776,6 +806,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-wave-a-base">Wave A 基础</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第一层频率的基础值。调大：该层噪声波长更短，大尺度起伏更细碎；调小：波长更长，起伏更舒缓。</span>
                                     <input id="map-demo-wave-a-base" type="number" step={0.1}
                                            value={coastlineParams.waveABase ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -785,6 +817,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-wave-a-span">Wave A 范围</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第一层频率的可变范围。调大：不同边之间该层频率差异更大，多样性增强；调小：该层频率更统一。</span>
                                     <input id="map-demo-wave-a-span" type="number" step={0.1}
                                            value={coastlineParams.waveASpan ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -796,6 +830,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-wave-b-base">Wave B 基础</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第二层频率的基础值。调大：该层中尺度细节更密集；调小：中尺度起伏更平缓。</span>
                                     <input id="map-demo-wave-b-base" type="number" step={0.1}
                                            value={coastlineParams.waveBBase ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -805,6 +841,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-wave-b-span">Wave B 范围</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第二层频率的可变范围。调大：中尺度噪声在不同边上变化更大；调小：更一致。</span>
                                     <input id="map-demo-wave-b-span" type="number" step={0.1}
                                            value={coastlineParams.waveBSpan ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -816,6 +854,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-wave-c-base">Wave C 基础</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第三层频率的基础值。调大：该层细碎纹理更明显；调小：细节更柔和。</span>
                                     <input id="map-demo-wave-c-base" type="number" step={0.1}
                                            value={coastlineParams.waveCBase ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -825,6 +865,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-wave-c-span">Wave C 范围</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第三层频率的可变范围。调大：细碎纹理在不同边上差异更大；调小：更统一。</span>
                                     <input id="map-demo-wave-c-span" type="number" step={0.1}
                                            value={coastlineParams.waveCSpan ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -836,6 +878,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-wave-a-weight">Wave A 权重</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第一层权重。调大：大尺度起伏对最终形状影响更大；调小：大尺度形态被削弱。</span>
                                     <input id="map-demo-wave-a-weight" type="number" step={0.01}
                                            value={coastlineParams.waveAWeight ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -845,6 +889,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-wave-b-weight">Wave B 权重</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第二层权重。调大：中尺度细节更突出；调小：整体更平滑。</span>
                                     <input id="map-demo-wave-b-weight" type="number" step={0.01}
                                            value={coastlineParams.waveBWeight ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -856,6 +902,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-wave-c-weight">Wave C 权重</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第三层权重。调大：海岸线表面更粗糙、更有纹理感；调小：更光滑。</span>
                                     <input id="map-demo-wave-c-weight" type="number" step={0.01}
                                            value={coastlineParams.waveCWeight ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -867,6 +915,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-noise-salt-a">Noise Salt A</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第一组盐值。修改：会改变该层大尺度噪声的随机模式，海岸线宏观形态变化但保持确定性。</span>
                                     <input id="map-demo-noise-salt-a" value={coastlineParams.noiseSaltA ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
                                                ...p,
@@ -875,6 +925,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-noise-salt-b">Noise Salt B</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第二组盐值。修改：会改变该层中尺度噪声的随机模式，影响海岸中段细节。</span>
                                     <input id="map-demo-noise-salt-b" value={coastlineParams.noiseSaltB ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
                                                ...p,
@@ -885,6 +937,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-noise-salt-c">Noise Salt C</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">海岸线噪声第三组盐值。修改：会改变该层细碎纹理的随机模式，影响海岸表面粗糙感。</span>
                                     <input id="map-demo-noise-salt-c" value={coastlineParams.noiseSaltC ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
                                                ...p,
@@ -895,6 +949,8 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-hash-text-offset-basis">Hash Text Offset</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">文本哈希的初始偏移量。修改：会改变文本哈希结果，影响基于文本的确定性随机（如颜色、形状等）。</span>
                                     <input id="map-demo-hash-text-offset-basis"
                                            value={coastlineParams.hashTextOffsetBasis ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -904,6 +960,8 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-hash-text-prime">Hash Text Prime</label>
+                                    <span
+                                        className="map-shape-editor-demo__field-hint">文本哈希的乘子。修改：会改变文本哈希的扩散特性，同样影响文本驱动的确定性输出。</span>
                                     <input id="map-demo-hash-text-prime" value={coastlineParams.hashTextPrime ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
                                                ...p,
@@ -914,6 +972,7 @@ export default function MapShapeEditorDemo() {
                             <div className="map-shape-editor-demo__field-row">
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-hash-unit-multiplier">Hash Unit Multiplier</label>
+                                    <span className="map-shape-editor-demo__field-hint">噪声 hash 混合乘子。修改：会改变噪声哈希的混合模式，影响所有基于哈希的确定性随机输出。</span>
                                     <input id="map-demo-hash-unit-multiplier"
                                            value={coastlineParams.hashUnitMultiplier ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -923,6 +982,7 @@ export default function MapShapeEditorDemo() {
                                 </div>
                                 <div className="map-shape-editor-demo__field">
                                     <label htmlFor="map-demo-hash-unit-increment">Hash Unit Increment</label>
+                                    <span className="map-shape-editor-demo__field-hint">噪声 hash 混合加数。修改：会改变噪声哈希的偏移特性，影响所有基于哈希的确定性随机输出。</span>
                                     <input id="map-demo-hash-unit-increment"
                                            value={coastlineParams.hashUnitIncrement ?? ''}
                                            onChange={(e) => setCoastlineParams((p) => ({
@@ -975,6 +1035,9 @@ export default function MapShapeEditorDemo() {
                         </div>
                     </section>
 
+                    </RollingBox>
+                </div>
+                <div className="map-shape-editor-demo__bottom-row">
                     <section className="map-shape-editor-demo__panel">
                         <div className="map-shape-editor-demo__panel-header">
                             <h3 className="map-shape-editor-demo__panel-title">选中图形</h3>
@@ -1144,7 +1207,6 @@ export default function MapShapeEditorDemo() {
                             )}
                         </div>
                     </section>
-                    </RollingBox>
                 </div>
 
             </div>

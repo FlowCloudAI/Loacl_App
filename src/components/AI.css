@@ -377,26 +377,6 @@
     font-weight: var(--fc-font-weight-medium);
 }
 
-.ai-param-expand-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.2rem 0.5rem;
-    font-size: 0.78rem;
-    border: 1px solid var(--fc-color-border);
-    border-radius: var(--fc-radius-sm);
-    background: var(--fc-color-bg);
-    color: var(--fc-color-text-secondary);
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-}
-
-.ai-param-expand-btn:hover {
-    background: var(--fc-color-bg-elevated);
-    color: var(--fc-color-text);
-}
-
 .ai-param-field {
     display: flex;
     align-items: center;

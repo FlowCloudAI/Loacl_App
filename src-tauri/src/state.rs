@@ -55,6 +55,7 @@ pub struct PendingEditsState {
 
 /// LLM 会话的内部句柄（通过 channel 向后台事件循环发送用户消息）
 pub(crate) struct SessionEntry {
+    pub(crate) run_id: String,
     pub(crate) input_tx: mpsc::Sender<String>,
     pub(crate) handle: SessionHandle,
 }

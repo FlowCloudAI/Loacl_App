@@ -9,25 +9,36 @@ use futures::StreamExt;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
 // ============ 前端事件 Payload ============
 
 #[derive(Serialize, Clone)]
+struct EventReady {
+    session_id: String,
+    run_id: String,
+}
+
+#[derive(Serialize, Clone)]
 struct EventDelta {
     session_id: String,
+    run_id: String,
     text: String,
 }
 
 #[derive(Serialize, Clone)]
 struct EventToolCall {
     session_id: String,
+    run_id: String,
     index: usize,
     name: String,
+    arguments: String,
 }
 
 #[derive(Serialize, Clone)]
 struct EventTurnEnd {
     session_id: String,
+    run_id: String,
     status: String, // "ok" | "cancelled" | "interrupted" | "error:<msg>"
     node_id: u64,
 }
@@ -35,6 +46,7 @@ struct EventTurnEnd {
 #[derive(Serialize, Clone)]
 struct EventTurnBegin {
     session_id: String,
+    run_id: String,
     turn_id: u64,
     node_id: u64,
 }
@@ -42,14 +54,24 @@ struct EventTurnBegin {
 #[derive(Serialize, Clone)]
 struct EventToolResult {
     session_id: String,
+    run_id: String,
     index: usize,
     output: String,
+    result: String,
     is_error: bool,
+}
+
+#[derive(Serialize)]
+pub struct CreateLlmSessionResult {
+    pub session_id: String,
+    pub conversation_id: String,
+    pub run_id: String,
 }
 
 #[derive(Serialize, Clone)]
 struct EventError {
     session_id: String,
+    run_id: String,
     error: String,
 }
 
@@ -109,12 +131,12 @@ pub async fn ai_list_plugins(
 /// 创建后立即可通过 `ai_send_message` 发送消息。
 /// 事件通过 Tauri 事件推送到前端：
 ///
-/// - `"ai:ready"`        `{ session_id }`              —— 会话就绪，等待用户输入
-/// - `"ai:delta"`        `{ session_id, text }`        —— AI 生成内容片段
-/// - `"ai:reasoning"`    `{ session_id, text }`        —— 思考过程片段
-/// - `"ai:tool_call"`    `{ session_id, index, name }` —— AI 调用工具
-/// - `"ai:turn_end"`     `{ session_id, status }`      —— 对话结束
-/// - `"ai:error"`        `{ session_id, error }`       —— 发生错误
+/// - `"ai:ready"`        `{ session_id, run_id }`                      —— 会话就绪，等待用户输入
+/// - `"ai:delta"`        `{ session_id, run_id, text }`                —— AI 生成内容片段
+/// - `"ai:reasoning"`    `{ session_id, run_id, text }`                —— 思考过程片段
+/// - `"ai:tool_call"`    `{ session_id, run_id, index, name }`         —— AI 调用工具
+/// - `"ai:turn_end"`     `{ session_id, run_id, status }`              —— 对话结束
+/// - `"ai:error"`        `{ session_id, run_id, error }`               —— 发生错误
 #[tauri::command]
 pub async fn ai_create_llm_session(
     app: AppHandle,
@@ -124,14 +146,20 @@ pub async fn ai_create_llm_session(
     model: Option<String>,
     temperature: Option<f64>,
     max_tokens: Option<i64>,
-) -> Result<(), String> {
+    conversation_id: Option<String>,
+) -> Result<CreateLlmSessionResult, String> {
     let api_key = ApiKeyStore::get(&plugin_id)
         .ok_or_else(|| format!("插件 '{}' 未配置 API Key，请在设置中配置", plugin_id))?;
 
     let client = ai_state.client.lock().await;
-    let mut session = client
-        .create_llm_session(&plugin_id, &api_key)
-        .map_err(|e| e.to_string())?;
+    let mut session = match conversation_id {
+        Some(ref conv_id) => client
+            .resume_llm_session(&plugin_id, &api_key, conv_id)
+            .map_err(|e| e.to_string())?,
+        None => client
+            .create_llm_session(&plugin_id, &api_key)
+            .map_err(|e| e.to_string())?,
+    };
     drop(client);
 
     if let Some(m) = model {
@@ -144,26 +172,55 @@ pub async fn ai_create_llm_session(
         session.set_max_tokens(n).await;
     }
     session.set_stream(true).await;
+    let resolved_conversation_id = session
+        .conversation_id()
+        .map(str::to_string)
+        .unwrap_or_else(|| session_id.clone());
 
     let (input_tx, input_rx) = mpsc::channel::<String>(32);
     let (event_stream, handle) = session.run(input_rx, None);
+    let run_id = Uuid::new_v4().to_string();
+    log::info!(
+        "[ai_create_llm_session] conversation_id={} session_id={} run_id={}",
+        resolved_conversation_id,
+        session_id,
+        run_id
+    );
 
     // 启动后台事件循环
     let sid = session_id.clone();
+    let rid = run_id.clone();
     let app_clone = app.clone();
     tauri::async_runtime::spawn(async move {
         futures::pin_mut!(event_stream);
         while let Some(ev) = event_stream.next().await {
             match ev {
                 SessionEvent::NeedInput => {
-                    app_clone.emit("ai:ready", &sid).ok();
+                    log::info!("[ai:ready] session_id={} run_id={}", sid, rid);
+                    app_clone
+                        .emit(
+                            "ai:ready",
+                            EventReady {
+                                session_id: sid.clone(),
+                                run_id: rid.clone(),
+                            },
+                        )
+                        .ok();
                 }
                 SessionEvent::TurnBegin { turn_id, node_id } => {
+                    log::info!(
+                        "[ai:turn_begin] session_id={} run_id={} turn_id={} node_id={}",
+                        sid,
+                        rid,
+                        turn_id,
+                        node_id
+                    );
                     app_clone
                         .emit(
                             "ai:turn_begin",
                             EventTurnBegin {
                                 session_id: sid.clone(),
+                                run_id: rid.clone(),
                                 turn_id,
                                 node_id,
                             },
@@ -176,6 +233,7 @@ pub async fn ai_create_llm_session(
                             "ai:delta",
                             EventDelta {
                                 session_id: sid.clone(),
+                                run_id: rid.clone(),
                                 text,
                             },
                         )
@@ -187,25 +245,26 @@ pub async fn ai_create_llm_session(
                             "ai:reasoning",
                             EventDelta {
                                 session_id: sid.clone(),
+                                run_id: rid.clone(),
                                 text,
                             },
                         )
                         .ok();
                 }
-                SessionEvent::ToolCall { index, name } => {
-                    log::info!(
-                        "[ai:tool_call] session={} index={} name={}",
-                        sid,
-                        index,
-                        name
-                    );
+                SessionEvent::ToolCall {
+                    index,
+                    name,
+                    arguments,
+                } => {
                     app_clone
                         .emit(
                             "ai:tool_call",
                             EventToolCall {
                                 session_id: sid.clone(),
+                                run_id: rid.clone(),
                                 index,
                                 name,
+                                arguments,
                             },
                         )
                         .ok();
@@ -215,31 +274,34 @@ pub async fn ai_create_llm_session(
                     output,
                     is_error,
                 } => {
-                    log::info!(
-                        "[ai:tool_result] session={} index={} is_error={} output={}",
-                        sid,
-                        index,
-                        is_error,
-                        output
-                    );
                     app_clone
                         .emit(
                             "ai:tool_result",
                             EventToolResult {
                                 session_id: sid.clone(),
+                                run_id: rid.clone(),
                                 index,
                                 output: output.clone(),
+                                result: output.clone(),
                                 is_error,
                             },
                         )
                         .ok();
                 }
                 SessionEvent::TurnEnd { status, node_id } => {
+                    log::info!(
+                        "[ai:turn_end] session_id={} run_id={} status={} node_id={}",
+                        sid,
+                        rid,
+                        turn_status_str(&status),
+                        node_id
+                    );
                     app_clone
                         .emit(
                             "ai:turn_end",
                             EventTurnEnd {
                                 session_id: sid.clone(),
+                                run_id: rid.clone(),
                                 status: turn_status_str(&status),
                                 node_id,
                             },
@@ -247,11 +309,13 @@ pub async fn ai_create_llm_session(
                         .ok();
                 }
                 SessionEvent::Error(e) => {
+                    log::error!("[ai:error] session_id={} run_id={} error={}", sid, rid, e);
                     app_clone
                         .emit(
                             "ai:error",
                             EventError {
                                 session_id: sid.clone(),
+                                run_id: rid.clone(),
                                 error: e,
                             },
                         )
@@ -262,21 +326,38 @@ pub async fn ai_create_llm_session(
         }
 
         // 事件流结束，清理 session
-        app_clone
-            .state::<AiState>()
-            .sessions
-            .lock()
-            .await
-            .remove(&sid);
+        let state = app_clone.state::<AiState>();
+        let mut sessions = state.sessions.lock().await;
+        let current_entry_run_id = sessions.get(&sid).map(|entry| entry.run_id.clone());
+        log::info!(
+            "[ai:cleanup] session_id={} stream_run_id={} current_entry_run_id={:?}",
+            sid,
+            rid,
+            current_entry_run_id
+        );
+        let should_remove = sessions
+            .get(&sid)
+            .map(|entry| entry.run_id == rid)
+            .unwrap_or(false);
+        if should_remove {
+            sessions.remove(&sid);
+        }
     });
 
-    ai_state
-        .sessions
-        .lock()
-        .await
-        .insert(session_id, crate::SessionEntry { input_tx, handle });
+    ai_state.sessions.lock().await.insert(
+        session_id.clone(),
+        crate::SessionEntry {
+            run_id: run_id.clone(),
+            input_tx,
+            handle,
+        },
+    );
 
-    Ok(())
+    Ok(CreateLlmSessionResult {
+        session_id,
+        conversation_id: resolved_conversation_id,
+        run_id,
+    })
 }
 
 /// 将消息树 head 移动到指定节点（重说 / 分支 / 历史回退）
@@ -291,12 +372,15 @@ pub async fn ai_checkout(
     session_id: String,
     node_id: u64,
 ) -> Result<(), String> {
-    let sessions = ai_state.sessions.lock().await;
-    let entry = sessions
-        .get(&session_id)
-        .ok_or_else(|| format!("Session '{}' 不存在", session_id))?;
+    let handle = {
+        let sessions = ai_state.sessions.lock().await;
+        sessions
+            .get(&session_id)
+            .map(|entry| entry.handle.clone())
+            .ok_or_else(|| format!("Session '{}' 不存在", session_id))?
+    };
 
-    entry.handle.checkout(node_id).await
+    handle.checkout(node_id).await
 }
 
 /// 切换会话使用的插件（下一轮对话生效）
@@ -309,94 +393,236 @@ pub async fn ai_switch_plugin(
     let api_key = ApiKeyStore::get(&plugin_id)
         .ok_or_else(|| format!("插件 '{}' 未配置 API Key，请在设置中配置", plugin_id))?;
 
-    let sessions = ai_state.sessions.lock().await;
-    let entry = sessions
-        .get(&session_id)
-        .ok_or_else(|| format!("Session '{}' 不存在", session_id))?;
+    let handle = {
+        let sessions = ai_state.sessions.lock().await;
+        sessions
+            .get(&session_id)
+            .map(|entry| entry.handle.clone())
+            .ok_or_else(|| format!("Session '{}' 不存在", session_id))?
+    };
 
-    entry.handle.switch_plugin(&plugin_id, &api_key).await
+    handle.switch_plugin(&plugin_id, &api_key).await
 }
 
 /// 运行时会话参数更新（所有字段可选，只更新传入的字段）
-#[derive(serde::Deserialize)]
-pub struct UpdateSessionParams {
-    pub model: Option<String>,
-    pub temperature: Option<f64>,
-    pub max_tokens: Option<i64>,
-    pub stream: Option<bool>,
-    pub thinking: Option<bool>,
-    pub frequency_penalty: Option<f64>,
-    pub presence_penalty: Option<f64>,
-    pub top_p: Option<f64>,
-    pub stop: Option<Vec<String>>,
-    pub response_format: Option<serde_json::Value>,
-    pub n: Option<i32>,
-    pub tool_choice: Option<String>,
-    pub logprobs: Option<bool>,
-    pub top_logprobs: Option<i64>,
-}
-
 #[tauri::command]
 pub async fn ai_update_session(
     ai_state: State<'_, AiState>,
     session_id: String,
-    params: UpdateSessionParams,
+    params: serde_json::Value,
 ) -> Result<(), String> {
     use flowcloudai_client::ThinkingType;
+    use serde_json::{Map, Value};
 
-    let sessions = ai_state.sessions.lock().await;
-    let entry = sessions
-        .get(&session_id)
-        .ok_or_else(|| format!("Session '{}' 不存在", session_id))?;
+    fn as_object(params: Value) -> Result<Map<String, Value>, String> {
+        params
+            .as_object()
+            .cloned()
+            .ok_or_else(|| "params 必须是对象".to_string())
+    }
 
-    entry
-        .handle
+    fn parse_f64_field(
+        obj: &Map<String, Value>,
+        key: &str,
+        min: Option<f64>,
+        max: Option<f64>,
+    ) -> Result<Option<Option<f64>>, String> {
+        let Some(value) = obj.get(key) else {
+            return Ok(None);
+        };
+        if value.is_null() {
+            return Ok(Some(None));
+        }
+        let parsed = value
+            .as_f64()
+            .ok_or_else(|| format!("参数 '{}' 必须是数字", key))?;
+        if !parsed.is_finite() {
+            return Err(format!("参数 '{}' 不能是 NaN 或 Infinity", key));
+        }
+        if let Some(min) = min
+            && parsed < min
+        {
+            return Err(format!("参数 '{}' 不能小于 {}", key, min));
+        }
+        if let Some(max) = max
+            && parsed > max
+        {
+            return Err(format!("参数 '{}' 不能大于 {}", key, max));
+        }
+        Ok(Some(Some(parsed)))
+    }
+
+    fn parse_i64_field(
+        obj: &Map<String, Value>,
+        key: &str,
+        min: Option<i64>,
+        max: Option<i64>,
+    ) -> Result<Option<Option<i64>>, String> {
+        let Some(value) = obj.get(key) else {
+            return Ok(None);
+        };
+        if value.is_null() {
+            return Ok(Some(None));
+        }
+        let parsed = value
+            .as_i64()
+            .ok_or_else(|| format!("参数 '{}' 必须是整数", key))?;
+        if let Some(min) = min
+            && parsed < min
+        {
+            return Err(format!("参数 '{}' 不能小于 {}", key, min));
+        }
+        if let Some(max) = max
+            && parsed > max
+        {
+            return Err(format!("参数 '{}' 不能大于 {}", key, max));
+        }
+        Ok(Some(Some(parsed)))
+    }
+
+    fn parse_i32_field(
+        obj: &Map<String, Value>,
+        key: &str,
+        min: Option<i32>,
+        max: Option<i32>,
+    ) -> Result<Option<Option<i32>>, String> {
+        let parsed = parse_i64_field(obj, key, min.map(i64::from), max.map(i64::from))?;
+        Ok(parsed.map(|inner| inner.map(|value| value as i32)))
+    }
+
+    fn parse_bool_field(
+        obj: &Map<String, Value>,
+        key: &str,
+    ) -> Result<Option<Option<bool>>, String> {
+        let Some(value) = obj.get(key) else {
+            return Ok(None);
+        };
+        if value.is_null() {
+            return Ok(Some(None));
+        }
+        let parsed = value
+            .as_bool()
+            .ok_or_else(|| format!("参数 '{}' 必须是布尔值", key))?;
+        Ok(Some(Some(parsed)))
+    }
+
+    fn parse_string_field(
+        obj: &Map<String, Value>,
+        key: &str,
+    ) -> Result<Option<Option<String>>, String> {
+        let Some(value) = obj.get(key) else {
+            return Ok(None);
+        };
+        if value.is_null() {
+            return Ok(Some(None));
+        }
+        let parsed = value
+            .as_str()
+            .ok_or_else(|| format!("参数 '{}' 必须是字符串", key))?;
+        Ok(Some(Some(parsed.to_string())))
+    }
+
+    fn parse_string_list_field(
+        obj: &Map<String, Value>,
+        key: &str,
+    ) -> Result<Option<Option<Vec<String>>>, String> {
+        let Some(value) = obj.get(key) else {
+            return Ok(None);
+        };
+        if value.is_null() {
+            return Ok(Some(None));
+        }
+        let arr = value
+            .as_array()
+            .ok_or_else(|| format!("参数 '{}' 必须是字符串数组", key))?;
+        let mut result = Vec::with_capacity(arr.len());
+        for item in arr {
+            let text = item
+                .as_str()
+                .ok_or_else(|| format!("参数 '{}' 必须是字符串数组", key))?;
+            result.push(text.to_string());
+        }
+        Ok(Some(Some(result)))
+    }
+
+    let handle = {
+        let sessions = ai_state.sessions.lock().await;
+        sessions
+            .get(&session_id)
+            .map(|entry| entry.handle.clone())
+            .ok_or_else(|| format!("Session '{}' 不存在", session_id))?
+    };
+    let params = as_object(params)?;
+    let model = parse_string_field(&params, "model")?;
+    let temperature = parse_f64_field(&params, "temperature", Some(0.0), Some(2.0))?;
+    let max_tokens = parse_i64_field(&params, "maxTokens", Some(1), None)?;
+    let stream = parse_bool_field(&params, "stream")?;
+    let thinking = parse_bool_field(&params, "thinking")?;
+    let frequency_penalty = parse_f64_field(&params, "frequencyPenalty", Some(-2.0), Some(2.0))?;
+    let presence_penalty = parse_f64_field(&params, "presencePenalty", Some(-2.0), Some(2.0))?;
+    let top_p = parse_f64_field(&params, "topP", Some(0.0), Some(1.0))?;
+    let stop = parse_string_list_field(&params, "stop")?;
+    let response_format = if params.contains_key("responseFormat") {
+        Some(params.get("responseFormat").cloned())
+    } else {
+        None
+    };
+    let n = parse_i32_field(&params, "n", Some(1), None)?;
+    let tool_choice = parse_string_field(&params, "toolChoice")?;
+    let logprobs = parse_bool_field(&params, "logprobs")?;
+    let top_logprobs = parse_i64_field(&params, "topLogprobs", Some(0), None)?;
+
+    handle
         .update(|req| {
-            if let Some(v) = params.model {
-                req.model = v;
+            if let Some(v) = model {
+                if let Some(v) = v {
+                    req.model = v;
+                }
             }
-            if let Some(v) = params.temperature {
-                req.temperature = Some(v);
+            if let Some(v) = temperature {
+                req.temperature = v;
             }
-            if let Some(v) = params.max_tokens {
-                req.max_tokens = Some(v);
+            if let Some(v) = max_tokens {
+                req.max_tokens = v;
             }
-            if let Some(v) = params.stream {
-                req.stream = Some(v);
+            if let Some(v) = stream {
+                req.stream = v;
             }
-            if let Some(v) = params.thinking {
-                req.thinking = Some(if v {
-                    ThinkingType::enabled()
-                } else {
-                    ThinkingType::disabled()
+            if let Some(v) = thinking {
+                req.thinking = v.map(|flag| {
+                    if flag {
+                        ThinkingType::enabled()
+                    } else {
+                        ThinkingType::disabled()
+                    }
                 });
             }
-            if let Some(v) = params.frequency_penalty {
-                req.frequency_penalty = Some(v);
+            if let Some(v) = frequency_penalty {
+                req.frequency_penalty = v;
             }
-            if let Some(v) = params.presence_penalty {
-                req.presence_penalty = Some(v);
+            if let Some(v) = presence_penalty {
+                req.presence_penalty = v;
             }
-            if let Some(v) = params.top_p {
-                req.top_p = Some(v);
+            if let Some(v) = top_p {
+                req.top_p = v;
             }
-            if let Some(v) = params.stop {
-                req.stop = Some(v);
+            if let Some(v) = stop {
+                req.stop = v;
             }
-            if let Some(v) = params.response_format {
-                req.response_format = Some(v);
+            if let Some(v) = response_format {
+                req.response_format = v;
             }
-            if let Some(v) = params.n {
-                req.n = Some(v);
+            if let Some(v) = n {
+                req.n = v;
             }
-            if let Some(v) = params.tool_choice {
-                req.tool_choice = Some(v);
+            if let Some(v) = tool_choice {
+                req.tool_choice = v;
             }
-            if let Some(v) = params.logprobs {
-                req.logprobs = Some(v);
+            if let Some(v) = logprobs {
+                req.logprobs = v;
             }
-            if let Some(v) = params.top_logprobs {
-                req.top_logprobs = Some(v);
+            if let Some(v) = top_logprobs {
+                req.top_logprobs = v;
             }
         })
         .await;
@@ -411,16 +637,35 @@ pub async fn ai_send_message(
     session_id: String,
     message: String,
 ) -> Result<(), String> {
-    let sessions = ai_state.sessions.lock().await;
-    let entry = sessions
-        .get(&session_id)
-        .ok_or_else(|| format!("Session '{}' 不存在", session_id))?;
+    let input_tx = {
+        let sessions = ai_state.sessions.lock().await;
+        sessions
+            .get(&session_id)
+            .map(|entry| entry.input_tx.clone())
+            .ok_or_else(|| format!("Session '{}' 不存在", session_id))?
+    };
 
-    entry
-        .input_tx
+    input_tx
         .send(message)
         .await
         .map_err(|_| format!("Session '{}' 已关闭", session_id))
+}
+
+/// 取消当前进行中的 LLM 轮次
+#[tauri::command]
+pub async fn ai_cancel_session(
+    ai_state: State<'_, AiState>,
+    session_id: String,
+) -> Result<(), String> {
+    let handle = {
+        let sessions = ai_state.sessions.lock().await;
+        sessions
+            .get(&session_id)
+            .map(|entry| entry.handle.clone())
+            .ok_or_else(|| format!("Session '{}' 不存在", session_id))?
+    };
+    handle.cancel();
+    Ok(())
 }
 
 /// 关闭并释放 LLM 会话
@@ -429,9 +674,28 @@ pub async fn ai_close_session(
     ai_state: State<'_, AiState>,
     session_id: String,
 ) -> Result<(), String> {
-    // 移除 entry，input_tx drop 后 session 内部循环自然退出
-    ai_state.sessions.lock().await.remove(&session_id);
+    // 先触发取消，再移除 entry，避免流式请求继续向前端发送事件。
+    let removed = ai_state.sessions.lock().await.remove(&session_id);
+    if let Some(ref entry) = removed {
+        entry.handle.cancel();
+    }
     Ok(())
+}
+
+/// 关闭并释放所有 LLM 会话
+#[tauri::command]
+pub async fn ai_close_all_sessions(ai_state: State<'_, AiState>) -> Result<usize, String> {
+    let removed = {
+        let mut sessions = ai_state.sessions.lock().await;
+        sessions.drain().map(|(_, entry)| entry).collect::<Vec<_>>()
+    };
+
+    let count = removed.len();
+    for entry in removed {
+        entry.handle.cancel();
+    }
+
+    Ok(count)
 }
 
 // ============ 工具管理 ============
@@ -492,10 +756,11 @@ pub struct ImageData {
 async fn make_image_session(ai_state: &AiState, plugin_id: &str) -> Result<ImageSession, String> {
     let api_key = ApiKeyStore::get(plugin_id)
         .ok_or_else(|| format!("插件 '{}' 未配置 API Key，请在设置中配置", plugin_id))?;
+
     let client = ai_state.client.lock().await;
     client
         .create_image_session(plugin_id, &api_key)
-        .map_err(|e| e.to_string())
+        .map_err(|e| format!("创建图像会话失败: {}", e))
 }
 
 /// 文生图
@@ -507,10 +772,12 @@ pub async fn ai_text_to_image(
     prompt: String,
 ) -> Result<Vec<ImageData>, String> {
     let session = make_image_session(&ai_state, &plugin_id).await?;
-    let result = session
-        .text_to_image(&model, &prompt)
-        .await
-        .map_err(|e| e.to_string())?;
+    let result = session.text_to_image(&model, &prompt).await.map_err(|e| {
+        format!(
+            "text_to_image 调用失败 [plugin={} model={}]: {}",
+            plugin_id, model, e
+        )
+    })?;
 
     Ok(result
         .images
@@ -535,7 +802,12 @@ pub async fn ai_edit_image(
     let result = session
         .edit_image(&model, &prompt, &image_url)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            format!(
+                "edit_image 调用失败 [plugin={} model={}]: {}",
+                plugin_id, model, e
+            )
+        })?;
 
     Ok(result
         .images
@@ -560,7 +832,12 @@ pub async fn ai_merge_images(
     let result = session
         .merge_images(&model, &prompt, image_urls)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            format!(
+                "merge_images 调用失败 [plugin={} model={}]: {}",
+                plugin_id, model, e
+            )
+        })?;
 
     Ok(result
         .images
