@@ -36,4 +36,5 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 uuid = { version = "1", features = ["v4"] }
 mime_guess = "2"
 urlencoding = "2"
-scraper = "0.23"
+scraper = "0.26.0"
+semver = "1"

@@ -2,6 +2,7 @@ use crate::state::PathsState;
 use crate::{AiState, NetworkState};
 use flowcloudai_client::plugin::types::PluginMeta;
 use reqwest::multipart;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -100,6 +101,43 @@ fn plugin_meta_to_local_info(meta: &PluginMeta, ref_count: usize) -> LocalPlugin
         path: meta.fcplug_path.to_string_lossy().to_string(),
         ref_count,
         icon_url,
+    }
+}
+
+fn parse_semver_like(version: &str) -> Option<Version> {
+    let trimmed = version.trim().trim_start_matches(['v', 'V']);
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Ok(parsed) = Version::parse(trimmed) {
+        return Some(parsed);
+    }
+
+    let split_at = trimmed.find(['-', '+']).unwrap_or(trimmed.len());
+    let (core, suffix) = trimmed.split_at(split_at);
+    let mut parts = core.split('.').collect::<Vec<_>>();
+    if parts.is_empty() || parts.len() > 3 {
+        return None;
+    }
+    if parts
+        .iter()
+        .any(|part| part.is_empty() || !part.chars().all(|ch| ch.is_ascii_digit()))
+    {
+        return None;
+    }
+    while parts.len() < 3 {
+        parts.push("0");
+    }
+
+    let normalized = format!("{}{}", parts.join("."), suffix);
+    Version::parse(&normalized).ok()
+}
+
+fn is_remote_version_newer(current: &str, latest: &str) -> bool {
+    match (parse_semver_like(current), parse_semver_like(latest)) {
+        (Some(current), Some(latest)) => latest > current,
+        _ => false,
     }
 }
 
@@ -287,7 +325,7 @@ pub async fn plugin_check_updates(
         .filter_map(|meta| {
             let latest = remote_map.get(&meta.id)?;
             Some(PluginUpdateInfo {
-                has_update: latest != &meta.version,
+                has_update: is_remote_version_newer(&meta.version, latest),
                 latest_version: latest.clone(),
                 plugin_id: meta.id,
                 current_version: meta.version,

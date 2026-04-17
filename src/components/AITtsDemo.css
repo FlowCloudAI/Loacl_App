@@ -1,0 +1,230 @@
+.ai-tts-demo {
+    width: 100%;
+    height: 100%;
+    background: var(--fc-color-bg);
+}
+
+.ai-tts-demo .fc-roll {
+    height: 100%;
+}
+
+.ai-tts-demo__header {
+    padding: 1.5rem 1.5rem 0;
+}
+
+.ai-tts-demo__eyebrow {
+    margin: 0 0 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fc-color-primary);
+}
+
+.ai-tts-demo__title {
+    margin: 0;
+    font-size: 1.8rem;
+    color: var(--fc-color-text);
+}
+
+.ai-tts-demo__description {
+    margin: 0.75rem 0 0;
+    max-width: 48rem;
+    color: var(--fc-color-text-secondary);
+    line-height: 1.7;
+}
+
+.ai-tts-demo__workspace {
+    display: grid;
+    grid-template-columns: minmax(20rem, 28rem) minmax(0, 1fr);
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.ai-tts-demo__panel {
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-lg);
+    background: var(--fc-color-bg-secondary);
+    overflow: hidden;
+}
+
+.ai-tts-demo__panel--result {
+    min-height: 24rem;
+}
+
+.ai-tts-demo__panel-header {
+    padding: 1rem 1rem 0;
+}
+
+.ai-tts-demo__panel-title {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--fc-color-text);
+}
+
+.ai-tts-demo__panel-body {
+    padding: 1rem;
+}
+
+.ai-tts-demo__field-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.ai-tts-demo__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+}
+
+.ai-tts-demo__label {
+    font-size: 0.78rem;
+    color: var(--fc-color-text-secondary);
+}
+
+.ai-tts-demo__select .ai-select__control,
+.ai-tts-demo__input,
+.ai-tts-demo__textarea {
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-md);
+    background: var(--fc-color-bg);
+    color: var(--fc-color-text);
+    box-shadow: none !important;
+}
+
+.ai-tts-demo__select .ai-select__control {
+    min-height: 2.35rem !important;
+}
+
+.ai-tts-demo__input {
+    height: 2.35rem;
+    padding: 0 0.8rem;
+    outline: none;
+}
+
+.ai-tts-demo__textarea {
+    min-height: 8rem;
+    padding: 0.8rem;
+    resize: vertical;
+    line-height: 1.7;
+    outline: none;
+    font-family: inherit;
+}
+
+.ai-tts-demo__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.ai-tts-demo__chip {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--fc-color-border);
+    border-radius: 999px;
+    background: var(--fc-color-bg);
+    color: var(--fc-color-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ai-tts-demo__chip:hover,
+.ai-tts-demo__chip.active {
+    border-color: var(--fc-color-primary);
+    color: var(--fc-color-primary);
+    background: var(--fc-color-primary-subtle);
+}
+
+.ai-tts-demo__hint {
+    font-size: 0.75rem;
+    color: var(--fc-color-text-secondary);
+}
+
+.ai-tts-demo__actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.ai-tts-demo__error {
+    margin-top: 1rem;
+    padding: 0.75rem 0.9rem;
+    border-radius: var(--fc-radius-md);
+    background: var(--fc-color-danger-bg);
+    color: var(--fc-color-danger);
+    font-size: 0.85rem;
+}
+
+.ai-tts-demo__empty {
+    display: flex;
+    min-height: 18rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: var(--fc-color-text-secondary);
+    text-align: center;
+}
+
+.ai-tts-demo__empty p {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--fc-color-text);
+}
+
+.ai-tts-demo__result {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.ai-tts-demo__meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.ai-tts-demo__meta-item {
+    padding: 0.9rem;
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-md);
+    background: var(--fc-color-bg);
+}
+
+.ai-tts-demo__meta-item span {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--fc-color-text-secondary);
+}
+
+.ai-tts-demo__meta-item strong {
+    color: var(--fc-color-text);
+    word-break: break-word;
+}
+
+.ai-tts-demo__audio {
+    width: 100%;
+}
+
+@media (max-width: 960px) {
+    .ai-tts-demo__workspace {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .ai-tts-demo__header,
+    .ai-tts-demo__workspace {
+        padding: 1rem;
+    }
+
+    .ai-tts-demo__field-row,
+    .ai-tts-demo__meta {
+        grid-template-columns: 1fr;
+    }
+
+    .ai-tts-demo__actions {
+        flex-direction: column;
+    }
+}

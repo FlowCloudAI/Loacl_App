@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from 'react'
+import {type ChangeEvent, type KeyboardEvent, useEffect, useMemo, useState} from 'react'
 import {Button, RollingBox, Select, useAlert,} from 'flowcloudai-ui'
 import {ai_list_plugins, ai_text_to_image, type ImageData, type PluginInfo,} from '../api'
 import './AIImageGenerator.css'
@@ -46,10 +46,14 @@ export default function AIImageGenerator() {
         if (plugin) {
             const defaultModel = plugin.default_model ?? plugin.models[0] ?? ''
             console.log('[AIImageGenerator] 插件变化，自动选择模型:', {pluginId: plugin.id, defaultModel})
-            setSelectedModel(defaultModel)
+            queueMicrotask(() => {
+                setSelectedModel(defaultModel)
+            })
         } else {
             console.log('[AIImageGenerator] 清空模型选择（插件未选中或不存在）')
-            setSelectedModel('')
+            queueMicrotask(() => {
+                setSelectedModel('')
+            })
         }
     }, [selectedPlugin, plugins])
 
@@ -121,7 +125,7 @@ export default function AIImageGenerator() {
         }
     }
 
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.preventDefault()
             console.log('[AIImageGenerator] 用户通过快捷键触发生成')
@@ -129,7 +133,7 @@ export default function AIImageGenerator() {
         }
     }
 
-    const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const handlePromptChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value
         console.log('[AIImageGenerator] Prompt 变化，长度:', value.length)
         setPrompt(value)

@@ -47,6 +47,7 @@ export interface AiMergeImagesParams extends AiImageParams {
 
 export interface TtsResult {
   audio_base64: string
+    audio_url: string | null
   format: string
   duration_ms: number | null
 }

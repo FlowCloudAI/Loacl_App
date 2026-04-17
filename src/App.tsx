@@ -8,10 +8,12 @@ import ProjectEditor from "./pages/ProjectEditor";
 import Settings from "./pages/Settings";
 import Idea from "./pages/Idea";
 import type {Project} from "./api";
+import AIChat from "./components/AI";
 import RelationDemo from "./components/RelationDemo";
 import MapShapeEditorDemo from "./components/MapShapeEditorDemo";
 import TimelineDemo from "./components/TimelineDemo";
 import AIImageGenerator from "./components/AIImageGenerator";
+import AITtsDemo from "./components/AITtsDemo";
 import EntryEditModal from "./components/EntryEditModal";
 
 type EntryTabMeta = {
@@ -246,6 +248,23 @@ function App() {
             />
         </svg>)
 
+    const AiChatIcon = (
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
+            <path
+                d="M6 7.75A2.75 2.75 0 0 1 8.75 5h6.5A2.75 2.75 0 0 1 18 7.75v4.5A2.75 2.75 0 0 1 15.25 15H11l-3.5 3v-3H8.75A2.75 2.75 0 0 1 6 12.25v-4.5Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            <path
+                d="M9 8.75h6M9 11.25h4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+            />
+        </svg>)
+
     const RelationIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
             <circle cx="5" cy="6" r="2.25" stroke="currentColor" strokeWidth="1.5"/>
@@ -298,6 +317,14 @@ function App() {
                   strokeLinejoin="round"/>
         </svg>)
 
+    const TtsIcon = (
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
+            <path d="M5 9.5a2.5 2.5 0 0 1 2.5-2.5h2l4-3v16l-4-3h-2A2.5 2.5 0 0 1 5 14.5v-5Z"
+                  stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+            <path d="M16.5 9a4 4 0 0 1 0 6M18.5 6.5a7 7 0 0 1 0 11"
+                  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>)
+
     const SettingsIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <circle cx="12" cy="12" r="3" strokeWidth="1.5"/>
@@ -312,7 +339,9 @@ function App() {
         {key: 'relation', label: '关系图谱', icon: RelationIcon},
         {key: 'timeline', label: '时间线', icon: TimelineIcon},
         {key: 'map-editor', label: '地图编辑', icon: MapIcon},
+        {key: 'ai-chat', label: 'AI 对话', icon: AiChatIcon},
         {key: 'ai-image', label: 'AI 绘图', icon: AiImageIcon},
+        {key: 'ai-tts', label: 'AI 语音', icon: TtsIcon},
     ]
     const bottomItems: SideBarItem[] = [
         {key: 'settings', label: '设置', icon: SettingsIcon},
@@ -452,8 +481,14 @@ function App() {
                     <div className={`page-wrapper ${selectedKey === 'map-editor' ? 'active' : ''}`}>
                         <MapShapeEditorDemo/>
                     </div>
+                    <div className={`page-wrapper ${selectedKey === 'ai-chat' ? 'active' : ''}`}>
+                        <AIChat/>
+                    </div>
                     <div className={`page-wrapper ${selectedKey === 'ai-image' ? 'active' : ''}`}>
                         <AIImageGenerator/>
+                    </div>
+                    <div className={`page-wrapper ${selectedKey === 'ai-tts' ? 'active' : ''}`}>
+                        <AITtsDemo/>
                     </div>
                     <div className={`page-wrapper ${selectedKey === 'settings' ? 'active' : ''}`}>
                         <Settings/>

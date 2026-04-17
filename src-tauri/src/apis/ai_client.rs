@@ -855,6 +855,7 @@ pub async fn ai_merge_images(
 #[derive(Serialize)]
 pub struct TtsResult {
     pub audio_base64: String,
+    pub audio_url: Option<String>,
     pub format: String,
     pub duration_ms: Option<u64>,
 }
@@ -885,6 +886,7 @@ pub async fn ai_speak(
 
     Ok(TtsResult {
         audio_base64,
+        audio_url: result.url,
         format: result.format,
         duration_ms: result.duration_ms,
     })
@@ -913,7 +915,14 @@ pub async fn ai_play_tts(
         .map_err(|e| e.to_string())?;
 
     tauri::async_runtime::spawn(async move {
-        let source = AudioSource::Raw(result.audio);
+        let source = if result.audio.is_empty() {
+            match result.url {
+                Some(url) if !url.is_empty() => AudioSource::Url(url),
+                _ => AudioSource::Raw(result.audio),
+            }
+        } else {
+            AudioSource::Raw(result.audio)
+        };
         if let Err(e) = AudioDecoder::play_source(&source, Some(&result.format)).await {
             log::warn!("ai_play_tts 播放失败: {}", e);
         }

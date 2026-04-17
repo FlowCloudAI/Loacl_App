@@ -85,10 +85,15 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
     }, [sessionId])
     useEffect(() => {
         runIdRef.current = runId
-        setBlocks(runId ? (blocksByRunRef.current[runId] ?? []) : [])
-        if (!runId) {
-            setLastUserNodeId(null)
-        }
+    }, [runId])
+
+    useEffect(() => {
+        queueMicrotask(() => {
+            setBlocks(runId ? (blocksByRunRef.current[runId] ?? []) : [])
+            if (!runId) {
+                setLastUserNodeId(null)
+            }
+        })
     }, [runId])
 
     // ── 事件监听（仅注册一次） ────────────────────────────────

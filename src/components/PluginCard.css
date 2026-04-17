@@ -60,6 +60,16 @@
   color: var(--fc-color-text-secondary, #888);
 }
 
+.plugin-card-status {
+    margin-top: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--fc-color-text-secondary, #888);
+}
+
+.plugin-card-status-update {
+    color: var(--fc-color-warning, #d9822b);
+}
+
 .plugin-card-kind {
   display: inline-block;
   padding: 0 0.4rem;

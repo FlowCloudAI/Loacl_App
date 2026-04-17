@@ -718,7 +718,7 @@ export default function AIChat() {
         setAttachments([])
 
         await session.sendMessage(content, currentSid)
-    }, [inputValue, attachments, session, selectedPlugin, selectedModel, showAlert, editingMessageId, tools])
+    }, [inputValue, attachments, session, selectedPlugin, selectedModel, showAlert, editingMessageId])
 
 
     const handleStop = useCallback(() => {
@@ -814,8 +814,6 @@ export default function AIChat() {
             await Promise.all(ops).catch(console.error)
         }
     }, [editModeEnabled, tools, session.sessionId])
-
-    // ── 渲染 ─────────────────────────────────────────────────
 
     return (
         <div className={`ai-chat-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>

@@ -1,6 +1,6 @@
-import { Button } from 'flowcloudai-ui'
-import { convertFileSrc } from '@tauri-apps/api/core'
-import type { LocalPluginInfo, RemotePluginInfo } from '../api'
+import {Button} from 'flowcloudai-ui'
+import {convertFileSrc} from '@tauri-apps/api/core'
+import type {LocalPluginInfo, RemotePluginInfo} from '../api'
 import './PluginCard.css'
 
 // ── 默认 SVG 图标 ──────────────────────────────────────────────────────────────
@@ -66,15 +66,20 @@ function kindLabel(kind: string): string {
     return 'llm'
 }
 
+function normalizePluginKey(value: string): string {
+    return value.trim().toLowerCase()
+}
+
 // ── 本地插件卡片 ──────────────────────────────────────────────────────────────
 
 interface LocalPluginCardProps {
     plugin: LocalPluginInfo
+    updateVersion?: string
     onUninstall: (id: string) => void
     uninstalling: boolean
 }
 
-export function LocalPluginCard({ plugin, onUninstall, uninstalling }: LocalPluginCardProps) {
+export function LocalPluginCard({plugin, updateVersion, onUninstall, uninstalling}: LocalPluginCardProps) {
     return (
         <div className="plugin-card">
             <IconDisplay kind={plugin.kind} iconUrl={plugin.icon_url} isLocalPath />
@@ -85,6 +90,11 @@ export function LocalPluginCard({ plugin, onUninstall, uninstalling }: LocalPlug
                     <span>v{plugin.version}</span>
                     <span>{plugin.author}</span>
                 </div>
+                {updateVersion && (
+                    <div className="plugin-card-status plugin-card-status-update">
+                        可更新到 v{updateVersion}
+                    </div>
+                )}
             </div>
             <div className="plugin-card-actions">
                 <Button
@@ -105,12 +115,21 @@ export function LocalPluginCard({ plugin, onUninstall, uninstalling }: LocalPlug
 interface MarketPluginCardProps {
     plugin: RemotePluginInfo
     installedIds: Set<string>
+    installedVersion?: string
+    hasUpdate?: boolean
     onInstall: (id: string) => void
     installing: boolean
 }
 
-export function MarketPluginCard({ plugin, installedIds, onInstall, installing }: MarketPluginCardProps) {
-    const installed = installedIds.has(plugin.id)
+export function MarketPluginCard({
+                                     plugin,
+                                     installedIds,
+                                     installedVersion,
+                                     hasUpdate = false,
+                                     onInstall,
+                                     installing,
+                                 }: MarketPluginCardProps) {
+    const installed = installedIds.has(normalizePluginKey(plugin.id))
 
     return (
         <div className="plugin-card">
@@ -122,10 +141,26 @@ export function MarketPluginCard({ plugin, installedIds, onInstall, installing }
                     <span>v{plugin.version}</span>
                     <span>{plugin.author}</span>
                 </div>
+                {installed && installedVersion && (
+                    <div className={`plugin-card-status${hasUpdate ? ' plugin-card-status-update' : ''}`}>
+                        {hasUpdate ? `已安装 v${installedVersion}，可更新` : `已安装 v${installedVersion}`}
+                    </div>
+                )}
             </div>
             <div className="plugin-card-actions">
                 {installed ? (
-                    <Button variant="outline" size="sm" disabled>已安装</Button>
+                    hasUpdate ? (
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            disabled={installing}
+                            onClick={() => onInstall(plugin.id)}
+                        >
+                            {installing ? '更新中…' : '更新'}
+                        </Button>
+                    ) : (
+                        <Button variant="outline" size="sm" disabled>已安装</Button>
+                    )
                 ) : (
                     <Button
                         variant="primary"

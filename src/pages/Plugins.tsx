@@ -1,18 +1,59 @@
-import {useState, useEffect, useCallback, type CSSProperties} from 'react'
+import {type CSSProperties, useCallback, useEffect, useMemo, useState} from 'react'
 import {open} from '@tauri-apps/plugin-dialog'
 import {Button, Input, RollingBox, useAlert} from 'flowcloudai-ui'
 import {
-    plugin_list_local,
-    plugin_install_from_file,
-    plugin_uninstall,
-    plugin_market_list,
-    plugin_market_install,
     type LocalPluginInfo,
+    plugin_install_from_file,
+    plugin_list_local,
+    plugin_market_install,
+    plugin_market_list,
+    plugin_uninstall,
     type RemotePluginInfo,
 } from '../api'
 import {LocalPluginCard, MarketPluginCard} from '../components/PluginCard'
 import UploadPlugin from '../components/UploadPlugin'
 import './Plugins.css'
+
+function normalizePluginKey(value: string): string {
+    return value.trim().toLowerCase()
+}
+
+function normalizeVersionString(version: string): string {
+    return String(version).trim().replace(/^[vV]/, '')
+}
+
+function parseVersionParts(version: string): number[] | null {
+    const trimmed = normalizeVersionString(version)
+    if (!trimmed) return null
+
+    const mainPart = trimmed.split(/[+-]/, 1)[0]
+    const rawParts = mainPart.split('.')
+    if (rawParts.length === 0 || rawParts.length > 3) return null
+
+    const parts: number[] = []
+    for (const part of rawParts) {
+        if (!/^\d+$/.test(part)) return null
+        parts.push(Number(part))
+    }
+    while (parts.length < 3) {
+        parts.push(0)
+    }
+    return parts
+}
+
+function isRemoteVersionNewer(currentVersion: string, remoteVersion: string): boolean {
+    const current = parseVersionParts(currentVersion)
+    const remote = parseVersionParts(remoteVersion)
+    if (!current || !remote) {
+        return normalizeVersionString(currentVersion) !== normalizeVersionString(remoteVersion)
+    }
+
+    for (let i = 0; i < 3; i += 1) {
+        if (remote[i] > current[i]) return true
+        if (remote[i] < current[i]) return false
+    }
+    return false
+}
 
 export default function Plugins() {
     const {showAlert} = useAlert()
@@ -130,7 +171,26 @@ export default function Plugins() {
         }
     }
 
-    const installedIds = new Set(localPlugins.map(p => p.id))
+    const installedIds = new Set(localPlugins.map(p => normalizePluginKey(p.id)))
+    const localVersionMap = useMemo(
+        () => new Map(localPlugins.map(plugin => [normalizePluginKey(plugin.id), plugin.version])),
+        [localPlugins],
+    )
+    const updateVersionMap = useMemo(() => {
+        const result = new Map<string, string>()
+        const marketPluginMap = new Map(
+            marketPlugins.map(plugin => [normalizePluginKey(plugin.id), plugin]),
+        )
+        for (const localPlugin of localPlugins) {
+            const normalizedId = normalizePluginKey(localPlugin.id)
+            const remotePlugin = marketPluginMap.get(normalizedId)
+            if (!remotePlugin) continue
+            if (isRemoteVersionNewer(localPlugin.version, remotePlugin.version)) {
+                result.set(normalizedId, remotePlugin.version)
+            }
+        }
+        return result
+    }, [localPlugins, marketPlugins])
 
     const filteredMarket = marketPlugins.filter(p => {
         const matchKind = kindFilter === 'all' || p.kind.includes(kindFilter)
@@ -175,6 +235,7 @@ export default function Plugins() {
                                 <LocalPluginCard
                                     key={plugin.id}
                                     plugin={plugin}
+                                    updateVersion={updateVersionMap.get(normalizePluginKey(plugin.id))}
                                     onUninstall={handleUninstall}
                                     uninstalling={uninstallingId === plugin.id}
                                 />
@@ -246,6 +307,8 @@ export default function Plugins() {
                                     key={plugin.id}
                                     plugin={plugin}
                                     installedIds={installedIds}
+                                    installedVersion={localVersionMap.get(normalizePluginKey(plugin.id))}
+                                    hasUpdate={updateVersionMap.has(normalizePluginKey(plugin.id))}
                                     onInstall={handleInstall}
                                     installing={installingId === plugin.id}
                                 />
