@@ -113,16 +113,6 @@ function ProjectEditorInner({projectId, activeEntryId = null, openEntryIds = [],
         }
     }, [fetchAll])
 
-    const loadStats = useCallback(async () => {
-        try {
-            const stats = await db_get_project_stats(projectId)
-            setImageCount(stats.imageCount)
-            setWordCount(stats.wordCount)
-        } catch (e) {
-            console.error('ProjectEditor stats load failed', e)
-        }
-    }, [projectId])
-
     useEffect(() => {
         let cancelled = false
 

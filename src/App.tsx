@@ -1,7 +1,7 @@
 import './App.css'
 import "./api"
 import {Button, SideBar, type SideBarItem, TabBar, type TabItem, useAlert} from 'flowcloudai-ui'
-import {AiProvider} from './contexts/AiContext'
+import {useAiController} from './hooks/useAiController'
 import {getCurrentWindow} from "@tauri-apps/api/window";
 import {type CSSProperties, useCallback, useEffect, useMemo, useState} from "react";
 import ProjectList from "./pages/ProjectList.tsx";
@@ -25,6 +25,7 @@ type EntryTabMeta = {
 function App() {
     const win = getCurrentWindow();
     const {showAlert} = useAlert()
+    const aiController = useAiController()
 
     const [isMaximized, setIsMaximized] = useState(false);
     useEffect(() => {
@@ -46,6 +47,7 @@ function App() {
 
     const [selectedKey, setSelectedKey] = useState('home')
     const [collapsed, setCollapsed] = useState(false)
+    const aiDisplayMode = selectedKey === 'ai-chat' ? 'fullscreen' : 'floating'
 
     const showHomeWorkspace = useCallback(() => {
         setSelectedKey('home')
@@ -349,8 +351,7 @@ function App() {
     ]
 
     return (
-        <AiProvider>
-            <div className="app-layout">
+        <div className="app-layout">
                 <div className="top-bar" data-tauri-drag-region>
                     <button className="menu-btn" data-tauri-drag-region>
                         <svg data-tauri-drag-region
@@ -442,7 +443,7 @@ function App() {
                     </div>
                 </div>
                 <div className="main-content">
-                    <div className="page-container">
+                    <div className={`page-container ${selectedKey === 'ai-chat' ? 'is-hidden-for-ai-chat' : ''}`}>
                         <div className={`page-wrapper ${selectedKey === 'home' ? 'active' : ''}`}>
                             <div className="home-page-stack">
                                 <div className={`home-page-layer ${!activeHomeProjectId ? 'active' : ''}`}>
@@ -483,9 +484,6 @@ function App() {
                         <div className={`page-wrapper ${selectedKey === 'map-editor' ? 'active' : ''}`}>
                             <MapShapeEditorDemo/>
                         </div>
-                        <div className={`page-wrapper ${selectedKey === 'ai-chat' ? 'active' : ''}`}>
-                            <AIChat viewMode="fullscreen"/>
-                        </div>
                         <div className={`page-wrapper ${selectedKey === 'ai-image' ? 'active' : ''}`}>
                             <AIImageGenerator/>
                         </div>
@@ -496,8 +494,7 @@ function App() {
                             <Settings/>
                         </div>
                     </div>
-                    {/* AI 侧边栏模式 — 与 page-container 同层级，相互挤压，仅在非 AI 对话页面显示 */}
-                    {selectedKey !== 'ai-chat' && <AIChat viewMode="sidebar"/>}
+                    <AIChat mode={aiDisplayMode} controller={aiController}/>
                     <SideBar
                         className={"side-bar"}
                         items={menuItems}
@@ -513,7 +510,6 @@ function App() {
                 </div>
                 <EntryEditModal/>
             </div>
-        </AiProvider>
     )
 }
 

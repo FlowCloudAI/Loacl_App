@@ -98,6 +98,14 @@ body {
     background: var(--fc-color-bg);
 }
 
+.page-container.is-hidden-for-ai-chat {
+    flex: 0 0 0;
+    width: 0;
+    min-width: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
 .page-wrapper {
     padding: 0.1rem;
     position: absolute;

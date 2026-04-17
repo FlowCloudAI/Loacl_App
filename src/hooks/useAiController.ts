@@ -1,30 +1,26 @@
-import React, {createContext, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
     ai_close_session,
     ai_delete_conversation,
+    ai_rename_conversation,
     ai_disable_tool,
     ai_enable_tool,
     ai_get_conversation,
     ai_list_conversations,
     ai_list_plugins,
     ai_list_tools,
-    ai_rename_conversation,
     ai_update_session,
     type PluginInfo,
     type StoredMessage,
     type ToolStatus,
 } from '../api'
-import {type SessionMessage, useAiSession} from '../hooks/useAiSession'
-import type {AiContextValue, Conversation, Message, SessionParams} from './AiContextTypes'
-
-const AiContext = createContext<AiContextValue | null>(null)
-
-// ── 辅助函数 ─────────────────────────────────────────────────
+import {type SessionMessage, useAiSession} from './useAiSession'
+import type {AiContextValue, Conversation, Message, SessionParams} from '../contexts/AiControllerTypes'
 
 const generateTitleFromMessage = (content: string): string => {
     const cleaned = content.trim().replace(/\s+/g, ' ')
     if (cleaned.length <= 20) return cleaned
-    return cleaned.slice(0, 20) + '...'
+    return `${cleaned.slice(0, 20)}...`
 }
 
 const runtimeConversationKey = (sessionId: string, runId: string) => `${sessionId}::${runId}`
@@ -41,29 +37,29 @@ const storedToMessages = (messages: StoredMessage[]): Message[] => {
         pendingAssistant = null
     }
 
-    const ensureAssistant = (m: StoredMessage, index: number) => {
+    const ensureAssistant = (message: StoredMessage, index: number) => {
         if (!pendingAssistant) {
             pendingAssistant = {
-                id: m.message_id ?? `loaded_assistant_${index}_${Date.now()}`,
+                id: message.message_id ?? `loaded_assistant_${index}_${Date.now()}`,
                 role: 'assistant',
                 content: '',
-                timestamp: new Date(m.timestamp).getTime(),
-                nodeId: m.node_id ?? undefined,
+                timestamp: new Date(message.timestamp).getTime(),
+                nodeId: message.node_id ?? undefined,
                 blocks: [],
             }
         }
         return pendingAssistant
     }
 
-    messages.forEach((m, index) => {
-        if (m.role === 'user') {
+    messages.forEach((message, index) => {
+        if (message.role === 'user') {
             flushPendingAssistant()
         }
 
-        if (m.role === 'tool') {
+        if (message.role === 'tool') {
             const assistant = pendingAssistant
             if (!assistant?.blocks) return
-            const toolBlockIndex = assistant.blocks.findIndex(block => {
+            const toolBlockIndex = assistant.blocks.findIndex((block) => {
                 if (block.type !== 'tool') return false
                 return block.tool.result == null
             })
@@ -76,7 +72,7 @@ const storedToMessages = (messages: StoredMessage[]): Message[] => {
                     ...block,
                     tool: {
                         ...block.tool,
-                        result: m.content ?? '',
+                        result: message.content ?? '',
                         isError: false,
                     },
                 }
@@ -85,54 +81,54 @@ const storedToMessages = (messages: StoredMessage[]): Message[] => {
             return
         }
 
-        if (m.role === 'assistant') {
-            const assistant = ensureAssistant(m, index)
+        if (message.role === 'assistant') {
+            const assistant = ensureAssistant(message, index)
             const nextBlocks = [...(assistant.blocks ?? [])]
 
-            if (m.reasoning) {
-                nextBlocks.push({type: 'reasoning', content: m.reasoning})
+            if (message.reasoning) {
+                nextBlocks.push({type: 'reasoning', content: message.reasoning})
             }
-            if (m.tool_calls && m.tool_calls.length > 0) {
-                m.tool_calls.forEach(tc => {
+            if (message.tool_calls && message.tool_calls.length > 0) {
+                message.tool_calls.forEach((toolCall) => {
                     nextBlocks.push({
                         type: 'tool',
                         tool: {
-                            index: tc.index,
-                            name: tc.function?.name ?? tc.name ?? '',
-                            args: tc.function?.arguments ?? tc.arguments ?? '',
+                            index: toolCall.index,
+                            name: toolCall.function?.name ?? toolCall.name ?? '',
+                            args: toolCall.function?.arguments ?? toolCall.arguments ?? '',
                         },
                         detail: 'verbose',
                     })
                 })
             }
-            if (m.content) {
-                nextBlocks.push({type: 'content', content: m.content, markdown: true})
+            if (message.content) {
+                nextBlocks.push({type: 'content', content: message.content, markdown: true})
             }
 
             pendingAssistant = {
                 ...assistant,
-                content: assistant.content + (m.content ?? ''),
+                content: assistant.content + (message.content ?? ''),
                 reasoning: assistant.reasoning
-                    ? `${assistant.reasoning}${m.reasoning ?? ''}`
-                    : (m.reasoning || undefined),
-                timestamp: new Date(m.timestamp).getTime(),
-                nodeId: m.node_id ?? assistant.nodeId,
+                    ? `${assistant.reasoning}${message.reasoning ?? ''}`
+                    : (message.reasoning || undefined),
+                timestamp: new Date(message.timestamp).getTime(),
+                nodeId: message.node_id ?? assistant.nodeId,
                 blocks: nextBlocks,
             }
             return
         }
 
         const base: Message = {
-            id: m.message_id ?? `loaded_${index}_${Date.now()}`,
-            role: m.role as 'user' | 'assistant',
-            content: m.content ?? '',
-            reasoning: m.reasoning || undefined,
-            timestamp: new Date(m.timestamp).getTime(),
-            nodeId: m.node_id ?? undefined,
+            id: message.message_id ?? `loaded_${index}_${Date.now()}`,
+            role: message.role as 'user' | 'assistant',
+            content: message.content ?? '',
+            reasoning: message.reasoning || undefined,
+            timestamp: new Date(message.timestamp).getTime(),
+            nodeId: message.node_id ?? undefined,
         }
 
-        if (m.content) {
-            base.blocks = [{type: 'content', content: m.content}]
+        if (message.content) {
+            base.blocks = [{type: 'content', content: message.content}]
         }
 
         result.push(base)
@@ -142,9 +138,7 @@ const storedToMessages = (messages: StoredMessage[]): Message[] => {
     return result
 }
 
-// ── Provider ─────────────────────────────────────────────────
-
-export function AiProvider({children}: { children: React.ReactNode }) {
+export function useAiController(): AiContextValue {
     const [plugins, setPlugins] = useState<PluginInfo[]>([])
     const [selectedPlugin, setSelectedPlugin] = useState('')
     const [selectedModel, setSelectedModel] = useState('')
@@ -161,61 +155,62 @@ export function AiProvider({children}: { children: React.ReactNode }) {
     const [webSearchEnabled, setWebSearchEnabled] = useState(true)
     const [editModeEnabled, setEditModeEnabled] = useState(true)
 
-    const activeConversation = useMemo(() =>
-        conversations.find(c => c.id === activeConversationId),
-    [conversations, activeConversationId])
+    const activeConversation = useMemo(
+        () => conversations.find((conversation) => conversation.id === activeConversationId),
+        [conversations, activeConversationId],
+    )
 
     const messages = useMemo(() => activeConversation?.messages ?? [], [activeConversation])
 
-    // Refs for async callbacks
     const activeConversationRef = useRef(activeConversation)
-    useEffect(() => { activeConversationRef.current = activeConversation }, [activeConversation])
+    useEffect(() => {
+        activeConversationRef.current = activeConversation
+    }, [activeConversation])
 
     const activeConversationIdRef = useRef(activeConversationId)
-    useEffect(() => { activeConversationIdRef.current = activeConversationId }, [activeConversationId])
+    useEffect(() => {
+        activeConversationIdRef.current = activeConversationId
+    }, [activeConversationId])
 
     const runtimeConversationRef = useRef<Record<string, string>>({})
     const abortControllerRef = useRef<AbortController | null>(null)
 
-    // ── useAiSession ─────────────────────────────────────────
-
-    const onMessage = useCallback((msg: SessionMessage) => {
+    const onMessage = useCallback((message: SessionMessage) => {
         const targetConversationId =
-            runtimeConversationRef.current[runtimeConversationKey(msg.sessionId, msg.runId)]
+            runtimeConversationRef.current[runtimeConversationKey(message.sessionId, message.runId)]
 
-        setConversations(prev => prev.map(conv => {
-            const matchedByRuntime = conv.sessionId === msg.sessionId && conv.runId === msg.runId
-            const matchedByMap = targetConversationId != null && conv.id === targetConversationId
-            if (!matchedByRuntime && !matchedByMap) return conv
+        setConversations((prev) => prev.map((conversation) => {
+            const matchedByRuntime =
+                conversation.sessionId === message.sessionId && conversation.runId === message.runId
+            const matchedByMap = targetConversationId != null && conversation.id === targetConversationId
+            if (!matchedByRuntime && !matchedByMap) return conversation
             return {
-                ...conv,
-                messages: [...conv.messages, {
-                    id: msg.id,
-                    role: msg.role,
-                    content: msg.content,
-                    timestamp: msg.timestamp,
-                    reasoning: msg.reasoning,
-                    blocks: msg.blocks,
-                    nodeId: msg.nodeId,
+                ...conversation,
+                messages: [...conversation.messages, {
+                    id: message.id,
+                    role: message.role,
+                    content: message.content,
+                    timestamp: message.timestamp,
+                    reasoning: message.reasoning,
+                    blocks: message.blocks,
+                    nodeId: message.nodeId,
                 }],
             }
         }))
     }, [])
 
-    const onError = useCallback((msg: string) => {
-        console.error('[AiContext]', msg)
+    const onError = useCallback((message: string) => {
+        console.error('[useAiController]', message)
     }, [])
 
     const session = useAiSession({onMessage, onError})
 
-    // ── 初始化 ───────────────────────────────────────────────
-
     useEffect(() => {
         ai_list_plugins('llm').then(setPlugins).catch(console.error)
-        ai_list_tools().then(fetched => {
-            const enableOps = fetched.map(t => ai_enable_tool(t.name))
+        ai_list_tools().then((fetched) => {
+            const enableOps = fetched.map((tool) => ai_enable_tool(tool.name))
             void Promise.all(enableOps)
-            setTools(fetched.map(t => ({...t, enabled: true})))
+            setTools(fetched.map((tool) => ({...tool, enabled: true})))
             setWebSearchEnabled(true)
             setEditModeEnabled(true)
         }).catch(console.error)
@@ -224,19 +219,21 @@ export function AiProvider({children}: { children: React.ReactNode }) {
     useEffect(() => {
         let mounted = true
         const init = async () => {
-            const metas = await ai_list_conversations().catch(() => [] as Awaited<ReturnType<typeof ai_list_conversations>>)
+            const metas = await ai_list_conversations().catch(
+                () => [] as Awaited<ReturnType<typeof ai_list_conversations>>,
+            )
             if (!mounted) return
 
             if (metas.length > 0) {
-                const convs: Conversation[] = metas.map(m => ({
-                    id: m.id,
-                    title: m.title,
+                const convs: Conversation[] = metas.map((meta) => ({
+                    id: meta.id,
+                    title: meta.title,
                     messages: [],
-                    pluginId: m.plugin_id,
-                    model: m.model,
+                    pluginId: meta.plugin_id,
+                    model: meta.model,
                     sessionId: null,
                     runId: null,
-                    timestamp: new Date(m.updated_at).getTime(),
+                    timestamp: new Date(meta.updated_at).getTime(),
                 }))
 
                 const stored = await ai_get_conversation(convs[0].id).catch(() => null)
@@ -253,21 +250,28 @@ export function AiProvider({children}: { children: React.ReactNode }) {
             } else {
                 const newId = `conv_${Date.now()}`
                 setConversations([{
-                    id: newId, title: '新对话', messages: [],
-                    pluginId: '', model: '', sessionId: null, runId: null, timestamp: Date.now(),
+                    id: newId,
+                    title: '新对话',
+                    messages: [],
+                    pluginId: '',
+                    model: '',
+                    sessionId: null,
+                    runId: null,
+                    timestamp: Date.now(),
                 }])
                 setActiveConversationId(newId)
             }
         }
-        void init()
-        return () => { mounted = false }
-    }, [])
 
-    // ── 自动选择默认模型 ──────────────────────────────────────
+        void init()
+        return () => {
+            mounted = false
+        }
+    }, [])
 
     useEffect(() => {
         if (selectedPlugin && plugins.length > 0 && !selectedModel) {
-            const plugin = plugins.find(p => p.id === selectedPlugin)
+            const plugin = plugins.find((item) => item.id === selectedPlugin)
             if (plugin) {
                 const defaultModel = plugin.default_model ?? plugin.models[0] ?? ''
                 if (defaultModel) {
@@ -278,14 +282,10 @@ export function AiProvider({children}: { children: React.ReactNode }) {
         }
     }, [selectedPlugin, plugins, selectedModel])
 
-    // ── 会话参数同步 ──────────────────────────────────────────
-
     useEffect(() => {
         if (!session.sessionId) return
         void ai_update_session(session.sessionId, {thinking: sessionParams.thinking}).catch(console.error)
     }, [sessionParams, session.sessionId])
-
-    // ── 操作 ─────────────────────────────────────────────────
 
     const createNewConversation = useCallback(async () => {
         if (session.isStreaming) {
@@ -305,13 +305,13 @@ export function AiProvider({children}: { children: React.ReactNode }) {
             timestamp: Date.now(),
         }
 
-        setConversations(prev => [newConversation, ...prev])
+        setConversations((prev) => [newConversation, ...prev])
         setActiveConversationId(newId)
         setInputValue('')
         setEditingMessageId(null)
         setAutoScroll(true)
         if (sidebarCollapsed) setSidebarCollapsed(false)
-    }, [session, selectedPlugin, selectedModel, sidebarCollapsed])
+    }, [selectedModel, selectedPlugin, session, sidebarCollapsed])
 
     const switchConversation = useCallback(async (convId: string) => {
         if (convId === activeConversationIdRef.current) return
@@ -320,7 +320,7 @@ export function AiProvider({children}: { children: React.ReactNode }) {
         setEditingMessageId(null)
         setAutoScroll(true)
 
-        const targetConv = conversations.find(c => c.id === convId)
+        const targetConv = conversations.find((conversation) => conversation.id === convId)
         if (targetConv) {
             setSelectedPlugin(targetConv.pluginId)
             setSelectedModel(targetConv.model)
@@ -328,19 +328,19 @@ export function AiProvider({children}: { children: React.ReactNode }) {
             if (targetConv.messages.length === 0 && !targetConv.id.startsWith('conv_')) {
                 const stored = await ai_get_conversation(targetConv.id).catch(() => null)
                 if (stored) {
-                    setConversations(prev => prev.map(c =>
-                        c.id === convId
-                            ? {...c, messages: storedToMessages(stored.messages)}
-                            : c
+                    setConversations((prev) => prev.map((conversation) =>
+                        conversation.id === convId
+                            ? {...conversation, messages: storedToMessages(stored.messages)}
+                            : conversation,
                     ))
                 }
             }
         }
     }, [conversations])
 
-    const deleteConversation = useCallback(async (convId: string, e?: React.MouseEvent) => {
-        e?.stopPropagation()
-        const conv = conversations.find(c => c.id === convId)
+    const deleteConversation = useCallback(async (convId: string, event?: React.MouseEvent) => {
+        event?.stopPropagation()
+        const conv = conversations.find((conversation) => conversation.id === convId)
 
         if (activeConversationIdRef.current === convId && session.isStreaming) {
             await session.cancelSession(conv?.sessionId)
@@ -353,8 +353,7 @@ export function AiProvider({children}: { children: React.ReactNode }) {
             await ai_delete_conversation(conv.id).catch(console.error)
         }
 
-        setConversations(prev => prev.filter(c => c.id !== convId))
-
+        setConversations((prev) => prev.filter((conversation) => conversation.id !== convId))
 
         if (activeConversationIdRef.current === convId) {
             await session.closeSession()
@@ -366,7 +365,9 @@ export function AiProvider({children}: { children: React.ReactNode }) {
     const renameConversation = useCallback(async (convId: string, title: string) => {
         const trimmed = title.trim()
         if (!trimmed) return
-        setConversations(prev => prev.map(c => c.id === convId ? {...c, title: trimmed} : c))
+        setConversations((prev) => prev.map((conversation) =>
+            conversation.id === convId ? {...conversation, title: trimmed} : conversation,
+        ))
         await ai_rename_conversation(convId, trimmed).catch(console.error)
     }, [])
 
@@ -379,22 +380,21 @@ export function AiProvider({children}: { children: React.ReactNode }) {
 
         abortControllerRef.current = new AbortController()
 
-        // 编辑模式处理
         if (editingMessageId) {
             const conv = activeConversationRef.current
             if (conv) {
-                const editIdx = conv.messages.findIndex(m => m.id === editingMessageId)
+                const editIdx = conv.messages.findIndex((message) => message.id === editingMessageId)
                 if (editIdx !== -1) {
-                    setConversations(prev => prev.map(c =>
-                        c.id === currentConvId
-                            ? {...c, messages: c.messages.slice(0, editIdx)}
-                            : c
+                    setConversations((prev) => prev.map((conversation) =>
+                        conversation.id === currentConvId
+                            ? {...conversation, messages: conversation.messages.slice(0, editIdx)}
+                            : conversation,
                     ))
                     const precedingMsg = editIdx > 0 ? conv.messages[editIdx - 1] : null
                     if (precedingMsg?.nodeId && conv.sessionId === session.sessionId) {
                         await session.checkoutForEdit(precedingMsg.nodeId)
-                    } else {
-                        if (session.sessionId) await session.closeSession()
+                    } else if (session.sessionId) {
+                        await session.closeSession()
                     }
                 }
             }
@@ -414,10 +414,10 @@ export function AiProvider({children}: { children: React.ReactNode }) {
         let effectiveConvId = currentConvId
 
         if (!currentSid) {
-            await new Promise<void>(resolve => {
-                setTools(latest => {
+            await new Promise<void>((resolve) => {
+                setTools((latest) => {
                     Promise.all(
-                        latest.map(t => t.enabled ? ai_enable_tool(t.name) : ai_disable_tool(t.name))
+                        latest.map((tool) => tool.enabled ? ai_enable_tool(tool.name) : ai_disable_tool(tool.name)),
                     ).catch(console.error).finally(resolve)
                     return latest
                 })
@@ -433,19 +433,21 @@ export function AiProvider({children}: { children: React.ReactNode }) {
                 effectiveConvId = created.conversationId
                 runtimeConversationRef.current[
                     runtimeConversationKey(created.sessionId, created.runId)
-                ] = created.conversationId
-                setConversations(prev => prev.map(c =>
-                    c.id === currentConvId
-                        ? {...c, id: created.conversationId, sessionId: currentSid!, runId: created.runId}
-                        : c
+                    ] = created.conversationId
+                setConversations((prev) => prev.map((conversation) =>
+                    conversation.id === currentConvId
+                        ? {...conversation, id: created.conversationId, sessionId: currentSid!, runId: created.runId}
+                        : conversation,
                 ))
                 setActiveConversationId(created.conversationId)
             } else {
                 runtimeConversationRef.current[
                     runtimeConversationKey(created.sessionId, created.runId)
-                ] = currentConvId
-                setConversations(prev => prev.map(c =>
-                    c.id === currentConvId ? {...c, sessionId: currentSid!, runId: created.runId} : c
+                    ] = currentConvId
+                setConversations((prev) => prev.map((conversation) =>
+                    conversation.id === currentConvId
+                        ? {...conversation, sessionId: currentSid!, runId: created.runId}
+                        : conversation,
                 ))
             }
         }
@@ -457,19 +459,19 @@ export function AiProvider({children}: { children: React.ReactNode }) {
             timestamp: Date.now(),
         }
 
-        setConversations(prev => prev.map(conv => {
-            if (conv.id !== effectiveConvId) return conv
-            const isFirstMessage = conv.messages.length === 0
+        setConversations((prev) => prev.map((conversation) => {
+            if (conversation.id !== effectiveConvId) return conversation
+            const isFirstMessage = conversation.messages.length === 0
             return {
-                ...conv,
-                title: isFirstMessage ? generateTitleFromMessage(trimmed) : conv.title,
-                messages: [...conv.messages, userMessage],
+                ...conversation,
+                title: isFirstMessage ? generateTitleFromMessage(trimmed) : conversation.title,
+                messages: [...conversation.messages, userMessage],
             }
         }))
 
         setInputValue('')
         await session.sendMessage(trimmed, currentSid!)
-    }, [session, selectedPlugin, selectedModel, editingMessageId])
+    }, [editingMessageId, selectedModel, selectedPlugin, session])
 
     const stopStreaming = useCallback(() => {
         abortControllerRef.current?.abort()
@@ -478,57 +480,62 @@ export function AiProvider({children}: { children: React.ReactNode }) {
 
     const regenerateMessage = useCallback(async (messageId: string) => {
         if (session.isStreaming) return
-        const conv = conversations.find(c => c.id === activeConversationIdRef.current)
+        const conv = conversations.find((conversation) => conversation.id === activeConversationIdRef.current)
         if (!conv || conv.sessionId !== session.sessionId) return
 
-        const msgIdx = conv.messages.findIndex(m => m.id === messageId)
-        if (msgIdx === -1) return
+        const messageIndex = conv.messages.findIndex((message) => message.id === messageId)
+        if (messageIndex === -1) return
 
-        const precedingUserMsg = conv.messages.slice(0, msgIdx).reverse().find(m => m.role === 'user')
+        const precedingUserMsg = conv.messages
+            .slice(0, messageIndex)
+            .reverse()
+            .find((message) => message.role === 'user')
         if (!precedingUserMsg?.nodeId) return
 
-        setConversations(prev => prev.map(c =>
-            c.id === activeConversationIdRef.current ? {...c, messages: c.messages.slice(0, msgIdx)} : c
+        setConversations((prev) => prev.map((conversation) =>
+            conversation.id === activeConversationIdRef.current
+                ? {...conversation, messages: conversation.messages.slice(0, messageIndex)}
+                : conversation,
         ))
         setAutoScroll(true)
         await session.checkout(precedingUserMsg.nodeId)
     }, [conversations, session])
 
     const editMessage = useCallback((messageId: string) => {
-        const conv = conversations.find(c => c.id === activeConversationIdRef.current)
-        const msg = conv?.messages.find(m => m.id === messageId)
-        if (!msg || msg.role !== 'user') return
-        setInputValue(msg.content)
+        const conv = conversations.find((conversation) => conversation.id === activeConversationIdRef.current)
+        const message = conv?.messages.find((item) => item.id === messageId)
+        if (!message || message.role !== 'user') return
+        setInputValue(message.content)
         setEditingMessageId(messageId)
     }, [conversations])
 
     const toggleWebSearch = useCallback(async () => {
         const next = !webSearchEnabled
         const webNames = ['web_search', 'open_url']
-        setTools(prev => prev.map(t => webNames.includes(t.name) ? {...t, enabled: next} : t))
+        setTools((prev) => prev.map((tool) => webNames.includes(tool.name) ? {...tool, enabled: next} : tool))
         setWebSearchEnabled(next)
         if (!session.sessionId) {
             const ops = tools
-                .filter(t => webNames.includes(t.name))
-                .map(t => next ? ai_enable_tool(t.name) : ai_disable_tool(t.name))
+                .filter((tool) => webNames.includes(tool.name))
+                .map((tool) => next ? ai_enable_tool(tool.name) : ai_disable_tool(tool.name))
             await Promise.all(ops).catch(console.error)
         }
-    }, [webSearchEnabled, tools, session.sessionId])
+    }, [session.sessionId, tools, webSearchEnabled])
 
     const toggleEditMode = useCallback(async () => {
         const next = !editModeEnabled
         const webNames = ['web_search', 'open_url']
-        setTools(prev => prev.map(t => (!webNames.includes(t.name)) ? {...t, enabled: next} : t))
+        setTools((prev) => prev.map((tool) => (!webNames.includes(tool.name)) ? {...tool, enabled: next} : tool))
         setEditModeEnabled(next)
         if (!session.sessionId) {
             const ops = tools
-                .filter(t => !webNames.includes(t.name))
-                .map(t => next ? ai_enable_tool(t.name) : ai_disable_tool(t.name))
+                .filter((tool) => !webNames.includes(tool.name))
+                .map((tool) => next ? ai_enable_tool(tool.name) : ai_disable_tool(tool.name))
             await Promise.all(ops).catch(console.error)
         }
-    }, [editModeEnabled, tools, session.sessionId])
+    }, [editModeEnabled, session.sessionId, tools])
 
-    const value = useMemo(() => ({
+    return useMemo(() => ({
         plugins,
         selectedPlugin,
         selectedModel,
@@ -572,8 +579,4 @@ export function AiProvider({children}: { children: React.ReactNode }) {
         toggleWebSearch, toggleEditMode, createNewConversation, switchConversation, deleteConversation,
         renameConversation,
     ])
-
-    return <AiContext.Provider value={value}>{children}</AiContext.Provider>
 }
-
-export {AiContext}

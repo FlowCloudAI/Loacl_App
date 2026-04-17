@@ -1,0 +1,97 @@
+.dockable-side-panel {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    overflow: hidden;
+    background: var(--fc-color-bg);
+}
+
+.dockable-side-panel--fullscreen {
+    flex: 1;
+    height: 100%;
+    padding: 0;
+}
+
+.dockable-side-panel--floating {
+    position: relative;
+    height: 100%;
+    flex-shrink: 0;
+    border-left: 1px solid var(--fc-color-border);
+}
+
+.dockable-side-panel__body {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    overflow: hidden;
+}
+
+.dockable-side-panel__resize-handle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    z-index: 10;
+    background: transparent;
+    transition: background 0.1s ease;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dockable-side-panel__resize-handle::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    background: color-mix(in srgb, var(--fc-color-border) 88%, transparent);
+    transition: background 0.1s ease, width 0.1s ease;
+}
+
+.dockable-side-panel__resize-grip {
+    position: relative;
+    z-index: 1;
+    width: 8px;
+    height: 48px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--fc-color-border) 92%, transparent);
+    background: color-mix(in srgb, var(--fc-color-bg-secondary) 92%, var(--fc-color-bg));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: border-color 0.1s ease, background 0.1s ease, transform 0.1s ease;
+}
+
+.dockable-side-panel__resize-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--fc-color-text) 38%, transparent);
+    transition: background 0.1s ease;
+}
+
+.dockable-side-panel__resize-handle:hover::before,
+.dockable-side-panel__resize-handle.is-dragging::before {
+    background: color-mix(in srgb, var(--fc-color-primary) 55%, transparent);
+}
+
+.dockable-side-panel__resize-handle:hover .dockable-side-panel__resize-grip,
+.dockable-side-panel__resize-handle.is-dragging .dockable-side-panel__resize-grip {
+    transform: scale(1.03);
+    border-color: color-mix(in srgb, var(--fc-color-primary) 70%, var(--fc-color-border));
+    background: color-mix(in srgb, var(--fc-color-primary) 18%, var(--fc-color-bg-secondary));
+}
+
+.dockable-side-panel__resize-handle:hover .dockable-side-panel__resize-dot,
+.dockable-side-panel__resize-handle.is-dragging .dockable-side-panel__resize-dot {
+    background: color-mix(in srgb, var(--fc-color-primary) 55%, var(--fc-color-text));
+}
