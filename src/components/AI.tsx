@@ -19,11 +19,11 @@ export default function AIChat({viewMode = 'fullscreen'}: AIChatProps) {
     const isSidebarMode = viewMode === 'sidebar'
 
     // ── 侧边栏模式：宽度与拖拽 ─────────────────────────────────
-    const [panelWidth, setPanelWidth] = useState(380)
+    const MIN_PANEL_WIDTH = 450
+    const [panelWidth, setPanelWidth] = useState(MIN_PANEL_WIDTH)
     const isDraggingRef = useRef(false)
     const dragStartXRef = useRef(0)
     const dragStartWidthRef = useRef(0)
-    const MIN_PANEL_WIDTH = 340
 
     const handleResizeStart = useCallback((e: React.MouseEvent) => {
         e.preventDefault()
@@ -325,6 +325,9 @@ export default function AIChat({viewMode = 'fullscreen'}: AIChatProps) {
                                     title={ctx.editModeEnabled ? '编辑模式' : '阅读模式'}
                                 >
                                     {ctx.editModeEnabled ? '编辑模式' : '阅读模式'}
+                                </button>
+                                <button className="ai-toolbar-btn" title="测试按钮">
+                                    测试按钮
                                 </button>
                             </div>
                             <div className="ai-floating-actions">
