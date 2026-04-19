@@ -24,6 +24,7 @@ export interface CreateIdeaNoteParams {
 
 export interface UpdateIdeaNoteParams {
     id: string
+    projectId?: string | null | undefined
     title?: string | null | undefined
     content?: string | null
     status?: IdeaNoteStatus | null
@@ -76,6 +77,7 @@ export const db_list_idea_notes = ({
 
 export const db_update_idea_note = ({
                                         id,
+                                        projectId,
                                         title,
                                         content,
                                         status,
@@ -85,6 +87,7 @@ export const db_update_idea_note = ({
                                     }: UpdateIdeaNoteParams) =>
     command<IdeaNote>('db_update_idea_note', {
         id,
+        projectId: projectId === undefined ? undefined : projectId,
         title: title === undefined ? undefined : title,
         content: content ?? undefined,
         status: status ?? undefined,

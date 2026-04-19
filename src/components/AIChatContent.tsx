@@ -308,7 +308,6 @@ export default function AIChatContent({controller}: AIChatContentProps) {
                                     blocks={ctx.streamingBlocks}
                                     streaming
                                     markdown
-                                    rolePlaying
                                     toolCallDetail={'verbose'}
                                 />
                             )}

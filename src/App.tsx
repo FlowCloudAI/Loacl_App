@@ -1,8 +1,8 @@
 import './App.css'
 import "./api"
 import {Button, SideBar, type SideBarItem, TabBar, type TabItem, useAlert} from 'flowcloudai-ui'
-import {useAiController} from './hooks/useAiController'
 import type {AiFocus} from './hooks/useAiController'
+import {useAiController} from './hooks/useAiController'
 import {getCurrentWindow} from "@tauri-apps/api/window";
 import {type CSSProperties, useCallback, useEffect, useMemo, useState} from "react";
 import ProjectList from "./pages/ProjectList.tsx";
@@ -530,7 +530,7 @@ function App() {
                         handleTitle="拖拽调整宽度"
                     >
                         {sidePanelContentKey === 'idea'
-                            ? <Idea/>
+                            ? <Idea contextProjectId={aiFocus.projectId}/>
                             : <AIChat controller={aiController}/>}
                     </DockableSidePanel>
                     <SideBar

@@ -16,6 +16,10 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 type IdeaViewMode = 'inbox' | 'all' | 'processed' | 'archived'
 type ProjectFilterMode = 'all' | 'global' | string
 
+interface IdeaProps {
+    contextProjectId?: string | null
+}
+
 const IDEA_LIST_LIMIT = 100
 const AUTOSAVE_DELAY = 700
 const PREVIEW_LENGTH = 28
@@ -66,27 +70,36 @@ function formatIdeaTime(value?: string | null) {
     }).format(date)
 }
 
-export default function Idea() {
+export default function Idea({contextProjectId = null}: IdeaProps) {
     const {showAlert} = useAlert()
     const textareaRef = useRef<HTMLTextAreaElement | null>(null)
     const createRequestIdRef = useRef(0)
+    const layoutRef = useRef<HTMLDivElement | null>(null)
+    const selectedIdeaIdRef = useRef<string | null>(null)
 
     const [ideaNotes, setIdeaNotes] = useState<IdeaNote[]>([])
     const [projects, setProjects] = useState<Project[]>([])
     const [selectedIdeaId, setSelectedIdeaId] = useState<string | null>(null)
     const [draftTitle, setDraftTitle] = useState('')
     const [draftContent, setDraftContent] = useState('')
+    const [draftProjectId, setDraftProjectId] = useState<string | null>(contextProjectId)
     const [initialized, setInitialized] = useState(false)
     const [loading, setLoading] = useState(true)
     const [saveState, setSaveState] = useState<SaveState>('idle')
     const [statusMessage, setStatusMessage] = useState('输入内容后会自动保存')
     const [viewMode, setViewMode] = useState<IdeaViewMode>('all')
     const [projectFilter, setProjectFilter] = useState<ProjectFilterMode>('all')
+    const [compactLayout, setCompactLayout] = useState(false)
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
     const selectedIdea = useMemo(
         () => ideaNotes.find((item) => item.id === selectedIdeaId) ?? null,
         [ideaNotes, selectedIdeaId],
     )
+
+    useEffect(() => {
+        selectedIdeaIdRef.current = selectedIdeaId
+    }, [selectedIdeaId])
 
     const projectFilterOptions = useMemo(() => ([
         {value: 'all', label: '全部项目'},
@@ -94,17 +107,18 @@ export default function Idea() {
         ...projects.map((project) => ({value: project.id, label: project.name})),
     ]), [projects])
 
-    const selectedProjectName = useMemo(() => {
-        if (!selectedIdea?.project_id) return '未归属'
-        return projects.find((project) => project.id === selectedIdea.project_id)?.name ?? '所属项目已删除'
-    }, [projects, selectedIdea?.project_id])
+    const ideaProjectOptions = useMemo(() => ([
+        {value: 'global', label: '未归属'},
+        ...projects.map((project) => ({value: project.id, label: project.name})),
+    ]), [projects])
 
     const syncDraftFromIdea = useCallback((idea: IdeaNote | null) => {
         setDraftTitle(idea?.title ?? '')
         setDraftContent(idea?.content ?? '')
+        setDraftProjectId(idea?.project_id ?? contextProjectId ?? null)
         setSaveState('idle')
         setStatusMessage('输入内容后会自动保存')
-    }, [])
+    }, [contextProjectId])
 
     const buildIdeaListParams = useCallback(() => {
         const activeView = IDEA_VIEW_OPTIONS.find((item) => item.key === viewMode)
@@ -154,18 +168,24 @@ export default function Idea() {
         setLoading(true)
         try {
             const list = sortIdeaNotes(await db_list_idea_notes(buildIdeaListParams()))
-            setIdeaNotes(list)
-            setSelectedIdeaId((prev) => {
-                const targetId = preferredIdeaId ?? prev
+            const nextSelectedIdeaId = (() => {
+                const targetId = preferredIdeaId ?? selectedIdeaIdRef.current
                 if (targetId && list.some((item) => item.id === targetId)) return targetId
-                return list[0]?.id ?? null
-            })
+                return null
+            })()
 
-            if (list.length === 0) {
+            setIdeaNotes(list)
+            setSelectedIdeaId(nextSelectedIdeaId)
+
+            if (!nextSelectedIdeaId) {
                 syncDraftFromIdea(null)
             }
 
-            setStatusMessage(list.length === 0 ? '当前筛选下还没有便签，右侧输入后会自动创建' : '输入内容后会自动保存')
+            setStatusMessage(
+                nextSelectedIdeaId
+                    ? '输入内容后会自动保存'
+                    : '空白便签，开始输入后会自动创建',
+            )
         } catch (error) {
             console.error('加载灵感便签失败', error)
             setStatusMessage(error instanceof Error ? error.message : '加载灵感便签失败')
@@ -197,6 +217,11 @@ export default function Idea() {
     }, [selectedIdea, syncDraftFromIdea])
 
     useEffect(() => {
+        if (selectedIdea) return
+        setDraftProjectId(contextProjectId ?? null)
+    }, [contextProjectId, selectedIdea])
+
+    useEffect(() => {
         if (!initialized) return
 
         const timer = window.setTimeout(() => {
@@ -205,6 +230,24 @@ export default function Idea() {
 
         return () => window.clearTimeout(timer)
     }, [initialized, selectedIdeaId])
+
+    useEffect(() => {
+        const element = layoutRef.current
+        if (!element || typeof ResizeObserver === 'undefined') return
+
+        const observer = new ResizeObserver((entries) => {
+            const entry = entries[0]
+            if (!entry) return
+            setCompactLayout(entry.contentRect.width <= 960)
+        })
+
+        observer.observe(element)
+        return () => observer.disconnect()
+    }, [])
+
+    useEffect(() => {
+        setSidebarCollapsed(compactLayout)
+    }, [compactLayout])
 
     useEffect(() => {
         if (!initialized || loading) return
@@ -221,7 +264,8 @@ export default function Idea() {
         if (sourceIdea) {
             const currentTitle = sourceIdea.title ?? ''
             const currentContent = sourceIdea.content
-            if (currentTitle === draftTitle && currentContent === draftContent) {
+            const currentProjectId = sourceIdea.project_id ?? null
+            if (currentTitle === draftTitle && currentContent === draftContent && currentProjectId === draftProjectId) {
                 setSaveState('saved')
                 setStatusMessage(sourceIdea.updated_at ? `已保存于 ${formatIdeaTime(sourceIdea.updated_at)}` : '已保存')
                 return
@@ -235,8 +279,10 @@ export default function Idea() {
             if (sourceIdea) {
                 void (async () => {
                     try {
+                        const currentProjectId = sourceIdea.project_id ?? null
                         const updated = await db_update_idea_note({
                             id: sourceIdea.id,
+                            projectId: currentProjectId === draftProjectId ? undefined : draftProjectId,
                             title: draftTitle.trim() ? draftTitle : null,
                             content: draftContent,
                         })
@@ -258,6 +304,7 @@ export default function Idea() {
             void (async () => {
                 try {
                     const createdIdea = await db_create_idea_note({
+                        projectId: draftProjectId,
                         title: draftTitle.trim() ? draftTitle : null,
                         content: draftContent,
                     })
@@ -274,12 +321,6 @@ export default function Idea() {
 
                     setSelectedIdeaId(created.id)
                     setSaveState('saved')
-                    if (projectFilter !== 'all' && projectFilter !== 'global' && !created.project_id) {
-                        setProjectFilter('all')
-                        setStatusMessage('当前版本暂不支持新建时直接归属项目，已先保存到“全部项目”。')
-                        return
-                    }
-
                     setStatusMessage(`已创建并保存于 ${formatIdeaTime(created.updated_at)}`)
 
                     if (matchesCurrentFilters(created)) {
@@ -296,17 +337,23 @@ export default function Idea() {
         }, AUTOSAVE_DELAY)
 
         return () => window.clearTimeout(timer)
-    }, [draftContent, draftTitle, initialized, loadIdeaNotes, loading, matchesCurrentFilters, projectFilter, selectedIdea, viewMode])
+    }, [draftContent, draftProjectId, draftTitle, initialized, loadIdeaNotes, loading, matchesCurrentFilters, selectedIdea, viewMode])
 
     const handleSelectIdea = useCallback((ideaId: string) => {
         setSelectedIdeaId(ideaId)
-    }, [])
+        if (compactLayout) {
+            setSidebarCollapsed(true)
+        }
+    }, [compactLayout])
 
     const handleCreateBlankIdea = useCallback(() => {
         setSelectedIdeaId(null)
         syncDraftFromIdea(null)
         setStatusMessage('空白便签，开始输入后会自动创建')
-    }, [syncDraftFromIdea])
+        if (compactLayout) {
+            setSidebarCollapsed(true)
+        }
+    }, [compactLayout, syncDraftFromIdea])
 
     const handleChangeIdeaStatus = useCallback(async (status: IdeaNoteStatus) => {
         if (!selectedIdea) return
@@ -342,6 +389,34 @@ export default function Idea() {
         }
     }, [selectedIdea])
 
+    const handleProjectChange = useCallback(async (value: string | number) => {
+        const nextProjectId = value === 'global' ? null : String(value)
+
+        if (!selectedIdea) {
+            setDraftProjectId(nextProjectId)
+            setStatusMessage(nextProjectId ? '已设置新便签的所属项目' : '已设置新便签为未归属')
+            return
+        }
+
+        try {
+            const updated = await db_update_idea_note({
+                id: selectedIdea.id,
+                projectId: nextProjectId,
+            })
+            setStatusMessage(nextProjectId ? '已更新便签所属项目' : '已将便签设为未归属')
+
+            if (matchesCurrentFilters(updated)) {
+                setIdeaNotes((prev) => sortIdeaNotes(prev.map((item) => item.id === updated.id ? updated : item)))
+            } else {
+                await loadIdeaNotes(updated.id)
+            }
+        } catch (error) {
+            console.error('更新便签所属项目失败', error)
+            setSaveState('error')
+            setStatusMessage(error instanceof Error ? error.message : '更新所属项目失败')
+        }
+    }, [loadIdeaNotes, matchesCurrentFilters, selectedIdea])
+
     const handleConvertToEntry = useCallback(async () => {
         await showAlert('转词条流程尚未实现，后续会支持把灵感整理为正式词条。', 'info')
     }, [showAlert])
@@ -364,142 +439,205 @@ export default function Idea() {
     }, [loadIdeaNotes, selectedIdea, showAlert])
 
     return (
-        <div className="idea-page">
-            <div className="idea-page__toolbar">
-                <div className="idea-page__toolbar-group">
-                    <span className="idea-page__toolbar-label">视图</span>
-                    <div className="idea-page__segmented">
-                        {IDEA_VIEW_OPTIONS.map((item) => (
-                            <button
-                                key={item.key}
-                                type="button"
-                                className={`idea-page__segmented-item${viewMode === item.key ? ' is-active' : ''}`}
-                                onClick={() => setViewMode(item.key)}
-                            >
-                                {item.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                <div className="idea-page__toolbar-group idea-page__toolbar-group--project">
-                    <span className="idea-page__toolbar-label">项目</span>
-                    <Select
-                        className="idea-page__project-select"
-                        value={projectFilter}
-                        options={projectFilterOptions}
-                        onChange={(value) => setProjectFilter(String(value))}
+        <div
+            ref={layoutRef}
+            className={`idea-page${compactLayout ? ' is-compact' : ''}${compactLayout && sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+        >
+            <div className="idea-page__shell">
+                {compactLayout && !sidebarCollapsed ? (
+                    <button
+                        type="button"
+                        className="idea-page__sidebar-backdrop"
+                        aria-label="关闭灵感侧边栏"
+                        onClick={() => setSidebarCollapsed(true)}
                     />
-                </div>
-            </div>
+                ) : null}
 
-            <aside className="idea-page__sidebar">
-                <div className="idea-page__sidebar-header">
-                    <div>
-                        <h2 className="idea-page__title">灵感便签</h2>
-                        <p className="idea-page__subtitle">默认先看待整理，重要内容可以置顶。</p>
-                    </div>
-                    <Button variant="ghost" onClick={handleCreateBlankIdea}>新建便签</Button>
-                </div>
-
-                <div className="idea-page__list">
-                    {loading ? (
-                        <div className="idea-page__empty">正在加载便签…</div>
-                    ) : ideaNotes.length === 0 ? (
-                        <div className="idea-page__empty">当前筛选下还没有便签，右侧直接开始记录。</div>
-                    ) : (
-                        ideaNotes.map((idea) => {
-                            const active = idea.id === selectedIdeaId
-                            return (
+                <aside className="idea-page__sidebar">
+                    <div className="idea-page__sidebar-inner">
+                        <div className="idea-page__sidebar-topbar">
+                            <div className="idea-page__sidebar-topbar-title">灵感导航</div>
+                            {compactLayout ? (
                                 <button
-                                    key={idea.id}
                                     type="button"
-                                    className={`idea-page__item${active ? ' is-active' : ''}`}
-                                    onClick={() => handleSelectIdea(idea.id)}
+                                    className="idea-page__sidebar-toggle"
+                                    onClick={() => setSidebarCollapsed(true)}
+                                    title="收起侧边栏"
                                 >
-                                    <div className="idea-page__item-top">
-                                        <span className="idea-page__item-title">{buildIdeaPreview(idea)}</span>
-                                        {idea.pinned ? <span className="idea-page__item-pin">置顶</span> : null}
-                                    </div>
-                                    <div className="idea-page__item-preview">
-                                        {idea.content.trim() || '空白便签'}
-                                    </div>
-                                    <div className="idea-page__item-meta">
-                                        <span>{formatIdeaTime(idea.updated_at)}</span>
-                                        <span>{getIdeaStatusLabel(idea.status)}</span>
-                                    </div>
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                                         strokeWidth="1.5">
+                                        <path d="M10 3L5 8L10 13"/>
+                                    </svg>
                                 </button>
-                            )
-                        })
-                    )}
-                </div>
-            </aside>
-
-            <section className="idea-page__editor">
-                <div className="idea-page__editor-header">
-                    <div>
-                        <h3 className="idea-page__editor-title">
-                            {selectedIdea ? '编辑便签' : '快速记录'}
-                        </h3>
-                        <p className={`idea-page__status idea-page__status--${saveState}`}>{statusMessage}</p>
-                        <div className="idea-page__editor-meta">
-                            <span className="idea-page__meta-badge">
-                                {selectedIdea ? `所属：${selectedProjectName}` : '所属：未归属'}
-                            </span>
-                            {selectedIdea ? (
-                                <span className="idea-page__meta-badge">
-                                    当前状态：{getIdeaStatusLabel(selectedIdea.status)}
-                                </span>
                             ) : null}
                         </div>
-                    </div>
-                    <div className="idea-page__actions">
-                        <Button variant="ghost" onClick={handleCreateBlankIdea}>空白便签</Button>
-                        <Button variant="ghost" disabled={!selectedIdea} onClick={() => void handleDeleteCurrentIdea()}>
-                            删除
-                        </Button>
-                    </div>
-                </div>
+                        <div className="idea-page__toolbar">
+                            <div className="idea-page__toolbar-group">
+                                <span className="idea-page__toolbar-label">视图</span>
+                                <div className="idea-page__segmented">
+                                    {IDEA_VIEW_OPTIONS.map((item) => (
+                                        <button
+                                            key={item.key}
+                                            type="button"
+                                            className={`idea-page__segmented-item${viewMode === item.key ? ' is-active' : ''}`}
+                                            onClick={() => setViewMode(item.key)}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="idea-page__toolbar-group idea-page__toolbar-group--project">
+                                <span className="idea-page__toolbar-label">项目</span>
+                                <Select
+                                    className="idea-page__project-select"
+                                    value={projectFilter}
+                                    options={projectFilterOptions}
+                                    onChange={(value) => setProjectFilter(String(value))}
+                                />
+                            </div>
+                        </div>
 
-                <div className="idea-page__editor-body">
-                    <div className="idea-page__editor-tools">
-                        <div className="idea-page__segmented idea-page__segmented--compact">
-                            {IDEA_STATUS_OPTIONS.map((item) => (
-                                <button
-                                    key={item.key}
-                                    type="button"
-                                    className={`idea-page__segmented-item${selectedIdea?.status === item.key ? ' is-active' : ''}`}
-                                    onClick={() => void handleChangeIdeaStatus(item.key)}
-                                    disabled={!selectedIdea}
-                                >
-                                    {item.label}
-                                </button>
-                            ))}
+                        <div className="idea-page__sidebar-header">
+                            <div>
+                                <h2 className="idea-page__title">灵感便签</h2>
+                                <p className="idea-page__subtitle">默认先看待整理，重要内容可以置顶。</p>
+                            </div>
+                            <Button variant="ghost" onClick={handleCreateBlankIdea}>新建便签</Button>
                         </div>
-                        <div className="idea-page__quick-actions">
-                            <Button variant="ghost" disabled={!selectedIdea} onClick={() => void handleTogglePinned()}>
-                                {selectedIdea?.pinned ? '取消置顶' : '置顶'}
-                            </Button>
-                            <Button variant="ghost" disabled={!selectedIdea}
-                                    onClick={() => void handleConvertToEntry()}>
-                                转为词条
-                            </Button>
+
+                        <div className="idea-page__list">
+                            {loading ? (
+                                <div className="idea-page__empty">正在加载便签…</div>
+                            ) : ideaNotes.length === 0 ? (
+                                <div className="idea-page__empty">当前筛选下还没有便签，右侧直接开始记录。</div>
+                            ) : (
+                                ideaNotes.map((idea) => {
+                                    const active = idea.id === selectedIdeaId
+                                    return (
+                                        <button
+                                            key={idea.id}
+                                            type="button"
+                                            className={`idea-page__item${active ? ' is-active' : ''}`}
+                                            onClick={() => handleSelectIdea(idea.id)}
+                                        >
+                                            <div className="idea-page__item-top">
+                                                <span className="idea-page__item-title">{buildIdeaPreview(idea)}</span>
+                                                {idea.pinned ? <span className="idea-page__item-pin">置顶</span> : null}
+                                            </div>
+                                            <div className="idea-page__item-preview">
+                                                {idea.content.trim() || '空白便签'}
+                                            </div>
+                                            <div className="idea-page__item-meta">
+                                                <span>{formatIdeaTime(idea.updated_at)}</span>
+                                                <span>{getIdeaStatusLabel(idea.status)}</span>
+                                            </div>
+                                        </button>
+                                    )
+                                })
+                            )}
                         </div>
                     </div>
-                    <input
-                        className="idea-page__title-input"
-                        value={draftTitle}
-                        onChange={(event) => setDraftTitle(event.target.value)}
-                        placeholder="可选标题，不写也可以"
-                    />
-                    <textarea
-                        ref={textareaRef}
-                        className="idea-page__content-input"
-                        value={draftContent}
-                        onChange={(event) => setDraftContent(event.target.value)}
-                        placeholder="把刚冒出来的想法先记在这里。支持先写正文，系统会自动保存。"
-                    />
-                </div>
-            </section>
+                </aside>
+
+                <main className="idea-page__main">
+                    <div className="idea-page__main-topbar">
+                        <div className="idea-page__main-topbar-left">
+                            <button
+                                type="button"
+                                className="idea-page__sidebar-toggle"
+                                onClick={() => setSidebarCollapsed((prev) => !prev)}
+                                title={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+                            >
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                                     strokeWidth="1.5">
+                                    {sidebarCollapsed ? (
+                                        <path d="M6 3L11 8L6 13"/>
+                                    ) : (
+                                        <path d="M10 3L5 8L10 13"/>
+                                    )}
+                                </svg>
+                            </button>
+                            <div className="idea-page__main-title">灵感便签</div>
+                        </div>
+                    </div>
+
+                    <section className="idea-page__editor">
+                        <div className="idea-page__editor-header">
+                            <div>
+                                <h3 className="idea-page__editor-title">
+                                    {selectedIdea ? '编辑便签' : '快速记录'}
+                                </h3>
+                                <p className={`idea-page__status idea-page__status--${saveState}`}>{statusMessage}</p>
+                                <div className="idea-page__editor-meta">
+                                    <div className="idea-page__meta-field">
+                                        <span className="idea-page__meta-label">所属项目</span>
+                                        <Select
+                                            className="idea-page__meta-select"
+                                            value={draftProjectId ?? 'global'}
+                                            options={ideaProjectOptions}
+                                            onChange={handleProjectChange}
+                                        />
+                                    </div>
+                                    {selectedIdea ? (
+                                        <span className="idea-page__meta-badge">
+                                        当前状态：{getIdeaStatusLabel(selectedIdea.status)}
+                                    </span>
+                                    ) : null}
+                                </div>
+                            </div>
+                            <div className="idea-page__actions">
+                                <Button variant="ghost" onClick={handleCreateBlankIdea}>空白便签</Button>
+                                <Button variant="ghost" disabled={!selectedIdea}
+                                        onClick={() => void handleDeleteCurrentIdea()}>
+                                    删除
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="idea-page__editor-body">
+                            <div className="idea-page__editor-tools">
+                                <div className="idea-page__segmented idea-page__segmented--compact">
+                                    {IDEA_STATUS_OPTIONS.map((item) => (
+                                        <button
+                                            key={item.key}
+                                            type="button"
+                                            className={`idea-page__segmented-item${selectedIdea?.status === item.key ? ' is-active' : ''}`}
+                                            onClick={() => void handleChangeIdeaStatus(item.key)}
+                                            disabled={!selectedIdea}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="idea-page__quick-actions">
+                                    <Button variant="ghost" disabled={!selectedIdea}
+                                            onClick={() => void handleTogglePinned()}>
+                                        {selectedIdea?.pinned ? '取消置顶' : '置顶'}
+                                    </Button>
+                                    <Button variant="ghost" disabled={!selectedIdea}
+                                            onClick={() => void handleConvertToEntry()}>
+                                        转为词条
+                                    </Button>
+                                </div>
+                            </div>
+                            <input
+                                className="idea-page__title-input"
+                                value={draftTitle}
+                                onChange={(event) => setDraftTitle(event.target.value)}
+                                placeholder="可选标题，不写也可以"
+                            />
+                            <textarea
+                                ref={textareaRef}
+                                className="idea-page__content-input"
+                                value={draftContent}
+                                onChange={(event) => setDraftContent(event.target.value)}
+                                placeholder="把刚冒出来的想法先记在这里。支持先写正文，系统会自动保存。"
+                            />
+                        </div>
+                    </section>
+                </main>
+            </div>
         </div>
     )
 }

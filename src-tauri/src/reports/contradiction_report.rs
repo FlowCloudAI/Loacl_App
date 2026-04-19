@@ -1,0 +1,104 @@
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContradictionEvidence {
+    pub entry_id: String,
+    pub entry_title: String,
+    pub quote: String,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContradictionIssue {
+    pub issue_id: String,
+    pub severity: String,
+    pub title: String,
+    pub description: String,
+    pub related_entry_ids: Vec<String>,
+    pub evidence: Vec<ContradictionEvidence>,
+    pub recommendation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContradictionReport {
+    pub overview: String,
+    pub issues: Vec<ContradictionIssue>,
+    pub unresolved_questions: Vec<String>,
+    pub suggestions: Vec<String>,
+}
+
+impl ContradictionReport {
+    pub fn response_format_json_schema() -> Value {
+        // TODO: 等产品侧确认最终报告字段后，再把 schema 收紧到最终版本。
+        json!({
+            "type": "json_schema",
+            "json_schema": {
+                "name": "contradiction_report",
+                "strict": true,
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["overview", "issues", "unresolvedQuestions", "suggestions"],
+                    "properties": {
+                        "overview": { "type": "string" },
+                        "issues": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                    "issueId",
+                                    "severity",
+                                    "title",
+                                    "description",
+                                    "relatedEntryIds",
+                                    "evidence"
+                                ],
+                                "properties": {
+                                    "issueId": { "type": "string" },
+                                    "severity": {
+                                        "type": "string",
+                                        "enum": ["low", "medium", "high", "critical"]
+                                    },
+                                    "title": { "type": "string" },
+                                    "description": { "type": "string" },
+                                    "relatedEntryIds": {
+                                        "type": "array",
+                                        "items": { "type": "string" }
+                                    },
+                                    "evidence": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "additionalProperties": false,
+                                            "required": ["entryId", "entryTitle", "quote"],
+                                            "properties": {
+                                                "entryId": { "type": "string" },
+                                                "entryTitle": { "type": "string" },
+                                                "quote": { "type": "string" },
+                                                "note": { "type": ["string", "null"] }
+                                            }
+                                        }
+                                    },
+                                    "recommendation": { "type": ["string", "null"] }
+                                }
+                            }
+                        },
+                        "unresolvedQuestions": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        },
+                        "suggestions": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        })
+    }
+}

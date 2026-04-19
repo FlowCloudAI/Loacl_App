@@ -1,6 +1,9 @@
+use crate::senses::app_sense::AppSense;
+use crate::AiSessionKind;
 use crate::AiState;
 use crate::ApiKeyStore;
 use crate::PendingEditsState;
+use flowcloudai_client::sense::Sense;
 use flowcloudai_client::{
     AudioDecoder, AudioSource, ConversationMeta, DefaultOrchestrator, ImageSession, PluginKind,
     SessionEvent, StoredConversation, TaskContext, TurnStatus,
@@ -15,20 +18,20 @@ use uuid::Uuid;
 // ============ 前端事件 Payload ============
 
 #[derive(Serialize, Clone)]
-struct EventReady {
+pub(crate) struct EventReady {
     session_id: String,
     run_id: String,
 }
 
 #[derive(Serialize, Clone)]
-struct EventDelta {
+pub(crate) struct EventDelta {
     session_id: String,
     run_id: String,
     text: String,
 }
 
 #[derive(Serialize, Clone)]
-struct EventToolCall {
+pub(crate) struct EventToolCall {
     session_id: String,
     run_id: String,
     index: usize,
@@ -37,7 +40,7 @@ struct EventToolCall {
 }
 
 #[derive(Serialize, Clone)]
-struct EventTurnEnd {
+pub(crate) struct EventTurnEnd {
     session_id: String,
     run_id: String,
     status: String, // "ok" | "cancelled" | "interrupted" | "error:<msg>"
@@ -45,7 +48,7 @@ struct EventTurnEnd {
 }
 
 #[derive(Serialize, Clone)]
-struct EventTurnBegin {
+pub(crate) struct EventTurnBegin {
     session_id: String,
     run_id: String,
     turn_id: u64,
@@ -53,7 +56,7 @@ struct EventTurnBegin {
 }
 
 #[derive(Serialize, Clone)]
-struct EventToolResult {
+pub(crate) struct EventToolResult {
     session_id: String,
     run_id: String,
     index: usize,
@@ -70,13 +73,13 @@ pub struct CreateLlmSessionResult {
 }
 
 #[derive(Serialize, Clone)]
-struct EventError {
+pub(crate) struct EventError {
     session_id: String,
     run_id: String,
     error: String,
 }
 
-fn turn_status_str(s: &TurnStatus) -> String {
+pub(crate) fn turn_status_str(s: &TurnStatus) -> String {
     match s {
         TurnStatus::Ok => "ok".to_string(),
         TurnStatus::Cancelled => "cancelled".to_string(),
@@ -85,113 +88,35 @@ fn turn_status_str(s: &TurnStatus) -> String {
     }
 }
 
-// ============ 插件 ============
-
-#[derive(Serialize)]
-pub struct PluginInfo {
-    pub id: String,
-    pub name: String,
-    pub kind: String,
-    pub models: Vec<String>,
-    pub default_model: Option<String>,
-}
-
-/// 列出指定类型的可用插件；kind 为 "llm" / "image" / "tts"
-#[tauri::command]
-pub async fn ai_list_plugins(
-    ai_state: State<'_, AiState>,
-    kind: String,
-) -> Result<Vec<PluginInfo>, String> {
-    let plugin_kind = match kind.to_lowercase().as_str() {
-        "llm" => PluginKind::LLM,
-        "image" => PluginKind::Image,
-        "tts" => PluginKind::TTS,
-        other => return Err(format!("未知插件类型: {}", other)),
-    };
-
-    let client = ai_state.client.lock().await;
-    let list = client
-        .list_by_kind(plugin_kind)
-        .into_iter()
-        .map(|(id, meta)| PluginInfo {
-            id: id.clone(),
-            name: meta.name.clone(),
-            kind: kind.clone(),
-            models: meta.models().to_vec(),
-            default_model: meta.default_model().map(str::to_string),
-        })
-        .collect();
-
-    Ok(list)
-}
-
-// ============ LLM 会话 ============
-
-/// 创建 LLM 会话并启动后台事件循环。
-///
-/// 创建后立即可通过 `ai_send_message` 发送消息。
-/// 事件通过 Tauri 事件推送到前端：
-///
-/// - `"ai:ready"`        `{ session_id, run_id }`                      —— 会话就绪，等待用户输入
-/// - `"ai:delta"`        `{ session_id, run_id, text }`                —— AI 生成内容片段
-/// - `"ai:reasoning"`    `{ session_id, run_id, text }`                —— 思考过程片段
-/// - `"ai:tool_call"`    `{ session_id, run_id, index, name }`         —— AI 调用工具
-/// - `"ai:turn_end"`     `{ session_id, run_id, status }`              —— 对话结束
-/// - `"ai:error"`        `{ session_id, run_id, error }`               —— 发生错误
-#[tauri::command]
-pub async fn ai_create_llm_session(
-    app: AppHandle,
-    ai_state: State<'_, AiState>,
-    session_id: String,
-    plugin_id: String,
-    model: Option<String>,
-    temperature: Option<f64>,
-    max_tokens: Option<i64>,
-    conversation_id: Option<String>,
-) -> Result<CreateLlmSessionResult, String> {
-    let api_key = ApiKeyStore::get(&plugin_id)
-        .ok_or_else(|| format!("插件 '{}' 未配置 API Key，请在设置中配置", plugin_id))?;
-
-    let client = ai_state.client.lock().await;
-    let registry = client.tool_registry().clone();
-    let mut session = match conversation_id {
-        Some(ref conv_id) => client
-            .resume_llm_session(&plugin_id, &api_key, conv_id)
-            .map_err(|e| e.to_string())?,
-        None => client
-            .create_llm_session(&plugin_id, &api_key)
-            .map_err(|e| e.to_string())?,
-    };
-    drop(client);
-
-    session.set_orchestrator(Box::new(DefaultOrchestrator::new(registry)));
-
-    if let Some(m) = model {
-        session.set_model(&m).await;
-    }
-    if let Some(t) = temperature {
-        session.set_temperature(t).await;
-    }
-    if let Some(n) = max_tokens {
-        session.set_max_tokens(n).await;
-    }
-    session.set_stream(true).await;
-    let resolved_conversation_id = session
-        .conversation_id()
-        .map(str::to_string)
-        .unwrap_or_else(|| session_id.clone());
-
-    let (input_tx, input_rx) = mpsc::channel::<String>(32);
-    let (event_stream, handle) = session.run(input_rx);
-    let run_id = Uuid::new_v4().to_string();
+pub(crate) async fn cleanup_session_state(app: &AppHandle, session_id: &str, run_id: &str) {
+    let state = app.state::<AiState>();
+    let mut sessions = state.sessions.lock().await;
+    let current_entry_run_id = sessions.get(session_id).map(|entry| entry.run_id.clone());
     log::info!(
-        "[ai_create_llm_session] conversation_id={} session_id={} run_id={}",
-        resolved_conversation_id,
+        "[ai:cleanup] session_id={} stream_run_id={} current_entry_run_id={:?}",
         session_id,
-        run_id
+        run_id,
+        current_entry_run_id
     );
+    let should_remove = sessions
+        .get(session_id)
+        .map(|entry| entry.run_id == run_id)
+        .unwrap_or(false);
+    if should_remove {
+        sessions.remove(session_id);
+        drop(sessions);
+        state.contradiction_bindings.lock().await.remove(session_id);
+    }
+}
 
-    // 启动后台事件循环
+pub(crate) fn spawn_session_event_loop<S>(
+    app: AppHandle,
+    session_id: String,
+    run_id: String,
+    event_stream: S,
+) where
+    S: futures::Stream<Item=SessionEvent> + Send + 'static,
+{
     let sid = session_id.clone();
     let rid = run_id.clone();
     let app_clone = app.clone();
@@ -329,24 +254,122 @@ pub async fn ai_create_llm_session(
             }
         }
 
-        // 事件流结束，清理 session
-        let state = app_clone.state::<AiState>();
-        let mut sessions = state.sessions.lock().await;
-        let current_entry_run_id = sessions.get(&sid).map(|entry| entry.run_id.clone());
-        log::info!(
-            "[ai:cleanup] session_id={} stream_run_id={} current_entry_run_id={:?}",
-            sid,
-            rid,
-            current_entry_run_id
-        );
-        let should_remove = sessions
-            .get(&sid)
-            .map(|entry| entry.run_id == rid)
-            .unwrap_or(false);
-        if should_remove {
-            sessions.remove(&sid);
-        }
+        cleanup_session_state(&app_clone, &sid, &rid).await;
     });
+}
+
+// ============ 插件 ============
+
+#[derive(Serialize)]
+pub struct PluginInfo {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub models: Vec<String>,
+    pub default_model: Option<String>,
+}
+
+/// 列出指定类型的可用插件；kind 为 "llm" / "image" / "tts"
+#[tauri::command]
+pub async fn ai_list_plugins(
+    ai_state: State<'_, AiState>,
+    kind: String,
+) -> Result<Vec<PluginInfo>, String> {
+    let plugin_kind = match kind.to_lowercase().as_str() {
+        "llm" => PluginKind::LLM,
+        "image" => PluginKind::Image,
+        "tts" => PluginKind::TTS,
+        other => return Err(format!("未知插件类型: {}", other)),
+    };
+
+    let client = ai_state.client.lock().await;
+    let list = client
+        .list_by_kind(plugin_kind)
+        .into_iter()
+        .map(|(id, meta)| PluginInfo {
+            id: id.clone(),
+            name: meta.name.clone(),
+            kind: kind.clone(),
+            models: meta.models().to_vec(),
+            default_model: meta.default_model().map(str::to_string),
+        })
+        .collect();
+
+    Ok(list)
+}
+
+// ============ LLM 会话 ============
+
+/// 创建 LLM 会话并启动后台事件循环。
+///
+/// 创建后立即可通过 `ai_send_message` 发送消息。
+/// 事件通过 Tauri 事件推送到前端：
+///
+/// - `"ai:ready"`        `{ session_id, run_id }`                      —— 会话就绪，等待用户输入
+/// - `"ai:delta"`        `{ session_id, run_id, text }`                —— AI 生成内容片段
+/// - `"ai:reasoning"`    `{ session_id, run_id, text }`                —— 思考过程片段
+/// - `"ai:tool_call"`    `{ session_id, run_id, index, name }`         —— AI 调用工具
+/// - `"ai:turn_end"`     `{ session_id, run_id, status }`              —— 对话结束
+/// - `"ai:error"`        `{ session_id, run_id, error }`               —— 发生错误
+#[tauri::command]
+pub async fn ai_create_llm_session(
+    app: AppHandle,
+    ai_state: State<'_, AiState>,
+    session_id: String,
+    plugin_id: String,
+    model: Option<String>,
+    temperature: Option<f64>,
+    max_tokens: Option<i64>,
+    conversation_id: Option<String>,
+) -> Result<CreateLlmSessionResult, String> {
+    let api_key = ApiKeyStore::get(&plugin_id)
+        .ok_or_else(|| format!("插件 '{}' 未配置 API Key，请在设置中配置", plugin_id))?;
+
+    let client = ai_state.client.lock().await;
+    let registry = client.tool_registry().clone();
+    let app_sense = AppSense::new();
+    let mut session = match conversation_id {
+        Some(ref conv_id) => client
+            .resume_llm_session(&plugin_id, &api_key, conv_id)
+            .map_err(|e| e.to_string())?,
+        None => client
+            .create_llm_session(&plugin_id, &api_key)
+            .map_err(|e| e.to_string())?,
+    };
+    drop(client);
+
+    session
+        .load_sense(app_sense)
+        .await
+        .map_err(|e| e.to_string())?;
+    session.set_orchestrator(Box::new(DefaultOrchestrator::new(registry)));
+
+    if let Some(m) = model {
+        session.set_model(&m).await;
+    }
+    if let Some(t) = temperature {
+        session.set_temperature(t).await;
+    }
+    if let Some(n) = max_tokens {
+        session.set_max_tokens(n).await;
+    }
+    session.set_stream(true).await;
+    let resolved_conversation_id = session
+        .conversation_id()
+        .map(str::to_string)
+        .unwrap_or_else(|| session_id.clone());
+
+    let (input_tx, input_rx) = mpsc::channel::<String>(32);
+    let (event_stream, handle) = session.run(input_rx);
+    let run_id = Uuid::new_v4().to_string();
+    log::info!(
+        "[ai_create_llm_session] conversation_id={} session_id={} run_id={}",
+        resolved_conversation_id,
+        session_id,
+        run_id
+    );
+
+    spawn_session_event_loop(app, session_id.clone(), run_id.clone(), event_stream);
 
     ai_state.sessions.lock().await.insert(
         session_id.clone(),
@@ -354,6 +377,7 @@ pub async fn ai_create_llm_session(
             run_id: run_id.clone(),
             input_tx,
             handle,
+            kind: AiSessionKind::General,
         },
     );
 
@@ -683,6 +707,11 @@ pub async fn ai_close_session(
     if let Some(ref entry) = removed {
         entry.handle.cancel();
     }
+    ai_state
+        .contradiction_bindings
+        .lock()
+        .await
+        .remove(&session_id);
     Ok(())
 }
 
@@ -698,6 +727,7 @@ pub async fn ai_close_all_sessions(ai_state: State<'_, AiState>) -> Result<usize
     for entry in removed {
         entry.handle.cancel();
     }
+    ai_state.contradiction_bindings.lock().await.clear();
 
     Ok(count)
 }

@@ -1,15 +1,21 @@
+mod ai_services;
 mod apis;
 mod layout;
 mod map;
 mod prompt;
+mod reports;
 mod settings;
+mod senses;
 mod state;
 mod tools;
 
 pub use settings::*;
 pub use state::*;
 
+use apis::ai_character::*;
 use apis::ai_client::*;
+use apis::ai_contradiction::*;
+use apis::ai_summary::*;
 use apis::app_settings::*;
 use apis::layout::*;
 use apis::map::*;
@@ -22,8 +28,8 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::sync::Arc;
 use tauri::{
-    AppHandle, Emitter, Manager, Runtime, UriSchemeContext, WindowBuilder,
-    http::{Response, StatusCode, header::CONTENT_TYPE},
+    http::{header::CONTENT_TYPE, Response, StatusCode}, AppHandle, Emitter, Manager, Runtime, UriSchemeContext,
+    WindowBuilder,
 };
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_log;
@@ -222,9 +228,18 @@ pub fn run() {
             db_list_idea_notes,
             db_update_idea_note,
             db_delete_idea_note,
+            // Snapshots
+            db_snapshot,
+            db_list_snapshots,
+            db_rollback_to,
+            db_append_from,
             // AI Client
             ai_list_plugins,
             ai_create_llm_session,
+            ai_create_character_session,
+            ai_generate_entry_summary,
+            ai_start_contradiction_session,
+            ai_get_contradiction_report,
             ai_send_message,
             ai_cancel_session,
             ai_close_session,

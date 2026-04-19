@@ -9,10 +9,7 @@ use tauri::{AppHandle, State, Window};
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-use worldflow_core::{
-    CategoryOps, EntryLinkOps, EntryOps, EntryRelationOps, EntryTypeOps, IdeaNoteOps, ProjectOps,
-    SqliteDb, TagSchemaOps, models::*,
-};
+use worldflow_core::{models::*, AppendResult, CategoryOps, EntryLinkOps, EntryOps, EntryRelationOps, EntryTypeOps, IdeaNoteOps, ProjectOps, SnapshotInfo, SqliteDb, TagSchemaOps};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TimelineTagRole {
@@ -1624,6 +1621,7 @@ pub async fn db_list_idea_notes(
 pub async fn db_update_idea_note(
     state: State<'_, Arc<Mutex<AppState>>>,
     id: String,
+    project_id: Option<Option<String>>,
     title: Option<Option<String>>,
     content: Option<String>,
     status: Option<IdeaNoteStatus>,
@@ -1632,6 +1630,13 @@ pub async fn db_update_idea_note(
     converted_entry_id: Option<Option<String>>,
 ) -> Result<IdeaNote, String> {
     let id = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
+    let project_id = project_id
+        .map(|value| {
+            value
+                .map(|project_id| Uuid::parse_str(&project_id).map_err(|e| e.to_string()))
+                .transpose()
+        })
+        .transpose()?;
     let converted_entry_id = converted_entry_id
         .map(|value| {
             value
@@ -1645,6 +1650,7 @@ pub async fn db_update_idea_note(
     db.update_idea_note(
         &id,
         UpdateIdeaNote {
+            project_id,
             title,
             content,
             status,
@@ -1667,4 +1673,94 @@ pub async fn db_delete_idea_note(
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
     db.delete_idea_note(&id).await.map_err(|e| e.to_string())
+}
+
+// ============ Snapshots ============
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SnapshotInfoDto {
+    pub id: String,
+    pub message: String,
+    pub timestamp: i64,
+}
+
+impl From<SnapshotInfo> for SnapshotInfoDto {
+    fn from(s: SnapshotInfo) -> Self {
+        Self { id: s.id, message: s.message, timestamp: s.timestamp }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AppendResultDto {
+    pub projects: usize,
+    pub categories: usize,
+    pub entries: usize,
+    pub tag_schemas: usize,
+    pub relations: usize,
+    pub links: usize,
+    pub entry_types: usize,
+    pub idea_notes: usize,
+}
+
+impl From<AppendResult> for AppendResultDto {
+    fn from(r: AppendResult) -> Self {
+        Self {
+            projects: r.projects,
+            categories: r.categories,
+            entries: r.entries,
+            tag_schemas: r.tag_schemas,
+            relations: r.relations,
+            links: r.links,
+            entry_types: r.entry_types,
+            idea_notes: r.idea_notes,
+        }
+    }
+}
+
+/// 手动触发一次快照（消息前缀 "manual <unix_secs>"）
+#[tauri::command]
+pub async fn db_snapshot(
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<(), String> {
+    let state = state.inner().lock().await;
+    let db = state.sqlite_db.lock().await;
+    db.snapshot().await.map_err(|e| e.to_string())
+}
+
+/// 列出所有历史快照，最新的在 index 0
+#[tauri::command]
+pub async fn db_list_snapshots(
+    state: State<'_, Arc<Mutex<AppState>>>,
+) -> Result<Vec<SnapshotInfoDto>, String> {
+    let state = state.inner().lock().await;
+    let db = state.sqlite_db.lock().await;
+    db.list_snapshots()
+        .await
+        .map(|list| list.into_iter().map(SnapshotInfoDto::from).collect())
+        .map_err(|e| e.to_string())
+}
+
+/// 回退到指定快照（先自动保存 pre-rollback 快照，再全量替换数据库）
+#[tauri::command]
+pub async fn db_rollback_to(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    snapshot_id: String,
+) -> Result<(), String> {
+    let state = state.inner().lock().await;
+    let db = state.sqlite_db.lock().await;
+    db.rollback_to(&snapshot_id).await.map_err(|e| e.to_string())
+}
+
+/// 追加恢复：把历史快照里有、当前 DB 没有的记录补回来（非破坏性）
+#[tauri::command]
+pub async fn db_append_from(
+    state: State<'_, Arc<Mutex<AppState>>>,
+    snapshot_id: String,
+) -> Result<AppendResultDto, String> {
+    let state = state.inner().lock().await;
+    let db = state.sqlite_db.lock().await;
+    db.append_from(&snapshot_id)
+        .await
+        .map(AppendResultDto::from)
+        .map_err(|e| e.to_string())
 }
