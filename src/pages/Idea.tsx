@@ -491,12 +491,9 @@ export default function Idea({contextProjectId = null, onOpenEntry, panelMode, o
         }
     }, [selectedIdea])
 
-    const handleProjectChange = useCallback(async (value: string | number | Array<string | number>) => {
-        const normalizedValue = Array.isArray(value) ? value[0] : value
-        if (normalizedValue === undefined) return
-        const nextProjectId = normalizedValue === 'global' ? null : String(normalizedValue)
     const handleProjectChange = useCallback((value: string | number | (string | number)[]) => {
         const singleValue = Array.isArray(value) ? value[0] : value
+        if (singleValue === undefined) return
         const nextProjectId = singleValue === 'global' ? null : String(singleValue)
 
         if (!selectedIdea) {
@@ -846,7 +843,7 @@ export default function Idea({contextProjectId = null, onOpenEntry, panelMode, o
                                             已关联词条
                                         </span>
                                     ) : null}
-                                    {selectedIdea?.project_id ? (
+                                    {selectedIdea?.project_id && (
                                         <>
                                             <div className="idea-page__meta-field">
                                                 <span className="idea-page__meta-label">目标分类</span>
@@ -869,11 +866,12 @@ export default function Idea({contextProjectId = null, onOpenEntry, panelMode, o
                                                 />
                                             </div>
                                         </>
-                                    ) : selectedIdea ? (
+                                    )}
+                                    {selectedIdea && !selectedIdea.project_id && (
                                         <span className="idea-page__meta-badge">
                                             先设置所属项目后才能转为词条
                                         </span>
-                                    ) : null}
+                                    )}
                                 </div>
                                 <div className="idea-page__actions idea-page__actions--secondary">
                                     <Button
@@ -935,4 +933,4 @@ export default function Idea({contextProjectId = null, onOpenEntry, panelMode, o
             </div>
         </div>
     )
-}
+};

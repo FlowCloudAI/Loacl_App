@@ -1,4 +1,4 @@
-import {useRef} from 'react'
+import {type CSSProperties, useRef} from 'react'
 import {
     MapDeckPreview,
     type MapDeckPreviewRenderOptions,
@@ -27,7 +27,7 @@ interface WorldMapOverlayProps {
     markers?: WorldMapOverlayMarker[]
     previewRenderOptions?: MapDeckPreviewRenderOptions
     backgroundImageUrl?: string
-    style?: React.CSSProperties
+    style?: CSSProperties
 }
 
 export default function WorldMapOverlay({
@@ -42,9 +42,6 @@ export default function WorldMapOverlay({
                                             style,
                                         }: WorldMapOverlayProps) {
     const containerRef = useRef<HTMLDivElement>(null)
-
-    const scaleX = viewBox.width > 0 ? (containerRef.current?.clientWidth ?? canvas.width) / viewBox.width : 1
-    const scaleY = viewBox.height > 0 ? (containerRef.current?.clientHeight ?? canvas.height) / viewBox.height : 1
 
     return (
         <div ref={containerRef} className="world-map-overlay" style={style}>

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {type MouseEvent, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {listen} from '@tauri-apps/api/event'
 import {
     ai_close_session,
@@ -494,7 +494,10 @@ export function useAiController(focus: AiFocus): AiContextValue {
 
     useEffect(() => {
         if (selectedPlugin || plugins.length === 0) return
-        setSelectedPlugin(plugins[0].id)
+        const timer = setTimeout(() => {
+            setSelectedPlugin(plugins[0].id)
+        }, 0)
+        return () => clearTimeout(timer)
     }, [plugins, selectedPlugin])
 
     useEffect(() => {
@@ -648,7 +651,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
         }
     }, [conversations])
 
-    const deleteConversation = useCallback(async (convId: string, event?: React.MouseEvent) => {
+    const deleteConversation = useCallback(async (convId: string, event?: MouseEvent) => {
         event?.stopPropagation()
         const conv = conversations.find((conversation) => conversation.id === convId)
 

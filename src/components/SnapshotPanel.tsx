@@ -1,13 +1,6 @@
 import {useCallback, useEffect, useState} from 'react'
 import {Button, useAlert} from 'flowcloudai-ui'
-import {
-    dbSnapshot,
-    dbListSnapshots,
-    dbRollbackTo,
-    dbAppendFrom,
-    type SnapshotInfo,
-    type AppendResult,
-} from '../api'
+import {type AppendResult, dbAppendFrom, dbListSnapshots, dbRollbackTo, dbSnapshot, type SnapshotInfo,} from '../api'
 import './SnapshotPanel.css'
 
 function formatSnapshotTime(timestamp: number): string {
@@ -29,7 +22,11 @@ function formatSnapshotMessage(message: string): string {
     return message
 }
 
-export default function SnapshotPanel() {
+interface SnapshotPanelProps {
+    className?: string
+}
+
+export default function SnapshotPanel({className}: SnapshotPanelProps) {
     const {showAlert} = useAlert()
     const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
     const [loading, setLoading] = useState(false)
@@ -119,7 +116,7 @@ export default function SnapshotPanel() {
     }, [load, showAlert])
 
     return (
-        <div className="snapshot-panel">
+        <div className={`snapshot-panel${className ? ` ${className}` : ''}`}>
             <div className="snapshot-panel__header">
                 <h3 className="snapshot-panel__title">版本管理</h3>
                 <Button variant="primary" size="sm" onClick={handleSnapshot} disabled={loading}>
