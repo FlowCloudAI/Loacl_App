@@ -24,13 +24,13 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::sync::Arc;
 use tauri::{
-    AppHandle, Emitter, Manager, Runtime, UriSchemeContext, WindowBuilder,
-    http::{Response, StatusCode, header::CONTENT_TYPE},
+    http::{header::CONTENT_TYPE, Response, StatusCode}, AppHandle, Emitter, Manager, Runtime, UriSchemeContext,
+    WindowBuilder,
 };
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_log;
 use tokio::sync::Mutex;
-use worldflow_core::{SqliteDb, SnapshotConfig};
+use worldflow_core::{SnapshotConfig, SqliteDb};
 
 /// 运行时设置状态：持有设置值 + 配置文件路径（供保存时使用）
 pub struct SettingsState {
@@ -276,7 +276,15 @@ pub fn run() {
             compute_layout,
             // Snapshots
             db_snapshot,
+            db_snapshot_with_message,
+            db_get_active_branch,
+            db_list_branches,
+            db_create_branch,
+            db_switch_branch,
             db_list_snapshots,
+            db_list_snapshots_in_branch,
+            db_get_snapshot_graph,
+            db_snapshot_to_branch,
             db_rollback_to,
             db_append_from,
         ])

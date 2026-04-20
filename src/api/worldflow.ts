@@ -542,34 +542,3 @@ export const db_update_entry_type = ({id, name, description, icon, color}: Updat
 
 export const db_delete_entry_type = (id: string) =>
     command<void>('db_delete_entry_type', {id})
-
-// ── Snapshots ──────────────────────────────────────────────────────────────────
-
-export interface SnapshotInfo {
-    id: string
-    message: string
-    timestamp: number
-}
-
-export interface AppendResult {
-    projects: number
-    categories: number
-    entries: number
-    tag_schemas: number
-    relations: number
-    links: number
-    entry_types: number
-    idea_notes: number
-}
-
-export const db_snapshot = () =>
-    command<void>('db_snapshot')
-
-export const db_list_snapshots = () =>
-    command<SnapshotInfo[]>('db_list_snapshots')
-
-export const db_rollback_to = (snapshotId: string) =>
-    command<void>('db_rollback_to', {snapshotId})
-
-export const db_append_from = (snapshotId: string) =>
-    command<AppendResult>('db_append_from', {snapshotId})

@@ -1,9 +1,22 @@
-import { defineConfig } from 'vite'
+import path from 'node:path'
+import {fileURLToPath} from 'node:url'
+import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vite.dev/config/
 export default defineConfig({
     plugins: [react()],
+    resolve: {
+        dedupe: ['react', 'react-dom'],
+        alias: {
+            react: path.resolve(rootDir, 'node_modules/react'),
+            'react-dom': path.resolve(rootDir, 'node_modules/react-dom'),
+            'react/jsx-runtime': path.resolve(rootDir, 'node_modules/react/jsx-runtime.js'),
+            'react/jsx-dev-runtime': path.resolve(rootDir, 'node_modules/react/jsx-dev-runtime.js'),
+        },
+    },
     optimizeDeps: {
         include: ['react', 'react-dom', 'react/jsx-runtime'],
     },
