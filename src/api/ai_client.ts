@@ -18,6 +18,7 @@ export interface AiCreateLlmSessionParams {
   model?: string | null
   temperature?: number | null
   maxTokens?: number | null
+    maxToolRounds?: number | null
   /** 续聊已有对话时传入其 ID，后端将回放历史并覆写原文件 */
   conversationId?: string | null
 }
@@ -91,6 +92,7 @@ export interface AiCreateCharacterSessionParams {
     model?: string | null
     temperature?: number | null
     maxTokens?: number | null
+    maxToolRounds?: number | null
 }
 
 export interface ImageData {
@@ -204,7 +206,8 @@ export const ai_create_llm_session = ({
   model,
   temperature,
   maxTokens,
-                                        conversationId,
+                                          maxToolRounds,
+                                          conversationId,
 }: AiCreateLlmSessionParams) =>
     command<AiCreateLlmSessionResult>('ai_create_llm_session', {
     sessionId,
@@ -212,7 +215,8 @@ export const ai_create_llm_session = ({
     model,
     temperature,
     maxTokens,
-      conversationId,
+        maxToolRounds,
+        conversationId,
   })
 
 export const ai_create_character_session = ({
@@ -223,6 +227,7 @@ export const ai_create_character_session = ({
                                                 model,
                                                 temperature,
                                                 maxTokens,
+                                                maxToolRounds,
                                             }: AiCreateCharacterSessionParams) =>
     command<AiCreateLlmSessionResult>('ai_create_character_session', {
         input: {
@@ -233,6 +238,7 @@ export const ai_create_character_session = ({
             model,
             temperature,
             maxTokens,
+            maxToolRounds,
         },
     })
 

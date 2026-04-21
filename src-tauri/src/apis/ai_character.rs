@@ -1,6 +1,7 @@
 use crate::apis::ai_client::{spawn_session_event_loop, CreateLlmSessionResult};
 use crate::senses::character_sense::{CharacterProjectSnapshot, CharacterSense};
 use crate::{AiSessionKind, AiState, ApiKeyStore};
+use flowcloudai_client::llm::config::SessionConfig;
 use flowcloudai_client::{sense::Sense, DefaultOrchestrator};
 use serde::Deserialize;
 use tauri::{AppHandle, State};
@@ -17,6 +18,7 @@ pub struct CharacterSessionInput {
     pub model: Option<String>,
     pub temperature: Option<f64>,
     pub max_tokens: Option<i64>,
+    pub max_tool_rounds: Option<i32>,
 }
 
 #[tauri::command]
@@ -35,8 +37,14 @@ pub async fn ai_create_character_session(
         input.project_snapshot.clone(),
     );
     let whitelist = sense.tool_whitelist();
+    let config = input.max_tool_rounds.map(|rounds| {
+        SessionConfig {
+            max_tool_rounds: rounds as usize,
+            ..Default::default()
+        }
+    });
     let mut session = client
-        .create_llm_session(&input.plugin_id, &api_key)
+        .create_llm_session(&input.plugin_id, &api_key, config)
         .map_err(|e| e.to_string())?;
     drop(client);
 

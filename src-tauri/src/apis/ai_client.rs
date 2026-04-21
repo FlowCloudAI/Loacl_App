@@ -2,6 +2,7 @@ use crate::AiSessionKind;
 use crate::AiState;
 use crate::ApiKeyStore;
 use crate::PendingEditsState;
+use flowcloudai_client::llm::config::SessionConfig;
 use flowcloudai_client::{
     image::ImageRequest, AudioDecoder, AudioSource, ConversationMeta, DefaultOrchestrator,
     ImageSession,
@@ -470,6 +471,7 @@ pub async fn ai_create_llm_session(
     model: Option<String>,
     temperature: Option<f64>,
     max_tokens: Option<i64>,
+    max_tool_rounds: Option<i32>,
     conversation_id: Option<String>,
 ) -> Result<CreateLlmSessionResult, String> {
     let api_key = ApiKeyStore::get(&plugin_id)
@@ -477,12 +479,18 @@ pub async fn ai_create_llm_session(
 
     let client = ai_state.client.lock().await;
     let registry = client.tool_registry().clone();
+    let config = max_tool_rounds.map(|rounds| {
+        SessionConfig {
+            max_tool_rounds: rounds as usize,
+            ..Default::default()
+        }
+    });
     let mut session = match conversation_id {
         Some(ref conv_id) => client
-            .resume_llm_session(&plugin_id, &api_key, conv_id)
+            .resume_llm_session(&plugin_id, &api_key, conv_id, config)
             .map_err(|e| e.to_string())?,
         None => client
-            .create_llm_session(&plugin_id, &api_key)
+            .create_llm_session(&plugin_id, &api_key, config)
             .map_err(|e| e.to_string())?,
     };
     drop(client);
@@ -937,7 +945,7 @@ async fn make_image_session(ai_state: &AiState, plugin_id: &str) -> Result<Image
 
     let client = ai_state.client.lock().await;
     client
-        .create_image_session(plugin_id, &api_key)
+        .create_image_session(plugin_id, &api_key, None)
         .map_err(|e| format!("创建图像会话失败: {}", e))
 }
 
@@ -1055,7 +1063,7 @@ pub async fn ai_speak(
         .ok_or_else(|| format!("插件 '{}' 未配置 API Key，请在设置中配置", plugin_id))?;
     let client = ai_state.client.lock().await;
     let session = client
-        .create_tts_session(&plugin_id, &api_key)
+        .create_tts_session(&plugin_id, &api_key, None)
         .map_err(|e| e.to_string())?;
     drop(client);
 
@@ -1088,7 +1096,7 @@ pub async fn ai_play_tts(
         .ok_or_else(|| format!("插件 '{}' 未配置 API Key，请在设置中配置", plugin_id))?;
     let client = ai_state.client.lock().await;
     let session = client
-        .create_tts_session(&plugin_id, &api_key)
+        .create_tts_session(&plugin_id, &api_key, None)
         .map_err(|e| e.to_string())?;
     drop(client);
 

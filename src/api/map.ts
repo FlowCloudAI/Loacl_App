@@ -82,3 +82,28 @@ export const map_save_scene = (request: MapShapeSaveRequest, coastlineParams?: C
     command<MapShapeSaveResponse>('map_save_scene', {
         request: normalizeMapSaveRequest(request, coastlineParams),
     })
+
+// ── Multi-map persistence ─────────────────────────────────────────────────────
+
+export interface MapEntry {
+    id: string
+    name: string
+    draftJson: string
+    sceneJson: string | null
+    coastlineParamsJson: string | null
+    style: string
+    /** data: URL or null */
+    backgroundImageUrl: string | null
+    createdAt: string
+    updatedAt: string
+}
+
+export const map_list_project_maps = (projectId: string) =>
+    command<MapEntry[]>('map_list_project_maps', {projectId})
+
+/** Create or update a map entry. Returns the saved entry (with server-assigned id/timestamps). */
+export const map_save_map_entry = (projectId: string, entry: MapEntry) =>
+    command<MapEntry>('map_save_map_entry', {projectId, entry})
+
+export const map_delete_map_entry = (projectId: string, mapId: string) =>
+    command<void>('map_delete_map_entry', {projectId, mapId})

@@ -1,7 +1,7 @@
 import {type CSSProperties, useRef} from 'react'
 import {
     MapDeckPreview,
-    type MapDeckPreviewRenderOptions,
+    type MapDeckPreviewProps,
     type MapEditorCanvas,
     type MapPreviewScene,
     type MapShapeEditorDraft,
@@ -25,7 +25,7 @@ interface WorldMapOverlayProps {
     viewBox: MapShapeEditorViewBox
     onViewBoxChange: (viewBox: MapShapeEditorViewBox) => void
     markers?: WorldMapOverlayMarker[]
-    previewRenderOptions?: MapDeckPreviewRenderOptions
+    deckProps?: Omit<MapDeckPreviewProps, 'scene'>
     backgroundImageUrl?: string
     style?: CSSProperties
 }
@@ -37,7 +37,7 @@ export default function WorldMapOverlay({
                                             viewBox,
                                             onViewBoxChange,
                                             markers = [],
-                                            previewRenderOptions,
+                                            deckProps,
                                             backgroundImageUrl,
                                             style,
                                         }: WorldMapOverlayProps) {
@@ -48,7 +48,7 @@ export default function WorldMapOverlay({
             <div className="world-map-overlay__deck">
                 <MapDeckPreview
                     scene={scene}
-                    previewRenderOptions={previewRenderOptions}
+                    {...deckProps}
                     style={{width: '100%', height: '100%'}}
                 />
             </div>
@@ -57,6 +57,9 @@ export default function WorldMapOverlay({
                 <MapShapeSvgEditor
                     canvas={canvas}
                     draft={draft}
+                    selectedShapeId={null}
+                    selectedLocationId={null}
+                    drawingShape={null}
                     viewBox={viewBox}
                     backgroundImage={backgroundImageUrl}
                     readOnly={true}

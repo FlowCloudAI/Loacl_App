@@ -36,7 +36,13 @@ import {
     type ToolStatus,
 } from '../api'
 import {type SessionMessage, useAiSession} from './useAiSession'
-import type {AiContextValue, Conversation, Message, SessionParams} from '../contexts/AiControllerTypes'
+import type {
+    AiContextValue,
+    Conversation,
+    Message,
+    ReportConversationContext,
+    SessionParams,
+} from '../contexts/AiControllerTypes'
 import {getCoverImage, normalizeEntryImages, toEntryImageSrc} from '../components/utils/entryImage'
 import {normalizeComparableType, normalizeEntryContent} from '../components/utils/entryCommon'
 import {readCharacterVoiceConfigFromTags} from '../components/utils/characterVoice'
@@ -54,6 +60,77 @@ const ENTRY_CONTENT_LIMIT = 2400
 const ENTRY_SUMMARY_LIMIT = 600
 const RELATION_CONTENT_LIMIT = 400
 const TAG_VALUE_LIMIT = 160
+const CHARACTER_CONVERSATION_META_STORAGE_KEY = 'flowcloudai.characterConversationMeta.v1'
+
+interface StoredCharacterConversationMeta {
+    characterEntryId: string | null
+    characterName: string | null
+    backgroundImageUrl: string | null
+    characterVoiceId: string | null
+    characterAutoPlay: boolean | null
+}
+
+function buildReportBootstrapPrompt(reportContext: ReportConversationContext, userQuestion: string): string {
+    return [
+        `你正在和用户讨论一份“${reportContext.projectName}”项目的设定矛盾检测报告。`,
+        '请把这份报告当作本轮对话的唯一核心上下文，优先解释报告中的结论、证据与修复建议。',
+        '如果用户质疑某条结论，请先引用报告中的相关问题、证据和未决问题，再给出分析。',
+        reportContext.truncated
+            ? '注意：这份报告的检测范围经过裁剪，若结论依赖额外资料，请明确说明证据可能不足。'
+            : '这份报告覆盖的是当前选定范围内的资料。',
+        `报告范围：${reportContext.scopeSummary}`,
+        `来源词条 ID：${reportContext.sourceEntryIds.join('、') || '无'}`,
+        '报告 JSON 如下：',
+        reportContext.reportJson,
+        '',
+        `用户问题：${userQuestion}`,
+    ].join('\n')
+}
+
+function inferCharacterConversationMeta(title: string): StoredCharacterConversationMeta | null {
+    const matched = /^和「(.+)」聊天$/.exec(title.trim())
+    if (!matched) return null
+    return {
+        characterEntryId: null,
+        characterName: matched[1] || null,
+        backgroundImageUrl: null,
+        characterVoiceId: null,
+        characterAutoPlay: null,
+    }
+}
+
+function readStoredCharacterConversationMetaMap(): Record<string, StoredCharacterConversationMeta> {
+    if (typeof window === 'undefined') return {}
+    try {
+        const raw = window.localStorage.getItem(CHARACTER_CONVERSATION_META_STORAGE_KEY)
+        if (!raw) return {}
+        const parsed = JSON.parse(raw)
+        if (!parsed || typeof parsed !== 'object') return {}
+        return parsed as Record<string, StoredCharacterConversationMeta>
+    } catch {
+        return {}
+    }
+}
+
+function writeStoredCharacterConversationMetaMap(conversations: Conversation[]) {
+    if (typeof window === 'undefined') return
+    try {
+        const stored: Record<string, StoredCharacterConversationMeta> = {}
+        conversations.forEach((conversation) => {
+            if (conversation.mode !== 'character') return
+            stored[conversation.id] = {
+                characterEntryId: conversation.characterEntryId ?? null,
+                characterName: conversation.characterName ?? null,
+                backgroundImageUrl: conversation.backgroundImageUrl ?? null,
+                characterVoiceId: conversation.characterVoiceId ?? null,
+                characterAutoPlay: conversation.characterAutoPlay ?? null,
+            }
+        })
+        window.localStorage.setItem(CHARACTER_CONVERSATION_META_STORAGE_KEY, JSON.stringify(stored))
+    } catch {
+        console.warn('写入角色会话元数据缓存失败')
+    }
+}
 
 function truncateText(value: string | null | undefined, limit: number): string {
     if (typeof value !== 'string') return ''
@@ -509,22 +586,8 @@ export function useAiController(focus: AiFocus): AiContextValue {
             if (!mounted) return
 
             if (metas.length > 0) {
-                const convs: Conversation[] = metas.map((meta) => ({
-                    id: meta.id,
-                    title: meta.title,
-                    messages: [],
-                    pluginId: meta.plugin_id,
-                    model: meta.model,
-                    sessionId: null,
-                    runId: null,
-                    timestamp: new Date(meta.updated_at).getTime(),
-                    mode: 'default',
-                    characterEntryId: null,
-                    characterName: null,
-                    backgroundImageUrl: null,
-                    characterVoiceId: null,
-                    characterAutoPlay: null,
-                }))
+                const storedMetaMap = readStoredCharacterConversationMetaMap()
+                const convs: Conversation[] = metas.map((meta) => buildConversationFromMeta(meta, storedMetaMap))
 
                 setConversations(convs)
                 setActiveConversationId(null)
@@ -539,6 +602,10 @@ export function useAiController(focus: AiFocus): AiContextValue {
             mounted = false
         }
     }, [])
+
+    useEffect(() => {
+        writeStoredCharacterConversationMetaMap(conversations)
+    }, [conversations])
 
     useEffect(() => {
         if (selectedPlugin && plugins.length > 0 && !selectedModel) {
@@ -569,6 +636,50 @@ export function useAiController(focus: AiFocus): AiContextValue {
         setAutoScroll(true)
     }, [session])
 
+    const startReportDiscussion = useCallback(async ({
+                                                         title,
+                                                         pluginId,
+                                                         model,
+                                                         reportContext,
+                                                     }: {
+        title: string
+        pluginId: string
+        model: string
+        reportContext: ReportConversationContext
+    }) => {
+        const conversation: Conversation = {
+            id: `conv_report_${Date.now()}`,
+            title,
+            messages: [{
+                id: `assistant_report_${Date.now()}`,
+                role: 'assistant',
+                content: '已载入这份矛盾检测报告。你可以继续追问某条冲突的依据、影响范围，或让我把建议改写成可执行的修订方案。',
+                timestamp: Date.now(),
+            }],
+            pluginId,
+            model,
+            sessionId: null,
+            runId: null,
+            timestamp: Date.now(),
+            mode: 'report',
+            characterEntryId: null,
+            characterName: null,
+            backgroundImageUrl: null,
+            characterVoiceId: null,
+            characterAutoPlay: null,
+            reportContext,
+            reportSeeded: false,
+        }
+
+        setSelectedPlugin(pluginId)
+        setSelectedModel(model)
+        setConversations((prev) => [conversation, ...prev])
+        setActiveConversationId(conversation.id)
+        setInputValue('')
+        setEditingMessageId(null)
+        setAutoScroll(true)
+    }, [])
+
     const startCharacterConversation = useCallback(async ({projectId, entryId}: {
         projectId: string
         entryId: string
@@ -597,6 +708,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
         const created = await session.createCharacterSession(selectedPlugin, selectedModel, {
             characterName: built.characterEntry.title,
             projectSnapshot: built.snapshot,
+            maxToolRounds: sessionParams.maxToolRounds,
         })
         if (!created) return
 
@@ -615,6 +727,8 @@ export function useAiController(focus: AiFocus): AiContextValue {
             backgroundImageUrl: built.backgroundImageUrl,
             characterVoiceId: built.characterVoiceId,
             characterAutoPlay: built.characterAutoPlay,
+            reportContext: null,
+            reportSeeded: false,
         }
         runtimeConversationRef.current[
             runtimeConversationKey(created.sessionId, created.runId)
@@ -625,6 +739,14 @@ export function useAiController(focus: AiFocus): AiContextValue {
         setEditingMessageId(null)
         setAutoScroll(true)
     }, [selectedModel, selectedPlugin, session])
+
+    const updateConversationCharacterAutoPlay = useCallback((convId: string, autoPlay: boolean) => {
+        setConversations((prev) => prev.map((conversation) => (
+            conversation.id === convId
+                ? {...conversation, characterAutoPlay: autoPlay}
+                : conversation
+        )))
+    }, [])
 
     const switchConversation = useCallback(async (convId: string) => {
         if (convId === activeConversationIdRef.current) return
@@ -710,6 +832,8 @@ export function useAiController(focus: AiFocus): AiContextValue {
                 backgroundImageUrl: null,
                 characterVoiceId: null,
                 characterAutoPlay: null,
+                reportContext: null,
+                reportSeeded: false,
             }
             currentConvId = draftConversationId
             effectiveConvId = draftConversationId
@@ -767,7 +891,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
 
             const isPending = currentConvId.startsWith('conv_')
             const desiredSessionId = isPending ? undefined : currentConvId
-            const created = await session.createSession(selectedPlugin, selectedModel, desiredSessionId)
+            const created = await session.createSession(selectedPlugin, selectedModel, desiredSessionId, sessionParams.maxToolRounds)
             if (!created) return
 
             currentSid = created.sessionId
@@ -802,6 +926,12 @@ export function useAiController(focus: AiFocus): AiContextValue {
             }
         }
 
+        const actualPrompt = activeConversationRef.current?.mode === 'report'
+        && !activeConversationRef.current.reportSeeded
+        && activeConversationRef.current.reportContext
+            ? buildReportBootstrapPrompt(activeConversationRef.current.reportContext, trimmed)
+            : trimmed
+
         const userMessage: Message = {
             id: `u_${Date.now()}`,
             role: 'user',
@@ -814,15 +944,16 @@ export function useAiController(focus: AiFocus): AiContextValue {
             const isFirstMessage = conversation.messages.length === 0
             return {
                 ...conversation,
-                title: isFirstMessage && conversation.mode !== 'character'
+                title: isFirstMessage && conversation.mode !== 'character' && conversation.mode !== 'report'
                     ? generateTitleFromMessage(trimmed)
                     : conversation.title,
                 messages: [...conversation.messages, userMessage],
+                reportSeeded: conversation.mode === 'report' ? true : conversation.reportSeeded,
             }
         }))
 
         setInputValue('')
-        await session.sendMessage(trimmed, currentSid!)
+        await session.sendMessage(actualPrompt, currentSid!)
     }, [editingMessageId, selectedModel, selectedPlugin, session, resolveContextPayload])
 
     const stopStreaming = useCallback(() => {
@@ -915,7 +1046,9 @@ export function useAiController(focus: AiFocus): AiContextValue {
         autoScroll,
         setAutoScroll,
         createNewConversation,
+        startReportDiscussion,
         startCharacterConversation,
+        updateConversationCharacterAutoPlay,
         switchConversation,
         deleteConversation,
         renameConversation,
@@ -926,6 +1059,33 @@ export function useAiController(focus: AiFocus): AiContextValue {
         sessionParams, session.isStreaming, session.blocks, sidebarCollapsed, autoScroll,
         activeConversation, sendMessage, stopStreaming, regenerateMessage, editMessage,
         toggleWebSearch, toggleEditMode, createNewConversation, switchConversation, deleteConversation,
-        renameConversation, startCharacterConversation,
+        renameConversation, startCharacterConversation, startReportDiscussion, updateConversationCharacterAutoPlay,
     ])
+}
+
+function buildConversationFromMeta(
+    meta: Awaited<ReturnType<typeof ai_list_conversations>>[number],
+    storedMetaMap: Record<string, StoredCharacterConversationMeta>,
+): Conversation {
+    const characterMeta = storedMetaMap[meta.id] ?? inferCharacterConversationMeta(meta.title)
+    const isCharacter = Boolean(characterMeta)
+
+    return {
+        id: meta.id,
+        title: meta.title,
+        messages: [],
+        pluginId: meta.plugin_id,
+        model: meta.model,
+        sessionId: null,
+        runId: null,
+        timestamp: new Date(meta.updated_at).getTime(),
+        mode: isCharacter ? 'character' : 'default',
+        characterEntryId: characterMeta?.characterEntryId ?? null,
+        characterName: characterMeta?.characterName ?? null,
+        backgroundImageUrl: characterMeta?.backgroundImageUrl ?? null,
+        characterVoiceId: characterMeta?.characterVoiceId ?? null,
+        characterAutoPlay: characterMeta?.characterAutoPlay ?? null,
+        reportContext: null,
+        reportSeeded: false,
+    }
 }

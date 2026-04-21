@@ -83,6 +83,7 @@ pub struct AiState {
     pub client: Mutex<FlowCloudAIClient>,
     pub(crate) sessions: Mutex<HashMap<String, SessionEntry>>,
     pub(crate) contradiction_bindings: Mutex<HashMap<String, ContradictionSessionBinding>>,
+    pub(crate) contradiction_reports_dir: PathBuf,
     _app_state: Arc<Mutex<AppState>>,
 }
 
@@ -95,7 +96,13 @@ impl AiState {
         app_handle: tauri::AppHandle,
         pending_edits: Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>,
     ) -> Result<Self> {
+        let contradiction_reports_dir = storage_path
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("chats"))
+            .join("contradiction_reports");
         let mut client = FlowCloudAIClient::new(plugins_dir, storage_path)?;
+
+        std::fs::create_dir_all(&contradiction_reports_dir)?;
 
         // 注册 Worldflow 工具（在创建任何 Session 之前）
         client.install_tools(|registry| {
@@ -112,6 +119,7 @@ impl AiState {
             client: Mutex::new(client),
             sessions: Mutex::new(HashMap::new()),
             contradiction_bindings: Mutex::new(HashMap::new()),
+            contradiction_reports_dir,
             _app_state: app_state,
         })
     }

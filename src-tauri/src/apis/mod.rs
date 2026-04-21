@@ -1,6 +1,9 @@
+pub mod ai_character;
 pub mod ai_client;
+pub mod ai_contradiction;
 pub mod app_settings;
 pub mod layout;
 pub mod map;
+pub mod map_persistence;
 pub mod plugins;
 pub mod worldflow;

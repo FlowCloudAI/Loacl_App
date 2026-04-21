@@ -24,7 +24,7 @@ interface CoverLibraryItem {
     entryId: string
     entryTitle: string
     image: EntryImage
-    src?: string
+    src: string
 }
 
 interface ProjectCoverPickerModalProps {
@@ -51,7 +51,7 @@ function extractEntryImages(entry: Entry): CoverLibraryItem[] {
                 src,
             } satisfies CoverLibraryItem
         })
-        .filter((item): item is CoverLibraryItem => Boolean(item))
+        .filter((item): item is NonNullable<typeof item> => item !== null)
 }
 
 export default function ProjectCoverPickerModal({

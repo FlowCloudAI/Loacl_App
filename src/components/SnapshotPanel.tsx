@@ -30,17 +30,17 @@ interface SnapshotGraphRow {
 }
 
 const GRAPH_COLORS = [
-    '#ff8a65',
-    '#4db6ac',
-    '#64b5f6',
-    '#ffd54f',
-    '#ba68c8',
-    '#81c784',
-    '#f06292',
+    'var(--fc-color-primary)',
+    'var(--fc-color-purple)',
+    'var(--fc-color-teal)',
+    'var(--fc-color-orange)',
+    'var(--fc-color-pink)',
+    'var(--fc-color-success)',
 ]
 
 const LANE_GAP = 22
-const GRAPH_MARGIN = 12
+const LANE_R = LANE_GAP / 2
+const GRAPH_PAD = LANE_R
 
 function formatSnapshotTime(timestamp: number): string {
     const date = new Date(timestamp * 1000)
@@ -54,10 +54,9 @@ function formatSnapshotTime(timestamp: number): string {
 }
 
 function formatSnapshotMessage(message: string): string {
-    const parts = message.split(' ')
-    if (parts.length >= 2 && (parts[0] === 'auto' || parts[0] === 'manual')) {
-        return parts[0] === 'auto' ? '自动保存' : '手动保存'
-    }
+    const [type, ...rest] = message.split(' ')
+    if (type === 'auto') return '自动保存'
+    if (type === 'manual') return rest.join(' ') || '手动保存'
     return message
 }
 
@@ -85,19 +84,27 @@ function buildGraphRows(nodes: SnapshotGraphNode[]): SnapshotGraphRow[] {
         const [firstParent, ...otherParents] = node.parents
 
         if (firstParent) {
-            nextLanes[lane] = firstParent
-            connections.push(lane)
+            const existing = nextLanes.findIndex(entry => entry === firstParent)
+            if (existing >= 0 && existing !== lane) {
+                nextLanes[lane] = null
+                connections.push(existing)
+            } else {
+                nextLanes[lane] = firstParent
+                connections.push(lane)
+            }
         } else {
             nextLanes[lane] = null
         }
 
         for (const parentId of otherParents) {
-            let parentLane = nextLanes.findIndex(entry => entry === parentId)
-            if (parentLane < 0) {
-                parentLane = getFirstEmptyLane(nextLanes)
-                nextLanes[parentLane] = parentId
+            const existing = nextLanes.findIndex(entry => entry === parentId)
+            if (existing >= 0) {
+                connections.push(existing)
+            } else {
+                const nl = getFirstEmptyLane(nextLanes)
+                nextLanes[nl] = parentId
+                connections.push(nl)
             }
-            connections.push(parentLane)
         }
 
         while (nextLanes.length > 0 && nextLanes[nextLanes.length - 1] === null) {
@@ -120,7 +127,7 @@ function buildGraphRows(nodes: SnapshotGraphNode[]): SnapshotGraphRow[] {
 }
 
 function laneX(lane: number): number {
-    return GRAPH_MARGIN + lane * LANE_GAP
+    return GRAPH_PAD + lane * LANE_GAP
 }
 
 export default function SnapshotPanel({className}: SnapshotPanelProps) {
@@ -161,14 +168,12 @@ export default function SnapshotPanel({className}: SnapshotPanelProps) {
         setSaving(true)
         try {
             const trimmedMessage = message.trim()
-            if (trimmedMessage) {
-                await dbSnapshotWithMessage(trimmedMessage)
-            } else {
-                await dbSnapshot()
-            }
+            const created = trimmedMessage
+                ? await dbSnapshotWithMessage(trimmedMessage)
+                : await dbSnapshot()
             setMessage('')
-            void showAlert('快照已创建', 'success')
-            await load()
+            void showAlert(created ? '快照已创建' : '没有新变更，无需快照', created ? 'success' : 'info')
+            if (created) await load()
         } catch (error) {
             console.error('创建快照失败', error)
             void showAlert('创建快照失败', 'error')
@@ -337,27 +342,33 @@ export default function SnapshotPanel({className}: SnapshotPanelProps) {
                 </div>
             ) : (
                 <div className="snapshot-panel__graph">
-                    {graphRows.map((row, index) => {
-                        const svgWidth = Math.max(84, GRAPH_MARGIN * 2 + row.laneCount * LANE_GAP)
-                        const centerY = 26
-                        const bottomY = 52
+                    {graphRows.map((row) => {
+                        const svgWidth = Math.max(LANE_GAP + GRAPH_PAD * 2, GRAPH_PAD * 2 + row.laneCount * LANE_GAP)
+                        const circleColor = row.node.isActiveTip
+                            ? 'var(--fc-color-primary)'
+                            : GRAPH_COLORS[row.lane % GRAPH_COLORS.length]
+                        const circleR = row.node.isActiveTip || row.node.isCurrentHead ? 6 : 5
                         return (
                             <div key={row.node.id} className="snapshot-panel__graph-row">
                                 <div className="snapshot-panel__graph-rail" style={{width: `${svgWidth}px`}}>
-                                    <svg width={svgWidth} height={58} viewBox={`0 0 ${svgWidth} 58`}
-                                         className="snapshot-panel__graph-svg">
+                                    <svg
+                                        width={svgWidth}
+                                        height="100%"
+                                        viewBox={`0 0 ${svgWidth} 100`}
+                                        preserveAspectRatio="none"
+                                        style={{overflow: 'visible'}}
+                                    >
                                         {Array.from({length: row.laneCount}, (_, lane) => {
                                             const color = GRAPH_COLORS[lane % GRAPH_COLORS.length]
                                             const x = laneX(lane)
-                                            const hasTop = row.lanePresenceAbove[lane]
-                                            const hasBottom = row.lanePresenceBelow[lane]
+                                            const hasTop = lane < row.lanePresenceAbove.length && row.lanePresenceAbove[lane]
+                                            const hasBot = lane < row.lanePresenceBelow.length && row.lanePresenceBelow[lane]
                                             return (
                                                 <g key={`${row.node.id}-lane-${lane}`}>
-                                                    {hasTop ? <line x1={x} y1="0" x2={x} y2={centerY} stroke={color}
-                                                                    strokeWidth="2"/> : null}
-                                                    {hasBottom ?
-                                                        <line x1={x} y1={centerY} x2={x} y2={bottomY} stroke={color}
-                                                              strokeWidth="2"/> : null}
+                                                    {hasTop && <line x1={x} y1="0" x2={x} y2="50" stroke={color}
+                                                                     strokeWidth="1.5"/>}
+                                                    {hasBot && <line x1={x} y1="50" x2={x} y2="100" stroke={color}
+                                                                     strokeWidth="1.5"/>}
                                                 </g>
                                             )
                                         })}
@@ -370,54 +381,47 @@ export default function SnapshotPanel({className}: SnapshotPanelProps) {
                                                 return (
                                                     <path
                                                         key={`${row.node.id}-${parentLane}`}
-                                                        d={`M ${fromX} ${centerY} C ${fromX} ${centerY + 10}, ${toX} ${centerY + 12}, ${toX} ${bottomY}`}
+                                                        d={`M ${fromX} 50 C ${fromX} 78, ${toX} 78, ${toX} 100`}
                                                         fill="none"
                                                         stroke={color}
-                                                        strokeWidth="2"
+                                                        strokeWidth="1.5"
                                                     />
                                                 )
                                             })}
-                                        <circle
-                                            cx={laneX(row.lane)}
-                                            cy={centerY}
-                                            r={row.node.isActiveTip || row.node.isCurrentHead ? 6 : 5}
-                                            fill={row.node.isActiveTip ? 'var(--fc-color-primary)' : GRAPH_COLORS[row.lane % GRAPH_COLORS.length]}
-                                            stroke="var(--fc-color-bg)"
-                                            strokeWidth="2"
-                                        />
                                     </svg>
+                                    <div
+                                        className="snapshot-panel__graph-node"
+                                        style={{
+                                            width: circleR * 2,
+                                            height: circleR * 2,
+                                            left: laneX(row.lane) - circleR,
+                                            background: circleColor,
+                                        }}
+                                    />
                                 </div>
                                 <div
                                     className={`snapshot-panel__item${row.node.isActiveTip ? ' snapshot-panel__item--active' : ''}`}>
                                     <div className="snapshot-panel__item-meta">
-                                        <span className="snapshot-panel__item-index">#{graphRows.length - index}</span>
                                         <span className="snapshot-panel__item-type">
                                             {row.node.message.startsWith('auto') ? '自动' : '手动'}
                                         </span>
-                                        {row.node.isActiveTip ?
-                                            <span className="snapshot-panel__item-badge">活动分支</span> : null}
-                                        {row.node.isCurrentHead && !row.node.isActiveTip ?
-                                            <span className="snapshot-panel__item-badge">HEAD</span> : null}
-                                    </div>
-                                    <div className="snapshot-panel__item-time">
-                                        {formatSnapshotTime(row.node.timestamp)}
+                                        {row.node.branchNames.map(branchName => (
+                                            <span key={`${row.node.id}-${branchName}`}
+                                                  className="snapshot-panel__branch-tag">
+                                                {branchName}
+                                            </span>
+                                        ))}
+                                        {row.node.isActiveTip &&
+                                            <span className="snapshot-panel__item-badge">活动分支</span>}
+                                        {row.node.isCurrentHead && !row.node.isActiveTip &&
+                                            <span className="snapshot-panel__item-badge">HEAD</span>}
                                     </div>
                                     <div className="snapshot-panel__item-message">
                                         {formatSnapshotMessage(row.node.message)}
                                     </div>
-                                    <div className="snapshot-panel__item-id">
-                                        {row.node.shortId}
-                                    </div>
-                                    {row.node.branchNames.length > 0 ? (
-                                        <div className="snapshot-panel__branch-tags">
-                                            {row.node.branchNames.map(branchName => (
-                                                <span key={`${row.node.id}-${branchName}`}
-                                                      className="snapshot-panel__branch-tag">
-                                                    {branchName}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    ) : null}
+                                    <span className="snapshot-panel__item-time">
+                                        {formatSnapshotTime(row.node.timestamp)}
+                                    </span>
                                     <div className="snapshot-panel__item-actions">
                                         <Button
                                             variant="ghost"

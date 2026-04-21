@@ -14,19 +14,24 @@ import AIChatContent from "./components/AIChatContent";
 import DockableSidePanel from "./components/layout/DockableSidePanel";
 import RelationDemo from "./components/RelationDemo";
 import MapShapeEditorDemo from "./components/MapShapeEditorDemo";
-import TimelineDemo from "./components/TimelineDemo";
-import AIImageGenerator from "./components/AIImageGenerator";
-import AITtsDemo from "./components/AITtsDemo";
 import SnapshotPanel from "./components/SnapshotPanel";
 import EntryEditModal from "./components/EntryEditModal";
 import AiConfirmModal from "./components/AiConfirmModal";
+import type {ReportConversationContext} from "./contexts/AiControllerTypes";
 
 type EntryTabMeta = {
     projectId: string
     entryId: string
 }
 
-type MainContentKey = 'home' | 'relation' | 'timeline' | 'map-editor' | 'ai-image' | 'ai-tts' | 'settings'
+type ProjectToolPanel = 'relation-graph' | 'timeline' | 'contradiction' | 'world-map'
+
+type ProjectToolTabMeta = {
+    projectId: string
+    panel: ProjectToolPanel
+}
+
+type MainContentKey = 'home' | 'relation' | 'map-editor' | 'settings'
 type SidePanelContentKey = 'idea' | 'ai-chat' | 'snapshot'
 
 function App() {
@@ -49,11 +54,12 @@ function App() {
     // projectTabMap: tabKey → projectId（仅项目标签页）
     const [projectTabMap, setProjectTabMap] = useState<Record<string, string>>({});
     const [entryTabMap, setEntryTabMap] = useState<Record<string, EntryTabMeta>>({});
+    const [toolTabMap, setToolTabMap] = useState<Record<string, ProjectToolTabMeta>>({});
 
     const aiFocus = useMemo<AiFocus>(() => ({
-        projectId: projectTabMap[activeKey] ?? entryTabMap[activeKey]?.projectId ?? null,
+        projectId: projectTabMap[activeKey] ?? toolTabMap[activeKey]?.projectId ?? entryTabMap[activeKey]?.projectId ?? null,
         entryId: entryTabMap[activeKey]?.entryId ?? null,
-    }), [activeKey, projectTabMap, entryTabMap])
+    }), [activeKey, entryTabMap, projectTabMap, toolTabMap])
 
     const aiController = useAiController(aiFocus)
     const [entryDirtyMap, setEntryDirtyMap] = useState<Record<string, boolean>>({});
@@ -78,6 +84,19 @@ function App() {
             const next = [...prev.filter((key) => key !== tabKey), tabKey]
             return next.slice(-10)
         })
+    }, [])
+
+    const getProjectToolLabel = useCallback((projectName: string, panel: ProjectToolPanel) => {
+        switch (panel) {
+            case 'relation-graph':
+                return `${projectName} · 关系图谱`
+            case 'timeline':
+                return `${projectName} · 时间线`
+            case 'contradiction':
+                return `${projectName} · 矛盾检查`
+            case 'world-map':
+                return `${projectName} · 世界地图`
+        }
     }, [])
 
     // 新增标签（通用）
@@ -120,6 +139,26 @@ function App() {
         showHomeWorkspace();
     }, [showHomeWorkspace, touchRecentPage]);
 
+    const handleOpenProjectTool = useCallback((panel: ProjectToolPanel, project: { id: string; name: string }) => {
+        const tabKey = `tool-${project.id}-${panel}`
+        setTabs((prev) => {
+            const label = getProjectToolLabel(project.name, panel)
+            const index = prev.findIndex((tab) => tab.key === tabKey)
+            if (index === -1) return [...prev, {key: tabKey, label, closable: true}]
+            return prev.map((tab) => tab.key === tabKey ? {...tab, label, closable: true} : tab)
+        })
+        setToolTabMap((prev) => ({
+            ...prev,
+            [tabKey]: {
+                projectId: project.id,
+                panel,
+            },
+        }))
+        setActiveKey(tabKey)
+        touchRecentPage(tabKey)
+        showHomeWorkspace()
+    }, [getProjectToolLabel, showHomeWorkspace, touchRecentPage])
+
     const handleEntryTitleChange = useCallback((projectId: string, entry: { id: string; title: string }) => {
         const tabKey = `entry-${projectId}-${entry.id}`;
         setTabs(prev => prev.map(tab => tab.key === tabKey ? {...tab, label: entry.title} : tab));
@@ -151,7 +190,7 @@ function App() {
     }, [activateProjectTab]);
 
     const handleTabChange = useCallback((key: string) => {
-        const shouldShowHomeWorkspace = Boolean(projectTabMap[key] || entryTabMap[key])
+        const shouldShowHomeWorkspace = Boolean(projectTabMap[key] || toolTabMap[key] || entryTabMap[key])
         if (key === activeKey) {
             if (shouldShowHomeWorkspace && selectedKey !== 'home') {
                 touchRecentPage(key)
@@ -164,17 +203,22 @@ function App() {
             touchRecentPage(key)
             showHomeWorkspace()
         }
-    }, [activeKey, entryTabMap, projectTabMap, selectedKey, showHomeWorkspace, touchRecentPage])
+    }, [activeKey, entryTabMap, projectTabMap, selectedKey, showHomeWorkspace, toolTabMap, touchRecentPage])
 
     // 删除标签
     const handleClose = useCallback(async (key: string) => {
         const closingProjectId = projectTabMap[key];
+        const relatedToolKeys = closingProjectId
+            ? Object.entries(toolTabMap)
+                .filter(([, meta]) => meta.projectId === closingProjectId)
+                .map(([toolKey]) => toolKey)
+            : [];
         const relatedEntryKeys = closingProjectId
             ? Object.entries(entryTabMap)
                 .filter(([, meta]) => meta.projectId === closingProjectId)
                 .map(([entryKey]) => entryKey)
             : [];
-        const keysToRemove = new Set([key, ...relatedEntryKeys]);
+        const keysToRemove = new Set([key, ...relatedToolKeys, ...relatedEntryKeys]);
         const dirtyEntryKeys = [...keysToRemove].filter(tabKey => entryDirtyMap[tabKey])
         if (dirtyEntryKeys.length > 0) {
             const message = dirtyEntryKeys.length === 1
@@ -199,6 +243,13 @@ function App() {
             }
             return next;
         });
+        setToolTabMap(prev => {
+            const next = {...prev}
+            for (const removedKey of keysToRemove) {
+                delete next[removedKey]
+            }
+            return next
+        })
         setEntryDirtyMap(prev => {
             const next = {...prev}
             for (const removedKey of keysToRemove) {
@@ -211,7 +262,7 @@ function App() {
             const closedIndex = tabs.findIndex(tab => tab.key === key);
             const nextTab = newTabs[closedIndex] || newTabs[closedIndex - 1];
             if (nextTab?.key) {
-                if (projectTabMap[nextTab.key] || entryTabMap[nextTab.key]) {
+                if (projectTabMap[nextTab.key] || toolTabMap[nextTab.key] || entryTabMap[nextTab.key]) {
                     touchRecentPage(nextTab.key)
                     showHomeWorkspace()
                 }
@@ -221,7 +272,7 @@ function App() {
             }
             setActiveKey(nextTab?.key ?? '');
         }
-    }, [activeKey, entryDirtyMap, entryTabMap, projectTabMap, showAlert, showHomeWorkspace, tabs, touchRecentPage]);
+    }, [activeKey, entryDirtyMap, entryTabMap, projectTabMap, showAlert, showHomeWorkspace, tabs, toolTabMap, touchRecentPage]);
 
     const handleSideBarSelect = useCallback((key: string) => {
         setSelectedKey(key)
@@ -252,18 +303,30 @@ function App() {
         }
     }, [activeKey, aiController, showHomeWorkspace, touchRecentPage])
 
-    const activeHomeProjectId = projectTabMap[activeKey] ?? entryTabMap[activeKey]?.projectId ?? ''
+    const handleStartReportDiscussion = useCallback(async (params: {
+        title: string
+        pluginId: string
+        model: string
+        reportContext: ReportConversationContext
+    }) => {
+        setSelectedKey('ai-chat')
+        setSidePanelContentKey('ai-chat')
+        setAiPanelCollapsed(false)
+        try {
+            await aiController.startReportDiscussion(params)
+        } catch (error) {
+            console.error('启动报告讨论失败', error)
+        }
+    }, [aiController])
+
+    const activeHomeProjectId = projectTabMap[activeKey] ?? toolTabMap[activeKey]?.projectId ?? entryTabMap[activeKey]?.projectId ?? ''
     const activeEntryMeta = entryTabMap[activeKey] ?? null
     const recentPageKeySet = useMemo(() => new Set(recentPageKeys), [recentPageKeys])
-    const recentProjectIds = useMemo(() => new Set(
+    const homeProjectIds = useMemo(() => [...new Set(
         recentPageKeys
-            .map((key) => projectTabMap[key] ?? entryTabMap[key]?.projectId ?? null)
+            .map((key) => projectTabMap[key] ?? toolTabMap[key]?.projectId ?? entryTabMap[key]?.projectId ?? null)
             .filter((projectId): projectId is string => Boolean(projectId))
-    ), [entryTabMap, projectTabMap, recentPageKeys])
-    const projectTabs = useMemo(() => tabs.filter((tab) => {
-        const projectId = projectTabMap[tab.key]
-        return Boolean(projectId && recentProjectIds.has(projectId))
-    }), [projectTabMap, recentProjectIds, tabs])
+    )], [entryTabMap, projectTabMap, recentPageKeys, toolTabMap])
     const openEntryIdsByProject = useMemo(() => {
         const next: Record<string, string[]> = {}
         for (const item of tabs) {
@@ -303,34 +366,38 @@ function App() {
     const AiChatIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
             <path
-                d="M6 7.75A2.75 2.75 0 0 1 8.75 5h6.5A2.75 2.75 0 0 1 18 7.75v4.5A2.75 2.75 0 0 1 15.25 15H11l-3.5 3v-3H8.75A2.75 2.75 0 0 1 6 12.25v-4.5Z"
+                d="M5 9.5A3.5 3.5 0 0 1 8.5 6h7A3.5 3.5 0 0 1 19 9.5v4A3.5 3.5 0 0 1 15.5 17H10l-4 3v-3.6A3.48 3.48 0 0 1 5 13.5v-4Z"
                 stroke="currentColor"
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
             />
             <path
-                d="M9 8.75h6M9 11.25h4"
+                d="M9 10h5M9 13h3.5"
                 stroke="currentColor"
                 strokeWidth="1.5"
                 strokeLinecap="round"
+            />
+            <path
+                d="M17.5 4.5 18 6l1.5.5-1.5.5-.5 1.5-.5-1.5L15.5 6.5 17 6l.5-1.5Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
             />
         </svg>)
 
     const SnapshotIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
+            <circle cx="8" cy="6" r="2" stroke="currentColor" strokeWidth="1.5"/>
+            <circle cx="8" cy="18" r="2" stroke="currentColor" strokeWidth="1.5"/>
+            <circle cx="16" cy="12" r="2" stroke="currentColor" strokeWidth="1.5"/>
             <path
-                d="M12 3C7.5 3 4 6 4 10c0 2.5 1.5 4.5 3.5 5.5L6 21l5-2.5c.5.1 1 .15 1.5.15 4.5 0 8-3 8-7.65C21 6 17.5 3 12 3Z"
+                d="M8 8v8m2-10h3.5A2.5 2.5 0 0 1 16 8.5v1.5M10 18h3.5A2.5 2.5 0 0 0 16 15.5V14"
                 stroke="currentColor"
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-            />
-            <path
-                d="M9 10h6M12 7v6"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
             />
         </svg>)
 
@@ -364,36 +431,6 @@ function App() {
             />
         </svg>)
 
-    const TimelineIcon = (
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
-            <path
-                d="M4 6.75h16M4 12h16M4 17.25h16"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-            />
-            <circle cx="7" cy="6.75" r="1.75" fill="currentColor"/>
-            <circle cx="13" cy="12" r="1.75" fill="currentColor"/>
-            <circle cx="18" cy="17.25" r="1.75" fill="currentColor"/>
-        </svg>)
-
-    const AiImageIcon = (
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
-            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-            <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
-            <path d="M3 15l5-5 4 4 3-3 6 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4z" fill="currentColor" opacity="0.25"/>
-            <path d="M21 15l-6-6-3 3-4-4-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
-                  strokeLinejoin="round"/>
-        </svg>)
-
-    const TtsIcon = (
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
-            <path d="M5 9.5a2.5 2.5 0 0 1 2.5-2.5h2l4-3v16l-4-3h-2A2.5 2.5 0 0 1 5 14.5v-5Z"
-                  stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-            <path d="M16.5 9a4 4 0 0 1 0 6M18.5 6.5a7 7 0 0 1 0 11"
-                  stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>)
-
     const SettingsIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <circle cx="12" cy="12" r="3" strokeWidth="1.5"/>
@@ -406,12 +443,9 @@ function App() {
         {key: 'home', label: '首页', icon: HomeIcon},
         {key: 'idea', label: '灵感便签', icon: IdeaIcon},
         {key: 'relation', label: '关系图谱', icon: RelationIcon},
-        {key: 'timeline', label: '时间线', icon: TimelineIcon},
         {key: 'map-editor', label: '地图编辑', icon: MapIcon},
         {key: 'ai-chat', label: 'AI 对话', icon: AiChatIcon},
         {key: 'snapshot', label: '版本管理', icon: SnapshotIcon},
-        {key: 'ai-image', label: 'AI 绘图', icon: AiImageIcon},
-        {key: 'ai-tts', label: 'AI 语音', icon: TtsIcon},
     ]
     const bottomItems: SideBarItem[] = [
         {key: 'settings', label: '设置', icon: SettingsIcon},
@@ -517,17 +551,15 @@ function App() {
                                 <div className={`home-page-layer ${!activeHomeProjectId ? 'active' : ''}`}>
                                     <ProjectList onOpenProject={handleOpenProject}/>
                                 </div>
-                                {projectTabs.map(tab => {
-                                    const projectId = projectTabMap[tab.key]
-                                    if (!projectId) return null
-
-                                    return (
-                                        <div
-                                            key={tab.key}
-                                            className={`home-page-layer ${activeHomeProjectId === projectId ? 'active' : ''}`}
-                                        >
-                                            <ProjectEditor
-                                                projectId={projectId}
+                                {homeProjectIds.map(projectId => (
+                                    <div
+                                        key={projectId}
+                                        className={`home-page-layer ${activeHomeProjectId === projectId ? 'active' : ''}`}
+                                    >
+                                        <ProjectEditor
+                                            projectId={projectId}
+                                            forcedProjectPanel={toolTabMap[activeKey]?.projectId === projectId ? toolTabMap[activeKey].panel : null}
+                                            onOpenProjectPanel={handleOpenProjectTool}
                                                 aiPluginId={aiController.selectedPlugin || null}
                                                 aiModel={aiController.selectedModel || null}
                                                 activeEntryId={activeEntryMeta?.projectId === projectId ? activeEntryMeta.entryId : null}
@@ -537,26 +569,17 @@ function App() {
                                                 onBackToProject={handleBackToProject}
                                                 onEntryDirtyChange={handleEntryDirtyChange}
                                                 onStartCharacterChat={handleStartCharacterChat}
-                                            />
-                                        </div>
-                                    )
-                                })}
+                                            onStartReportDiscussion={handleStartReportDiscussion}
+                                        />
+                                    </div>
+                                ))}
                             </div>
                         </div>
                         <div className={`page-wrapper ${mainContentKey === 'relation' ? 'active' : ''}`}>
                             <RelationDemo/>
                         </div>
-                        <div className={`page-wrapper ${mainContentKey === 'timeline' ? 'active' : ''}`}>
-                            <TimelineDemo/>
-                        </div>
                         <div className={`page-wrapper ${mainContentKey === 'map-editor' ? 'active' : ''}`}>
                             <MapShapeEditorDemo/>
-                        </div>
-                        <div className={`page-wrapper ${mainContentKey === 'ai-image' ? 'active' : ''}`}>
-                            <AIImageGenerator/>
-                        </div>
-                        <div className={`page-wrapper ${mainContentKey === 'ai-tts' ? 'active' : ''}`}>
-                            <AITtsDemo/>
                         </div>
                         <div className={`page-wrapper ${mainContentKey === 'settings' ? 'active' : ''}`}>
                             <Settings/>

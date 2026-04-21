@@ -311,7 +311,8 @@
     flex-shrink: 0;
     gap: 4px;
     position: relative;
-    z-index: 1;
+    z-index: 5;
+    overflow: visible;
 }
 
 .ai-topbar-left {
@@ -381,6 +382,7 @@
 /* ========== 插件切换弹出菜单（向下展开） ========== */
 .ai-plugin-switcher {
     position: relative;
+    z-index: 6;
 }
 
 .ai-plugin-menu {

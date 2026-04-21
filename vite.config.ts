@@ -23,21 +23,22 @@ export default defineConfig({
     // 防止 Vite 清除 Rust 显示的错误
     clearScreen: false,
     server: {
-        port: 5173,
+        port: 5174,
         // Tauri 工作于固定端口，如果端口不可用则报错
         strictPort: true,
         // 如果设置了 host，Tauri 则会使用
-        host: process.env.HOST || false,
-        hmr: process.env.HOST
-            ? {
-                protocol: 'ws',
-                host: process.env.HOST,
-                port: 1421,
-            }
-            : undefined,
+        host: process.env.HOST || '127.0.0.1',
+        hmr: {
+            protocol: 'ws',
+            host: process.env.HOST || '127.0.0.1',
+            port: 1421,
+        },
         watch: {
             // 告诉 Vite 忽略监听 `src-tauri` 目录
             ignored: ['**/src-tauri/**'],
+        },
+        fs: {
+            allow: ['..'],
         },
     },
     // 添加有关当前构建目标的额外前缀，使这些 CLI 设置的 Tauri 环境变量可以在客户端代码中访问

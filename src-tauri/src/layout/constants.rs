@@ -149,9 +149,7 @@ pub const MIN_NODE_SIZE: f64 = 1.0;
 /// 分量基础理想边长计算时的最小度均值分母。
 /// 仅数值保护，通常无需调整。
 pub const MIN_MEAN_DEGREE: f64 = 1e-9;
-/// 温度衰减公式中用于保护 ln(Tmin / T0) 的下限。
-/// 仅数值保护，通常无需调整。
-pub const MIN_TEMPERATURE_FOR_LOG: f64 = 1e-6;
+
 /// 温度衰减率的工程下限，防止过快冻结。
 /// 调大：不允许过快降温，保证最低收敛质量；调小：允许更快冻结，可能早停。
 pub const TEMPERATURE_DECAY_MIN: f64 = 0.85;

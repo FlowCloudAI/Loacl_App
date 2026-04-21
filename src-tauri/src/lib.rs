@@ -1,4 +1,5 @@
 mod apis;
+mod ai_services;
 mod layout;
 mod map;
 mod prompt;
@@ -11,10 +12,13 @@ mod tools;
 pub use settings::*;
 pub use state::*;
 
+use apis::ai_character::*;
 use apis::ai_client::*;
+use apis::ai_contradiction::*;
 use apis::app_settings::*;
 use apis::layout::*;
 use apis::map::*;
+use apis::map_persistence::*;
 use apis::plugins::*;
 use apis::worldflow::*;
 use layout::cache::LayoutCacheState;
@@ -229,6 +233,12 @@ pub fn run() {
             // AI Client
             ai_list_plugins,
             ai_create_llm_session,
+            ai_create_character_session,
+            ai_start_contradiction_session,
+            ai_get_contradiction_report,
+            ai_list_contradiction_reports,
+            ai_get_contradiction_report_entry,
+            ai_delete_contradiction_report,
             ai_send_message,
             ai_cancel_session,
             ai_close_session,
@@ -273,6 +283,9 @@ pub fn run() {
             plugin_market_update,
             plugin_market_delete,
             map_save_scene,
+            map_list_project_maps,
+            map_save_map_entry,
+            map_delete_map_entry,
             compute_layout,
             // Snapshots
             db_snapshot,

@@ -9,6 +9,16 @@ export interface Attachment {
     preview?: string
 }
 
+export interface ReportConversationContext {
+    reportId: string
+    projectId: string
+    projectName: string
+    scopeSummary: string
+    sourceEntryIds: string[]
+    truncated: boolean
+    reportJson: string
+}
+
 export interface Message {
     id: string
     role: 'user' | 'assistant'
@@ -29,16 +39,19 @@ export interface Conversation {
     sessionId: string | null
     runId: string | null
     timestamp: number
-    mode?: 'default' | 'character'
+    mode?: 'default' | 'character' | 'report'
     characterEntryId?: string | null
     characterName?: string | null
     backgroundImageUrl?: string | null
     characterVoiceId?: string | null
     characterAutoPlay?: boolean | null
+    reportContext?: ReportConversationContext | null
+    reportSeeded?: boolean
 }
 
 export interface SessionParams {
     thinking: boolean
+    maxToolRounds?: number | null
 }
 
 export interface AiContextValue {
@@ -80,10 +93,17 @@ export interface AiContextValue {
     setAutoScroll: (v: boolean) => void
 
     createNewConversation: () => Promise<void>
+    startReportDiscussion: (params: {
+        title: string
+        pluginId: string
+        model: string
+        reportContext: ReportConversationContext
+    }) => Promise<void>
     startCharacterConversation: (params: {
         projectId: string
         entryId: string
     }) => Promise<void>
+    updateConversationCharacterAutoPlay: (convId: string, autoPlay: boolean) => void
     switchConversation: (convId: string) => Promise<void>
     deleteConversation: (convId: string, e?: React.MouseEvent) => Promise<void>
     renameConversation: (convId: string, title: string) => Promise<void>

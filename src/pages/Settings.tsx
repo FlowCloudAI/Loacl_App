@@ -911,25 +911,6 @@ export default function Settings() {
                                         />
                                     </div>
                                 </div>
-                                <div className="settings-row">
-                                    <div className="settings-field">
-                                        <label className="settings-label">角色回复自动播放</label>
-                                        <label className="settings-checkbox-row">
-                                            <input
-                                                type="checkbox"
-                                                checked={settings.tts.auto_play}
-                                                onChange={(event) => setSettings(prev => prev ? {
-                                                    ...prev,
-                                                    tts: {
-                                                        ...prev.tts,
-                                                        auto_play: event.target.checked,
-                                                    }
-                                                } : null)}
-                                            />
-                                            <span>启用后，角色对话的新回复会自动尝试播放语音</span>
-                                        </label>
-                                    </div>
-                                </div>
                             </section>
 
                             {/* AI 工具配置 */}

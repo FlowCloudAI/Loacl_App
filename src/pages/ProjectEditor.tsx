@@ -22,8 +22,9 @@ import ProjectTimeline from '../components/ProjectTimeline'
 import EntryTypeCreator from '../components/EntryTypeCreator'
 import ProjectRelationGraph from '../components/ProjectRelationGraph'
 import TagCreator from '../components/TagCreator'
-import {CategoryView, ProjectOverview} from '../components/project-editor'
+import {CategoryView, ProjectContradictionPanel, ProjectOverview, WorldMapPanel} from '../components/project-editor'
 import ProjectCoverPickerModal from '../components/project-editor/ProjectCoverPickerModal'
+import type {ReportConversationContext} from '../contexts/AiControllerTypes'
 import './ProjectEditor.css'
 
 const TREE_MIN_WIDTH = '15rem'
@@ -43,10 +44,18 @@ interface Props {
     onBackToProject?: (projectId: string) => void
     onEntryDirtyChange?: (projectId: string, entryId: string, dirty: boolean) => void
     onStartCharacterChat?: (projectId: string, entry: { id: string; title: string }) => void
+    onStartReportDiscussion?: (params: {
+        title: string
+        pluginId: string
+        model: string
+        reportContext: ReportConversationContext
+    }) => void
+    forcedProjectPanel?: Exclude<ProjectPanel, 'overview'> | null
+    onOpenProjectPanel?: (panel: Exclude<ProjectPanel, 'overview'>, project: { id: string; name: string }) => void
 }
 
 type Selection = { kind: 'project' } | { kind: 'category'; id: string }
-type ProjectPanel = 'overview' | 'relation-graph' | 'timeline'
+type ProjectPanel = 'overview' | 'relation-graph' | 'timeline' | 'contradiction' | 'world-map'
 
 function ProjectEditorInner({
                                 projectId,
@@ -59,6 +68,9 @@ function ProjectEditorInner({
                                 onBackToProject,
                                 onEntryDirtyChange,
                                 onStartCharacterChat,
+                                onStartReportDiscussion,
+                                forcedProjectPanel = null,
+                                onOpenProjectPanel,
                             }: Props) {
     const [treeWidth, setTreeWidth] = useState(TREE_DEFAULT_PX)
     const [treeCollapsed, setTreeCollapsed] = useState(false)
@@ -86,6 +98,7 @@ function ProjectEditorInner({
     const [selectedKey, setSelectedKey] = useState<string | undefined>(ROOT_ID)
     const [projectPanel, setProjectPanel] = useState<ProjectPanel>('overview')
     const {showAlert} = useAlert()
+    const effectiveProjectPanel = forcedProjectPanel ?? projectPanel
 
     const touchProjectUpdatedAt = useCallback(() => {
         setProject(current => current ? {...current, updated_at: new Date().toISOString()} : current)
@@ -167,6 +180,12 @@ function ProjectEditorInner({
     }, [fetchAll, projectId])
 
     useEffect(() => {
+        if (!forcedProjectPanel) return
+        setSelection(current => current.kind === 'project' ? current : {kind: 'project'})
+        setSelectedKey(ROOT_ID)
+    }, [forcedProjectPanel])
+
+    useEffect(() => {
         if (!treeCollapsed) {
             lastExpandedWidthRef.current = treeWidth
         }
@@ -238,13 +257,31 @@ function ProjectEditorInner({
             setSelection({kind: 'project'})
         } else {
             setSelection({kind: 'category', id: key})
-            setProjectPanel('overview')
+            if (!forcedProjectPanel) {
+                setProjectPanel('overview')
+            }
         }
 
         if (activeEntryId) {
             void onBackToProject?.(projectId)
         }
     }
+
+    const handleOpenProjectPanel = useCallback((panel: Exclude<ProjectPanel, 'overview'>) => {
+        if (project && onOpenProjectPanel) {
+            onOpenProjectPanel(panel, {id: projectId, name: project.name})
+            return
+        }
+        setProjectPanel(panel)
+    }, [onOpenProjectPanel, project, projectId])
+
+    const handleProjectPanelBack = useCallback(() => {
+        if (forcedProjectPanel) {
+            void onBackToProject?.(projectId)
+            return
+        }
+        setProjectPanel('overview')
+    }, [forcedProjectPanel, onBackToProject, projectId])
 
     const handleRename = async (key: string, newName: string) => {
         if (key === ROOT_ID) {
@@ -475,7 +512,7 @@ function ProjectEditorInner({
             <div className="pe-content">
                 <div className={`pe-project-view${hasActiveEntry ? '' : ' active'}`}>
                     {selection.kind === 'project' ? (
-                        projectPanel === 'overview' ? (
+                        effectiveProjectPanel === 'overview' ? (
                             <ProjectOverview
                                 project={project}
                                 categories={categories}
@@ -501,19 +538,41 @@ function ProjectEditorInner({
                                     setEditingEntryType(entryType)
                                     setEntryTypeCreatorOpen(true)
                                 }}
-                                onOpenRelationGraph={() => setProjectPanel('relation-graph')}
-                                onOpenTimeline={() => setProjectPanel('timeline')}
+                                onOpenRelationGraph={() => handleOpenProjectPanel('relation-graph')}
+                                onOpenTimeline={() => handleOpenProjectPanel('timeline')}
+                                onOpenWorldMap={() => handleOpenProjectPanel('world-map')}
+                                onOpenContradiction={() => handleOpenProjectPanel('contradiction')}
                                 onEditCover={() => setCoverPickerOpen(true)}
                                 onClearCover={() => {
                                     void handleUpdateProjectCover(null).catch(() => undefined)
                                 }}
                                 coverUpdating={coverUpdating}
                             />
-                        ) : projectPanel === 'relation-graph' ? (
+                        ) : effectiveProjectPanel === 'relation-graph' ? (
                             <div className="pe-project-panel">
                                 <ProjectRelationGraph
                                     projectId={projectId}
-                                    onBack={() => setProjectPanel('overview')}
+                                    onBack={handleProjectPanelBack}
+                                />
+                            </div>
+                        ) : effectiveProjectPanel === 'contradiction' ? (
+                            <div className="pe-project-panel">
+                                <ProjectContradictionPanel
+                                    projectId={projectId}
+                                    projectName={project.name}
+                                    aiPluginId={aiPluginId}
+                                    aiModel={aiModel}
+                                    onBack={handleProjectPanelBack}
+                                    onStartDiscussion={onStartReportDiscussion}
+                                />
+                            </div>
+                        ) : effectiveProjectPanel === 'world-map' ? (
+                            <div className="pe-project-panel">
+                                <WorldMapPanel
+                                    projectId={projectId}
+                                    projectName={project.name}
+                                    onBack={handleProjectPanelBack}
+                                    onOpenEntry={(entry) => onOpenEntry?.(projectId, entry)}
                                 />
                             </div>
                         ) : (
@@ -521,7 +580,7 @@ function ProjectEditorInner({
                                 <ProjectTimeline
                                     projectId={projectId}
                                     tagSchemas={tagSchemas}
-                                    onBack={() => setProjectPanel('overview')}
+                                    onBack={handleProjectPanelBack}
                                     onOpenEntry={(entry) => onOpenEntry?.(projectId, entry)}
                                 />
                             </div>

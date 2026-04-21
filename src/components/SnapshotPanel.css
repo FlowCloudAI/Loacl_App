@@ -4,13 +4,9 @@
     height: 100%;
     width: 100%;
     min-width: 0;
-    padding: 16px;
-    padding-left: 8px;
+    padding: 16px 12px 16px 16px;
     overflow: hidden;
-}
-
-.snapshot-panel > * + * {
-    margin-top: 12px;
+    gap: 12px;
 }
 
 .snapshot-panel__header {
@@ -46,15 +42,18 @@
     flex-direction: column;
     gap: 8px;
     padding: 10px 12px;
-    border-radius: 10px;
+    border-radius: var(--fc-radius-lg);
     border: 1px solid var(--fc-color-border);
     background: var(--fc-color-bg-secondary);
+    flex-shrink: 0;
 }
 
 .snapshot-panel__section-title {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--fc-color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
 .snapshot-panel__branch-row,
@@ -67,9 +66,9 @@
 
 .snapshot-panel__branch-badge {
     flex-shrink: 0;
-    padding: 3px 8px;
-    border-radius: 999px;
-    background: var(--fc-color-bg-elevated);
+    padding: 3px 10px;
+    border-radius: var(--fc-radius-full);
+    background: var(--fc-color-primary-subtle);
     color: var(--fc-color-primary);
     font-size: 11px;
     font-weight: 600;
@@ -78,10 +77,11 @@
 .snapshot-panel__graph {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding-right: 6px;
+    gap: 0;
+    padding-right: 4px;
 }
 
 .snapshot-panel__graph-row {
@@ -92,32 +92,52 @@
 }
 
 .snapshot-panel__graph-rail {
+    position: relative;
     flex-shrink: 0;
-    display: flex;
-    justify-content: flex-end;
 }
 
-.snapshot-panel__graph-svg {
-    overflow: visible;
+.snapshot-panel__graph-rail svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.snapshot-panel__graph-node {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    border-radius: 50%;
+    border: 2px solid var(--fc-color-bg);
+    transition: transform var(--fc-transition);
+    pointer-events: none;
 }
 
 .snapshot-panel__item {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 10px 12px;
-    border-radius: 8px;
+    gap: 4px;
+    padding: 7px 10px;
+    margin: 0;
+    border-radius: var(--fc-radius-md);
     border: 1px solid var(--fc-color-border);
     background: var(--fc-color-bg-secondary);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color var(--fc-transition), box-shadow var(--fc-transition);
+    cursor: default;
+    position: relative;
 }
 
 .snapshot-panel__item--active {
     border-color: var(--fc-color-primary);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--fc-color-primary) 25%, transparent);
+    background: color-mix(in srgb, var(--fc-color-primary-subtle) 60%, var(--fc-color-bg-secondary));
 }
 
 .snapshot-panel__item:hover {
+    border-color: var(--fc-color-border-hover);
+}
+
+.snapshot-panel__item--active:hover {
     border-color: var(--fc-color-primary);
 }
 
@@ -125,48 +145,46 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
-}
-
-.snapshot-panel__item-index {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--fc-color-primary);
+    gap: 6px;
 }
 
 .snapshot-panel__item-type {
-    font-size: 11px;
-    padding: 1px 6px;
-    border-radius: 4px;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: var(--fc-radius-sm);
     background: var(--fc-color-bg-elevated);
+    border: 1px solid var(--fc-color-border);
     color: var(--fc-color-text-secondary);
+    letter-spacing: 0.02em;
 }
 
 .snapshot-panel__item-badge {
-    font-size: 11px;
+    font-size: 10px;
     padding: 1px 6px;
-    border-radius: 999px;
+    border-radius: var(--fc-radius-full);
     background: color-mix(in srgb, var(--fc-color-primary) 14%, transparent);
     color: var(--fc-color-primary);
     font-weight: 600;
 }
 
 .snapshot-panel__item-time {
-    font-size: 12px;
-    color: var(--fc-color-text-secondary);
+    font-size: 11px;
+    color: var(--fc-color-text-tertiary);
+    font-variant-numeric: tabular-nums;
 }
 
 .snapshot-panel__item-message {
     font-size: 13px;
-    line-height: 1.5;
+    line-height: 1.4;
     color: var(--fc-color-text);
     word-break: break-word;
+    text-wrap: pretty;
 }
 
 .snapshot-panel__item-id {
-    font-size: 11px;
-    color: var(--fc-color-text-secondary);
-    font-family: Consolas, 'Courier New', monospace;
+    font-size: 10px;
+    color: var(--fc-color-text-tertiary);
+    font-family: "JetBrains Mono", "Courier New", Consolas, monospace;
 }
 
 .snapshot-panel__branch-tags {
@@ -176,15 +194,23 @@
 }
 
 .snapshot-panel__branch-tag {
-    font-size: 11px;
-    padding: 2px 7px;
-    border-radius: 999px;
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: var(--fc-radius-full);
     background: var(--fc-color-bg-elevated);
+    border: 1px solid var(--fc-color-border);
     color: var(--fc-color-text-secondary);
+    font-family: "JetBrains Mono", monospace;
 }
 
 .snapshot-panel__item-actions {
     display: flex;
     gap: 4px;
     margin-top: 2px;
+}
+
+.snapshot-panel__branch-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
 }

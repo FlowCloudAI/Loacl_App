@@ -9,11 +9,14 @@ use crate::reports::contradiction_report::ContradictionReport;
 use crate::senses::contradiction_sense::ContradictionSense;
 use crate::AppState;
 use crate::{AiSessionKind, AiState, ApiKeyStore, ContradictionSessionBinding};
+use flowcloudai_client::llm::config::SessionConfig;
 use flowcloudai_client::sense::Sense;
 use flowcloudai_client::{DefaultOrchestrator, SessionEvent, TurnStatus};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::{mpsc, oneshot, Mutex};
@@ -29,6 +32,42 @@ pub struct ContradictionSessionRequest {
     pub model: Option<String>,
     pub temperature: Option<f64>,
     pub max_tokens: Option<i64>,
+    pub max_tool_rounds: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredContradictionReport {
+    pub report_id: String,
+    pub session_id: String,
+    pub conversation_id: String,
+    pub plugin_id: String,
+    pub model: Option<String>,
+    pub project_id: String,
+    pub project_name: String,
+    pub created_at: String,
+    pub scope_summary: String,
+    pub source_entry_ids: Vec<String>,
+    pub truncated: bool,
+    pub report: ContradictionReport,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContradictionReportHistoryItem {
+    pub report_id: String,
+    pub conversation_id: String,
+    pub plugin_id: String,
+    pub model: Option<String>,
+    pub project_id: String,
+    pub project_name: String,
+    pub created_at: String,
+    pub scope_summary: String,
+    pub source_entry_ids: Vec<String>,
+    pub truncated: bool,
+    pub issue_count: usize,
+    pub unresolved_count: usize,
+    pub overview: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -36,7 +75,12 @@ pub struct ContradictionSessionRequest {
 pub struct ContradictionSessionResult {
     #[serde(flatten)]
     pub session: CreateLlmSessionResult,
+    pub report_id: String,
     pub report: ContradictionReport,
+    pub project_id: String,
+    pub project_name: String,
+    pub plugin_id: String,
+    pub model: Option<String>,
     pub scope_summary: String,
     pub source_entry_ids: Vec<String>,
     pub truncated: bool,
@@ -49,6 +93,64 @@ pub struct ContradictionReportView {
     pub scope_summary: String,
     pub source_entry_ids: Vec<String>,
     pub truncated: bool,
+}
+
+fn contradiction_report_file_path(base_dir: &Path, report_id: &str) -> PathBuf {
+    base_dir.join(format!("{}.json", report_id))
+}
+
+fn history_item_from_record(record: &StoredContradictionReport) -> ContradictionReportHistoryItem {
+    ContradictionReportHistoryItem {
+        report_id: record.report_id.clone(),
+        conversation_id: record.conversation_id.clone(),
+        plugin_id: record.plugin_id.clone(),
+        model: record.model.clone(),
+        project_id: record.project_id.clone(),
+        project_name: record.project_name.clone(),
+        created_at: record.created_at.clone(),
+        scope_summary: record.scope_summary.clone(),
+        source_entry_ids: record.source_entry_ids.clone(),
+        truncated: record.truncated,
+        issue_count: record.report.issues.len(),
+        unresolved_count: record.report.unresolved_questions.len(),
+        overview: record.report.overview.clone(),
+    }
+}
+
+fn read_report_record(file_path: &Path) -> Result<StoredContradictionReport, String> {
+    let content = std::fs::read_to_string(file_path).map_err(|e| format!("读取报告文件失败: {}", e))?;
+    serde_json::from_str::<StoredContradictionReport>(&content).map_err(|e| format!("解析报告文件失败: {}", e))
+}
+
+fn save_report_record(base_dir: &Path, record: &StoredContradictionReport) -> Result<(), String> {
+    std::fs::create_dir_all(base_dir).map_err(|e| format!("创建矛盾报告目录失败: {}", e))?;
+    let file_path = contradiction_report_file_path(base_dir, &record.report_id);
+    let content = serde_json::to_string_pretty(record).map_err(|e| format!("序列化报告失败: {}", e))?;
+    std::fs::write(file_path, content).map_err(|e| format!("写入报告文件失败: {}", e))
+}
+
+fn list_report_records(base_dir: &Path, project_id: &str) -> Result<Vec<StoredContradictionReport>, String> {
+    std::fs::create_dir_all(base_dir).map_err(|e| format!("创建矛盾报告目录失败: {}", e))?;
+
+    let mut records = Vec::new();
+    let entries = std::fs::read_dir(base_dir).map_err(|e| format!("读取报告目录失败: {}", e))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("读取报告目录项失败: {}", e))?;
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+            continue;
+        }
+        match read_report_record(&path) {
+            Ok(record) if record.project_id == project_id => records.push(record),
+            Ok(_) => {}
+            Err(error) => {
+                log::warn!("跳过损坏的矛盾报告文件 {:?}: {}", path, error);
+            }
+        }
+    }
+
+    records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    Ok(records)
 }
 
 #[tauri::command]
@@ -71,8 +173,12 @@ pub async fn ai_start_contradiction_session(
     let registry = client.tool_registry().clone();
     let sense = ContradictionSense::new();
     let whitelist = sense.tool_whitelist();
+    let config = Some(SessionConfig {
+        max_tool_rounds: 50,
+        ..Default::default()
+    });
     let mut session = client
-        .create_llm_session(&request.plugin_id, &api_key)
+        .create_llm_session(&request.plugin_id, &api_key, config)
         .map_err(|e| e.to_string())?;
     drop(client);
 
@@ -83,9 +189,7 @@ pub async fn ai_start_contradiction_session(
     session.set_orchestrator(Box::new(
         DefaultOrchestrator::new(registry).with_whitelist(whitelist),
     ));
-    session
-        .set_response_format(ContradictionReport::response_format_json_schema())
-        .await;
+    session.set_response_format(json!({ "type": "json_object" })).await;
 
     if let Some(model) = &request.model {
         session.set_model(model).await;
@@ -158,6 +262,38 @@ pub async fn ai_start_contradiction_session(
         }
     };
 
+    if let Some(handle) = ai_state
+        .sessions
+        .lock()
+        .await
+        .get(&request.session_id)
+        .map(|entry| entry.handle.clone())
+    {
+        handle
+            .update(|req| {
+                req.response_format = None;
+            })
+            .await;
+    }
+
+    let report_id = Uuid::new_v4().to_string();
+    let created_at = chrono::Utc::now().to_rfc3339();
+    let stored_record = StoredContradictionReport {
+        report_id: report_id.clone(),
+        session_id: request.session_id.clone(),
+        conversation_id: conversation_id.clone(),
+        plugin_id: request.plugin_id.clone(),
+        model: request.model.clone(),
+        project_id: corpus.project_id.clone(),
+        project_name: corpus.project_name.clone(),
+        created_at,
+        scope_summary: corpus.scope_summary.clone(),
+        source_entry_ids: corpus.source_entry_ids.clone(),
+        truncated: corpus.truncated,
+        report: report.clone(),
+    };
+    save_report_record(&ai_state.contradiction_reports_dir, &stored_record)?;
+
     ai_state.contradiction_bindings.lock().await.insert(
         request.session_id.clone(),
         ContradictionSessionBinding {
@@ -174,7 +310,12 @@ pub async fn ai_start_contradiction_session(
             conversation_id,
             run_id,
         },
+        report_id,
         report,
+        project_id: corpus.project_id,
+        project_name: corpus.project_name,
+        plugin_id: request.plugin_id,
+        model: request.model,
         scope_summary: corpus.scope_summary,
         source_entry_ids: corpus.source_entry_ids,
         truncated: corpus.truncated,
@@ -193,6 +334,40 @@ pub async fn ai_get_contradiction_report(
         source_entry_ids: binding.source_entry_ids.clone(),
         truncated: binding.truncated,
     }))
+}
+
+#[tauri::command]
+pub async fn ai_list_contradiction_reports(
+    ai_state: State<'_, AiState>,
+    project_id: String,
+) -> Result<Vec<ContradictionReportHistoryItem>, String> {
+    let records = list_report_records(&ai_state.contradiction_reports_dir, &project_id)?;
+    Ok(records.iter().map(history_item_from_record).collect())
+}
+
+#[tauri::command]
+pub async fn ai_get_contradiction_report_entry(
+    ai_state: State<'_, AiState>,
+    report_id: String,
+) -> Result<Option<StoredContradictionReport>, String> {
+    let file_path = contradiction_report_file_path(&ai_state.contradiction_reports_dir, &report_id);
+    if !file_path.exists() {
+        return Ok(None);
+    }
+    Ok(Some(read_report_record(&file_path)?))
+}
+
+#[tauri::command]
+pub async fn ai_delete_contradiction_report(
+    ai_state: State<'_, AiState>,
+    report_id: String,
+) -> Result<bool, String> {
+    let file_path = contradiction_report_file_path(&ai_state.contradiction_reports_dir, &report_id);
+    if !file_path.exists() {
+        return Ok(false);
+    }
+    std::fs::remove_file(&file_path).map_err(|e| format!("删除矛盾报告失败: {}", e))?;
+    Ok(true)
 }
 
 fn spawn_contradiction_event_loop<S>(
@@ -317,9 +492,7 @@ fn spawn_contradiction_event_loop<S>(
 
                     if let Some(sender) = first_turn_sender.take() {
                         let result = match status {
-                            TurnStatus::Ok => {
-                                parse_json_artifact::<ContradictionReport>(&first_turn_buffer)
-                            }
+                            TurnStatus::Ok => parse_json_artifact::<ContradictionReport>(&first_turn_buffer),
                             TurnStatus::Cancelled => Err("矛盾检测首轮已取消".to_string()),
                             TurnStatus::Interrupted => Err("矛盾检测首轮被中断".to_string()),
                             TurnStatus::Error(error) => Err(error),

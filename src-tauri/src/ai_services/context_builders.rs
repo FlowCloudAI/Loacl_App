@@ -112,7 +112,7 @@ pub fn build_summary_prompt(
 
 pub fn build_contradiction_prompt(corpus: &ContradictionCorpus) -> String {
     let mut prompt = format!(
-        "请检测以下项目资料中的设定矛盾，并按约定 JSON schema 输出。\n项目：{}。\n",
+        "请检测以下项目资料中的设定矛盾，并按约定 JSON 对象格式输出。\n项目：{}。\n",
         corpus.project_name
     );
     prompt.push_str(&format!("检测范围：{}。\n", corpus.scope_summary));
@@ -123,6 +123,13 @@ pub fn build_contradiction_prompt(corpus: &ContradictionCorpus) -> String {
     prompt.push_str("1. 只有在两条或多条证据明确互相冲突时，才放入 issues。\n");
     prompt.push_str("2. 同一条资料中的模糊描述、未定设定、开放问题，不要误判为矛盾。\n");
     prompt.push_str("3. evidence.quote 必须直接引用资料原文片段。\n\n");
+    prompt.push_str("输出要求：\n");
+    prompt.push_str("1. 只输出一个 JSON 对象，不要输出 Markdown、解释文字或代码块。\n");
+    prompt.push_str("2. 顶层字段必须且只能包含：overview、issues、unresolvedQuestions、suggestions。\n");
+    prompt.push_str("3. issues 中每一项必须包含：issueId、severity、title、description、relatedEntryIds、evidence；可选 recommendation。\n");
+    prompt.push_str("4. severity 只能是 low、medium、high、critical 之一。\n");
+    prompt.push_str("5. evidence 中每一项必须包含：entryId、entryTitle、quote；可选 note。\n");
+    prompt.push_str("6. 如果没有足够证据，请把问题放入 unresolvedQuestions，而不是伪造冲突。\n\n");
     prompt.push_str("资料如下：\n\n");
     prompt.push_str(&corpus.entry_blocks.join("\n\n"));
     prompt

@@ -335,6 +335,7 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
         model: string,
         /** 复用已有对话时传入其 id，避免后端创建重复记录；不传则生成新 id */
         conversationId?: string,
+        maxToolRounds?: number | null,
     ): Promise<SessionIdentity | null> => {
         const newId = `session_${Date.now()}`
         try {
@@ -342,6 +343,7 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
                 sessionId: newId,
                 pluginId,
                 model,
+                maxToolRounds: maxToolRounds ?? null,
                 // 续聊时告知后端回放历史，新对话不传
                 conversationId: conversationId ?? null,
             })
@@ -368,6 +370,7 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
         params: {
             characterName: string
             projectSnapshot: CharacterChatProjectSnapshot
+            maxToolRounds?: number | null
         },
     ): Promise<SessionIdentity | null> => {
         const newId = `session_${Date.now()}`
@@ -378,6 +381,7 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
                 characterName: params.characterName,
                 projectSnapshot: params.projectSnapshot,
                 model,
+                maxToolRounds: params.maxToolRounds ?? null,
             })
             sessionIdRef.current = created.session_id
             runIdRef.current = created.run_id

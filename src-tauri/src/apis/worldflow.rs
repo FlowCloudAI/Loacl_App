@@ -10,7 +10,7 @@ use tauri::{AppHandle, State, Window};
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-use worldflow_core::{models::*, AppendResult, CategoryOps, EntryLinkOps, EntryOps, EntryRelationOps, EntryTypeOps, IdeaNoteOps, ProjectOps, RestoreMode, SnapshotBranchInfo, SnapshotInfo, SqliteDb, TagSchemaOps};
+use worldflow_core::{models::*, AppendResult, CategoryOps, EntryLinkOps, EntryOps, EntryRelationOps, EntryTypeOps, IdeaNoteOps, ProjectOps, SnapshotBranchInfo, SnapshotInfo, SqliteDb, TagSchemaOps, WorldflowError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TimelineTagRole {
@@ -1778,56 +1778,6 @@ fn snapshot_repo_dir(paths: &PathsState) -> Result<PathBuf, String> {
         .ok_or_else(|| format!("无法解析数据库目录: {:?}", paths.db_path))
 }
 
-const SNAPSHOT_CSV_FILES: [&str; 8] = [
-    "projects.csv",
-    "categories.csv",
-    "tag_schemas.csv",
-    "entry_types.csv",
-    "entries.csv",
-    "entry_relations.csv",
-    "entry_links.csv",
-    "idea_notes.csv",
-];
-
-async fn restore_branch_without_snapshot(
-    db: &SqliteDb,
-    repo_dir: &Path,
-    branch_name: &str,
-) -> Result<(), String> {
-    let temp_dir = std::env::temp_dir().join(format!("flowcloudai-switch-{}", Uuid::new_v4()));
-    std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
-
-    let result = (|| -> Result<(), String> {
-        let repo = Repository::open(repo_dir).map_err(|e| e.to_string())?;
-        let reference = repo
-            .find_reference(&format!("refs/heads/{branch_name}"))
-            .map_err(|e| e.to_string())?;
-        let commit = reference
-            .peel_to_commit()
-            .map_err(|e| e.to_string())?;
-        let tree = commit.tree().map_err(|e| e.to_string())?;
-
-        for file_name in SNAPSHOT_CSV_FILES {
-            let entry = tree.get_name(file_name).ok_or_else(|| format!("分支缺少快照文件: {file_name}"))?;
-            let blob = repo.find_blob(entry.id()).map_err(|e| e.to_string())?;
-            std::fs::write(temp_dir.join(file_name), blob.content()).map_err(|e| e.to_string())?;
-        }
-        Ok(())
-    })();
-
-    if let Err(error) = result {
-        let _ = std::fs::remove_dir_all(&temp_dir);
-        return Err(error);
-    }
-
-    let restore_result = db
-        .restore_from_csvs(&temp_dir, RestoreMode::Replace)
-        .await
-        .map_err(|e| e.to_string());
-    let _ = std::fs::remove_dir_all(&temp_dir);
-    restore_result.map(|_| ())
-}
-
 fn load_snapshot_graph(repo_dir: &Path, active_branch: &str) -> Result<SnapshotGraphDto, String> {
     let repo = match Repository::open(repo_dir) {
         Ok(repo) => repo,
@@ -1919,26 +1869,34 @@ fn load_snapshot_graph(repo_dir: &Path, active_branch: &str) -> Result<SnapshotG
 }
 
 /// 手动触发一次快照（消息前缀 "manual <unix_secs>"）
+/// 返回 true 表示创建了新快照，false 表示内容无变化跳过
 #[tauri::command]
 pub async fn db_snapshot(
     state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
-    db.snapshot().await.map_err(|e| e.to_string())
+    match db.snapshot().await {
+        Ok(()) => Ok(true),
+        Err(WorldflowError::NoChanges) => Ok(false),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 /// 手动触发一次带说明的快照
+/// 返回 true 表示创建了新快照，false 表示内容无变化跳过
 #[tauri::command]
 pub async fn db_snapshot_with_message(
     state: State<'_, Arc<Mutex<AppState>>>,
     message: String,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
-    db.snapshot_with_message(&message)
-        .await
-        .map_err(|e| e.to_string())
+    match db.snapshot_with_message(&message).await {
+        Ok(()) => Ok(true),
+        Err(WorldflowError::NoChanges) => Ok(false),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 /// 获取当前活动分支
@@ -1982,29 +1940,11 @@ pub async fn db_create_branch(
 #[tauri::command]
 pub async fn db_switch_branch(
     state: State<'_, Arc<Mutex<AppState>>>,
-    paths: State<'_, PathsState>,
     branch_name: String,
 ) -> Result<(), String> {
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
-    let repo_dir = snapshot_repo_dir(&paths)?;
-    let current_branch = db.active_branch().await.map_err(|e| e.to_string())?;
-    if current_branch == branch_name {
-        return Ok(());
-    }
-    if !db
-        .list_branches()
-        .await
-        .map_err(|e| e.to_string())?
-        .iter()
-        .any(|branch| branch.name == branch_name)
-    {
-        return Err(format!("分支不存在: {branch_name}"));
-    }
-
-    restore_branch_without_snapshot(&db, &repo_dir, &branch_name).await?;
-    std::fs::write(repo_dir.join(".worldflow-active-branch"), branch_name.as_bytes())
-        .map_err(|e| e.to_string())
+    db.switch_branch(&branch_name).await.map_err(|e| e.to_string())
 }
 
 /// 列出所有历史快照，最新的在 index 0
@@ -2050,17 +1990,20 @@ pub async fn db_get_snapshot_graph(
 }
 
 /// 直接把当前数据库状态提交到指定分支
+/// 返回 true 表示创建了新快照，false 表示内容无变化跳过
 #[tauri::command]
 pub async fn db_snapshot_to_branch(
     state: State<'_, Arc<Mutex<AppState>>>,
     branch_name: String,
     message: String,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
-    db.snapshot_to_branch(&branch_name, &message)
-        .await
-        .map_err(|e| e.to_string())
+    match db.snapshot_to_branch(&branch_name, &message).await {
+        Ok(()) => Ok(true),
+        Err(WorldflowError::NoChanges) => Ok(false),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 /// 回退到指定快照（先自动保存 pre-rollback 快照，再全量替换数据库）

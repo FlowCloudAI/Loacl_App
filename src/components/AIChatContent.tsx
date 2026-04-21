@@ -73,6 +73,7 @@ export default function AIChatContent({controller, panelMode, onTogglePanelMode}
     }, [isModelMenuOpen])
 
     const [autoScroll, setAutoScroll] = useState(true)
+    const [roleplayAutoPlayFallback, setRoleplayAutoPlayFallback] = useState<boolean | null>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const messagesContainerRef = useRef<HTMLDivElement>(null)
     const lastScrollTopRef = useRef(0)
@@ -247,6 +248,29 @@ export default function AIChatContent({controller, panelMode, onTogglePanelMode}
         handlePlayRoleMessage,
         isCharacterConversation,
     ])
+
+    useEffect(() => {
+        if (!isCharacterConversation || !activeConversation || activeConversation.characterAutoPlay != null) {
+            return
+        }
+
+        let cancelled = false
+        setting_get_settings()
+            .then((settings) => {
+                if (cancelled) return
+                setRoleplayAutoPlayFallback(settings.tts.auto_play)
+            })
+            .catch(() => {
+                if (cancelled) return
+                setRoleplayAutoPlayFallback(true)
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [activeConversation, isCharacterConversation])
+
+    const effectiveRoleplayAutoPlay = activeConversation?.characterAutoPlay ?? roleplayAutoPlayFallback ?? true
 
     return (
         <>
@@ -531,6 +555,19 @@ export default function AIChatContent({controller, panelMode, onTogglePanelMode}
                                 >
                                     深度思考
                                 </button>
+                                {isCharacterConversation && activeConversation && (
+                                    <button
+                                        className={`ai-toolbar-btn ${effectiveRoleplayAutoPlay ? 'active' : ''}`}
+                                        onClick={(event) => {
+                                            event.stopPropagation()
+                                            const nextAutoPlay = !effectiveRoleplayAutoPlay
+                                            ctx.updateConversationCharacterAutoPlay(activeConversation.id, nextAutoPlay)
+                                        }}
+                                        title="自动播放角色回复"
+                                    >
+                                        自动播放
+                                    </button>
+                                )}
                                 {!isCharacterConversation && (
                                     <>
                                         <button

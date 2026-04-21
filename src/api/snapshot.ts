@@ -49,10 +49,10 @@ export interface AppendResult {
 }
 
 export const dbSnapshot = () =>
-  command<void>('db_snapshot')
+    command<boolean>('db_snapshot')
 
 export const dbSnapshotWithMessage = (message: string) =>
-    command<void>('db_snapshot_with_message', {message})
+    command<boolean>('db_snapshot_with_message', {message})
 
 export const dbGetActiveBranch = () =>
     command<string>('db_get_active_branch')
@@ -76,7 +76,7 @@ export const dbGetSnapshotGraph = () =>
     command<SnapshotGraph>('db_get_snapshot_graph')
 
 export const dbSnapshotToBranch = (branchName: string, message: string) =>
-    command<void>('db_snapshot_to_branch', {branchName, message})
+    command<boolean>('db_snapshot_to_branch', {branchName, message})
 
 export const dbRollbackTo = (snapshotId: string) =>
   command<void>('db_rollback_to', { snapshotId })

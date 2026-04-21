@@ -55,6 +55,8 @@ interface ProjectOverviewProps {
     onEditEntryType?: (entryType: CustomEntryType) => void
     onOpenRelationGraph?: () => void
     onOpenTimeline?: () => void
+    onOpenWorldMap?: () => void
+    onOpenContradiction?: () => void
     onEditCover?: () => void
     onClearCover?: () => void
     coverUpdating?: boolean
@@ -251,6 +253,8 @@ function ProjectOverview({
     onEditEntryType,
     onOpenRelationGraph,
                              onOpenTimeline,
+                             onOpenWorldMap,
+                             onOpenContradiction,
                              onEditCover,
                              onClearCover,
                              coverUpdating = false,
@@ -342,16 +346,15 @@ function ProjectOverview({
                     <FeatureEntry
                         title="矛盾检测"
                         description="集中检查设定冲突、时间不一致和角色叙述互相打架的地方。"
-                        badge="待开放"
-                        disabled
+                        emphasized
+                        onClick={onOpenContradiction}
                     >
                         <ConflictIcon/>
                     </FeatureEntry>
                     <FeatureEntry
                         title="世界地图"
-                        description="在空间层面串联区域、航线、势力分布和事件发生位置。"
-                        badge="待开放"
-                        disabled
+                        description="在空间层面串联区域、航线、势力分布和事件发生位置。支持扁平、托尔金、水墨三种渲染风格。"
+                        onClick={onOpenWorldMap}
                     >
                         <WorldMapIcon/>
                     </FeatureEntry>

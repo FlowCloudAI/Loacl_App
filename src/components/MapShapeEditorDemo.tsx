@@ -7,7 +7,6 @@ import {
     createMapShapeEditorLocalId,
     getShapeCenter,
     MapDeckPreview,
-    type MapDeckPreviewRenderOptions,
     type MapEditorCanvas,
     type MapKeyLocationDraft,
     type MapPreviewBackgroundImage,
@@ -157,10 +156,6 @@ const DRAFT_PRESETS: DraftPreset[] = [
     },
 ]
 
-
-const PREVIEW_RENDER_OPTIONS: MapDeckPreviewRenderOptions = {
-    labelFontFamily: '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif',
-}
 
 function cloneDraft(draft: MapShapeEditorDraft): MapShapeEditorDraft {
     return {
@@ -1272,7 +1267,9 @@ export default function MapShapeEditorDemo() {
                     <MapDeckPreview
                         scene={preview}
                         emptyHint="当前还没有可预览的 scene。"
-                        previewRenderOptions={PREVIEW_RENDER_OPTIONS}
+                        textLayerProps={{
+                            fontFamily: '"Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif',
+                        }}
                         style={{height: '100%'}}
                     />
                 </div>
