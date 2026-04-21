@@ -1,0 +1,498 @@
+/* ── Panel ─────────────────────────────────────────────────────────────────── */
+
+.pe-contradiction-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--fc-color-bg);
+}
+
+/* ── Toolbar ───────────────────────────────────────────────────────────────── */
+
+.pe-contradiction-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--fc-color-border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.pe-contradiction-toolbar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.pe-contradiction-toolbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.pe-contradiction-title {
+    margin: 0;
+    font-size: var(--fc-font-size-lg);
+    font-weight: var(--fc-font-weight-bold);
+    color: var(--fc-color-text);
+}
+
+.pe-contradiction-desc {
+    margin: 0.2rem 0 0;
+    font-size: var(--fc-font-size-sm);
+    line-height: 1.55;
+    color: var(--fc-color-text-secondary);
+}
+
+/* ── Layout ────────────────────────────────────────────────────────────────── */
+
+.pe-contradiction-layout {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(17rem, 21rem) minmax(0, 1fr);
+    gap: 0.9rem;
+    padding: 0.9rem 1rem;
+}
+
+/* ── History & Report sections ─────────────────────────────────────────────── */
+
+.pe-contradiction-history,
+.pe-contradiction-report {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-lg);
+    background: var(--fc-color-bg-elevated);
+    box-shadow: var(--fc-shadow-xs);
+    overflow: hidden;
+}
+
+/* ── Section header ────────────────────────────────────────────────────────── */
+
+.pe-contradiction-section__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    border-bottom: 1px solid var(--fc-color-border);
+    flex-shrink: 0;
+}
+
+.pe-contradiction-section__title {
+    margin: 0;
+    font-size: var(--fc-font-size-base);
+    font-weight: var(--fc-font-weight-bold);
+    color: var(--fc-color-text);
+}
+
+.pe-contradiction-section__meta {
+    font-size: var(--fc-font-size-xs);
+    color: var(--fc-color-text-secondary);
+}
+
+/* ── History scroll ────────────────────────────────────────────────────────── */
+
+.pe-contradiction-history__scroll {
+    flex: 1;
+    min-height: 0;
+    padding: 0.75rem;
+}
+
+.pe-contradiction-history__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+/* ── History item ──────────────────────────────────────────────────────────── */
+
+.pe-contradiction-history__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.75rem;
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-md);
+    background: var(--fc-color-bg);
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.pe-contradiction-history__item.is-active {
+    border-color: var(--fc-color-primary);
+    background: color-mix(in srgb, var(--fc-color-primary) 6%, var(--fc-color-bg));
+}
+
+.pe-contradiction-history__button {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+}
+
+.pe-contradiction-history__topline,
+.pe-contradiction-history__meta,
+.pe-contradiction-report__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.pe-contradiction-history__time,
+.pe-contradiction-history__meta,
+.pe-contradiction-report__meta {
+    font-size: var(--fc-font-size-xs);
+    color: var(--fc-color-text-secondary);
+}
+
+.pe-contradiction-history__badge,
+.pe-contradiction-history__warning,
+.pe-contradiction-report__warning,
+.pe-contradiction-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.44rem;
+    border-radius: 999px;
+    font-size: var(--fc-font-size-xs);
+    line-height: 1.2;
+}
+
+.pe-contradiction-history__badge {
+    background: color-mix(in srgb, var(--fc-color-primary) 13%, transparent);
+    color: var(--fc-color-primary);
+}
+
+.pe-contradiction-history__warning,
+.pe-contradiction-report__warning {
+    background: color-mix(in srgb, var(--fc-color-warning, #d97706) 14%, transparent);
+    color: var(--fc-color-warning, #d97706);
+}
+
+.pe-contradiction-history__summary {
+    font-size: var(--fc-font-size-sm);
+    line-height: 1.55;
+    color: var(--fc-color-text);
+}
+
+/* ── Report body & scroll ──────────────────────────────────────────────────── */
+
+.pe-contradiction-report__body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.pe-contradiction-report__scroll {
+    height: 100%;
+    padding: 0.85rem;
+}
+
+.pe-contradiction-report__content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+/* ── Hero ──────────────────────────────────────────────────────────────────── */
+
+.pe-contradiction-report__hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-lg);
+    background: var(--fc-color-bg);
+}
+
+.pe-contradiction-report__hero-actions {
+    flex-shrink: 0;
+}
+
+.pe-contradiction-report__title {
+    margin: 0.35rem 0 0.5rem;
+    font-size: var(--fc-font-size-xl);
+    font-weight: var(--fc-font-weight-bold);
+    color: var(--fc-color-text);
+}
+
+.pe-contradiction-report__overview {
+    margin: 0;
+    font-size: var(--fc-font-size-sm);
+    line-height: 1.7;
+    color: var(--fc-color-text);
+    white-space: pre-wrap;
+}
+
+/* ── Stats ─────────────────────────────────────────────────────────────────── */
+
+.pe-contradiction-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.pe-contradiction-stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.8rem;
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-md);
+    background: var(--fc-color-bg);
+}
+
+.pe-contradiction-stat-card__value {
+    font-size: var(--fc-font-size-xl);
+    font-weight: var(--fc-font-weight-bold);
+    color: var(--fc-color-primary);
+}
+
+.pe-contradiction-stat-card__label {
+    font-size: var(--fc-font-size-xs);
+    color: var(--fc-color-text-secondary);
+}
+
+.pe-contradiction-severity-dist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+}
+
+.pe-contradiction-severity-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    font-size: var(--fc-font-size-xs);
+    line-height: 1.2;
+}
+
+.pe-contradiction-severity-pill.is-critical {
+    background: color-mix(in srgb, var(--fc-color-danger, #d9485f) 14%, transparent);
+    color: var(--fc-color-danger, #d9485f);
+}
+
+.pe-contradiction-severity-pill.is-high {
+    background: color-mix(in srgb, var(--fc-color-warning, #d97706) 14%, transparent);
+    color: var(--fc-color-warning, #d97706);
+}
+
+.pe-contradiction-severity-pill.is-medium {
+    background: color-mix(in srgb, var(--fc-color-primary) 14%, transparent);
+    color: var(--fc-color-primary);
+}
+
+.pe-contradiction-severity-pill.is-low {
+    background: color-mix(in srgb, var(--fc-color-text-secondary) 10%, transparent);
+    color: var(--fc-color-text-secondary);
+}
+
+/* ── Report sections ───────────────────────────────────────────────────────── */
+
+.pe-contradiction-report__section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+
+.pe-contradiction-report__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+}
+
+/* ── Issue list & list ─────────────────────────────────────────────────────── */
+
+.pe-contradiction-issue-list,
+.pe-contradiction-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────────────── */
+
+.pe-contradiction-issue-card,
+.pe-contradiction-list__item,
+.pe-contradiction-empty {
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-md);
+    background: var(--fc-color-bg);
+}
+
+.pe-contradiction-empty {
+    font-size: var(--fc-font-size-sm);
+    line-height: 1.6;
+    color: var(--fc-color-text-secondary);
+}
+
+.pe-contradiction-empty--large {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.pe-contradiction-issue-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    border-left-width: 3px;
+}
+
+.pe-contradiction-issue-card.is-severity-critical {
+    border-left-color: var(--fc-color-danger, #d9485f);
+}
+
+.pe-contradiction-issue-card.is-severity-high {
+    border-left-color: var(--fc-color-warning, #d97706);
+}
+
+.pe-contradiction-issue-card.is-severity-medium {
+    border-left-color: var(--fc-color-primary);
+}
+
+.pe-contradiction-issue-card.is-severity-low {
+    border-left-color: var(--fc-color-border);
+}
+
+.pe-contradiction-issue-card__header,
+.pe-contradiction-issue-card__title-group,
+.pe-contradiction-chip-list {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.pe-contradiction-issue-card__category {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.14rem 0.5rem;
+    border-radius: var(--fc-radius-sm);
+    font-size: var(--fc-font-size-xs);
+    line-height: 1.2;
+    background: color-mix(in srgb, var(--fc-color-text-secondary) 8%, transparent);
+    color: var(--fc-color-text-secondary);
+    border: 1px solid var(--fc-color-border);
+}
+
+.pe-contradiction-chip-list__label {
+    font-size: var(--fc-font-size-xs);
+    color: var(--fc-color-text-secondary);
+    flex-shrink: 0;
+}
+
+.pe-contradiction-issue-card__header {
+    justify-content: space-between;
+}
+
+.pe-contradiction-issue-card__severity {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.14rem 0.5rem;
+    border-radius: 999px;
+    font-size: var(--fc-font-size-xs);
+    line-height: 1.2;
+    background: color-mix(in srgb, var(--fc-color-text-secondary) 12%, transparent);
+    color: var(--fc-color-text-secondary);
+}
+
+.pe-contradiction-issue-card__severity.is-critical {
+    background: color-mix(in srgb, var(--fc-color-danger, #d9485f) 14%, transparent);
+    color: var(--fc-color-danger, #d9485f);
+}
+
+.pe-contradiction-issue-card__severity.is-high {
+    background: color-mix(in srgb, var(--fc-color-warning, #d97706) 14%, transparent);
+    color: var(--fc-color-warning, #d97706);
+}
+
+.pe-contradiction-issue-card__severity.is-medium {
+    background: color-mix(in srgb, var(--fc-color-primary) 14%, transparent);
+    color: var(--fc-color-primary);
+}
+
+.pe-contradiction-issue-card__title,
+.pe-contradiction-evidence-card__title {
+    margin: 0;
+    font-size: var(--fc-font-size-base);
+    font-weight: var(--fc-font-weight-bold);
+    color: var(--fc-color-text);
+}
+
+.pe-contradiction-issue-card__id {
+    font-size: var(--fc-font-size-xs);
+    color: var(--fc-color-text-secondary);
+}
+
+.pe-contradiction-issue-card__desc,
+.pe-contradiction-issue-card__recommendation,
+.pe-contradiction-evidence-card__quote,
+.pe-contradiction-evidence-card__note,
+.pe-contradiction-list__item {
+    font-size: var(--fc-font-size-sm);
+    line-height: 1.65;
+    color: var(--fc-color-text);
+}
+
+.pe-contradiction-chip {
+    background: color-mix(in srgb, var(--fc-color-primary) 10%, transparent);
+    color: var(--fc-color-text-secondary);
+}
+
+.pe-contradiction-evidence-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 0.6rem;
+}
+
+.pe-contradiction-evidence-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--fc-color-border-light);
+    border-radius: var(--fc-radius-md);
+    background: var(--fc-color-bg-secondary);
+}
+
+.pe-contradiction-evidence-card__quote {
+    color: var(--fc-color-text);
+}
+
+.pe-contradiction-evidence-card__note {
+    color: var(--fc-color-text-secondary);
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+
+@container (max-width: 780px) {
+    .pe-contradiction-layout,
+    .pe-contradiction-report__grid,
+    .pe-contradiction-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .pe-contradiction-report__hero {
+        flex-direction: column;
+    }
+}

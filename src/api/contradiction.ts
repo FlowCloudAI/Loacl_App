@@ -7,9 +7,12 @@ export interface ContradictionEvidence {
     note?: string | null
 }
 
+export type ContradictionCategory = 'timeline' | 'relationship' | 'geography' | 'ability' | 'faction' | 'other'
+
 export interface ContradictionIssue {
     issueId: string
     severity: 'low' | 'medium' | 'high' | 'critical'
+    category?: ContradictionCategory | null
     title: string
     description: string
     relatedEntryIds: string[]

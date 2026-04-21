@@ -589,10 +589,11 @@ function App() {
                         mode={aiPanelMode}
                         width={aiPanelWidth}
                         minWidth={AI_MIN_PANEL_WIDTH}
-                        maxWidthRatio={0.5}
+                        maxWidthRatio={0.7}
                         collapsed={aiPanelCollapsed}
                         onCollapsedChange={setAiPanelCollapsed}
                         onWidthChange={setAiPanelWidth}
+                        onModeChange={setAiPanelMode}
                         className="ai-shell"
                         handleTitle="拖拽调整宽度"
                     >

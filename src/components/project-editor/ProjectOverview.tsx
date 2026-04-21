@@ -308,17 +308,16 @@ function ProjectOverview({
                         <span className="pe-meta-sep">·</span>
                         <span>更新于 {formatDate(project.updated_at)}</span>
                     </div>
+                    <div className="pe-stats-grid">
+                        <StatCard label="词条数" value={entryCount}/>
+                        <StatCard label="分类数" value={categories.length}/>
+                        <StatCard label="词条类型" value={entryTypes.length}/>
+                        <StatCard label="标签数" value={tagCount}/>
+                        <StatCard label="图片数" value={imageCount ?? '--'}/>
+                        <StatCard label="总字数" value={wordCount ?? '--'}/>
+                    </div>
                 </div>
             </section>
-
-            <div className="pe-stats-grid">
-                <StatCard label="词条数" value={entryCount}/>
-                <StatCard label="分类数" value={categories.length}/>
-                <StatCard label="词条类型" value={entryTypes.length}/>
-                <StatCard label="标签数" value={tagCount}/>
-                <StatCard label="图片数" value={imageCount ?? '--'}/>
-                <StatCard label="总字数" value={wordCount ?? '--'}/>
-            </div>
 
             <section className="pe-feature-section">
                 <div className="pe-feature-section__header">
@@ -346,7 +345,6 @@ function ProjectOverview({
                     <FeatureEntry
                         title="矛盾检测"
                         description="集中检查设定冲突、时间不一致和角色叙述互相打架的地方。"
-                        emphasized
                         onClick={onOpenContradiction}
                     >
                         <ConflictIcon/>

@@ -99,8 +99,11 @@ export default function AIChatContent({controller, panelMode, onTogglePanelMode}
         const roll = container.querySelector('.fc-roll') as HTMLElement | null
         const scrollContainer = roll || container
         const {scrollTop, scrollHeight, clientHeight} = scrollContainer
-        if (scrollTop < lastScrollTopRef.current && scrollHeight - scrollTop - clientHeight > 50) {
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+        if (scrollTop < lastScrollTopRef.current && distanceFromBottom > 50) {
             setAutoScroll(false)
+        } else if (distanceFromBottom <= 50) {
+            setAutoScroll(true)
         }
         lastScrollTopRef.current = scrollTop
     }, [])
@@ -119,13 +122,11 @@ export default function AIChatContent({controller, panelMode, onTogglePanelMode}
     useLayoutEffect(() => {
         const textarea = textareaRef.current
         if (!textarea) return
-        requestAnimationFrame(() => {
-            const scrollTop = textarea.scrollTop
-            textarea.style.height = 'auto'
-            const nextHeight = Math.min(Math.max(textarea.scrollHeight, 60), 200)
-            textarea.style.height = `${nextHeight}px`
-            textarea.scrollTop = scrollTop
-        })
+        const scrollTop = textarea.scrollTop
+        textarea.style.height = 'auto'
+        const nextHeight = Math.min(Math.max(textarea.scrollHeight, 60), 200)
+        textarea.style.height = `${nextHeight}px`
+        textarea.scrollTop = scrollTop
     }, [ctx.inputValue])
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {

@@ -1,5 +1,16 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
+
+fn deserialize_overview_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let v = Value::deserialize(deserializer)?;
+    match v {
+        Value::String(s) => Ok(s),
+        other => Ok(other.to_string()),
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,6 +26,7 @@ pub struct ContradictionEvidence {
 pub struct ContradictionIssue {
     pub issue_id: String,
     pub severity: String,
+    pub category: Option<String>,
     pub title: String,
     pub description: String,
     pub related_entry_ids: Vec<String>,
@@ -25,6 +37,7 @@ pub struct ContradictionIssue {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContradictionReport {
+    #[serde(deserialize_with = "deserialize_overview_string")]
     pub overview: String,
     pub issues: Vec<ContradictionIssue>,
     pub unresolved_questions: Vec<String>,
@@ -53,6 +66,7 @@ impl ContradictionReport {
                                 "required": [
                                     "issueId",
                                     "severity",
+                                    "category",
                                     "title",
                                     "description",
                                     "relatedEntryIds",
@@ -63,6 +77,10 @@ impl ContradictionReport {
                                     "severity": {
                                         "type": "string",
                                         "enum": ["low", "medium", "high", "critical"]
+                                    },
+                                    "category": {
+                                        "type": ["string", "null"],
+                                        "enum": ["timeline", "relationship", "geography", "ability", "faction", "other", null]
                                     },
                                     "title": { "type": "string" },
                                     "description": { "type": "string" },

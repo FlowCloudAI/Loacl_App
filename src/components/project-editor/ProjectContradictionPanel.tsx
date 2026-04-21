@@ -5,12 +5,14 @@ import {
     ai_get_contradiction_report_entry,
     ai_list_contradiction_reports,
     ai_start_contradiction_session,
+    type ContradictionCategory,
     type ContradictionIssue,
     type ContradictionReport,
     type ContradictionReportHistoryItem,
     type StoredContradictionReport,
 } from '../../api'
 import type {ReportConversationContext} from '../../contexts/AiControllerTypes'
+import './ProjectContradictionPanel.css'
 
 interface ProjectContradictionPanelProps {
     projectId: string
@@ -48,6 +50,23 @@ function severityLabel(severity: ContradictionIssue['severity']): string {
             return '中'
         default:
             return '低'
+    }
+}
+
+function categoryLabel(category: ContradictionCategory | null | undefined): string {
+    switch (category) {
+        case 'timeline':
+            return '时间线'
+        case 'relationship':
+            return '人物关系'
+        case 'geography':
+            return '地理空间'
+        case 'ability':
+            return '能力规则'
+        case 'faction':
+            return '阵营立场'
+        default:
+            return '其他'
     }
 }
 
@@ -208,10 +227,17 @@ function ProjectContradictionPanel({
 
     const summary = useMemo(() => {
         if (!activeRecord) return null
+        const issues = activeRecord.report.issues
         return {
-            issueCount: activeRecord.report.issues.length,
+            issueCount: issues.length,
             unresolvedCount: activeRecord.report.unresolvedQuestions.length,
             status: reportStatus(activeRecord.report),
+            severityDist: {
+                critical: issues.filter((i) => i.severity === 'critical').length,
+                high: issues.filter((i) => i.severity === 'high').length,
+                medium: issues.filter((i) => i.severity === 'medium').length,
+                low: issues.filter((i) => i.severity === 'low').length,
+            },
         }
     }, [activeRecord])
 
@@ -294,8 +320,9 @@ function ProjectContradictionPanel({
                             正在加载报告详情…
                         </div>
                     ) : (
-                        <RollingBox className="pe-contradiction-report__scroll" thumbSize="thin">
-                            <div className="pe-contradiction-report__content">
+                        <div className="pe-contradiction-report__body">
+                            <RollingBox className="pe-contradiction-report__scroll" thumbSize="thin">
+                                <div className="pe-contradiction-report__content">
                                 <div className="pe-contradiction-report__hero">
                                     <div>
                                         <div className="pe-contradiction-report__meta">
@@ -320,6 +347,26 @@ function ProjectContradictionPanel({
                                         <span
                                             className="pe-contradiction-stat-card__value">{summary?.issueCount ?? 0}</span>
                                         <span className="pe-contradiction-stat-card__label">冲突条目</span>
+                                        {(summary?.issueCount ?? 0) > 0 && (
+                                            <div className="pe-contradiction-severity-dist">
+                                                {summary!.severityDist.critical > 0 && (
+                                                    <span
+                                                        className="pe-contradiction-severity-pill is-critical">{summary!.severityDist.critical} 严重</span>
+                                                )}
+                                                {summary!.severityDist.high > 0 && (
+                                                    <span
+                                                        className="pe-contradiction-severity-pill is-high">{summary!.severityDist.high} 高</span>
+                                                )}
+                                                {summary!.severityDist.medium > 0 && (
+                                                    <span
+                                                        className="pe-contradiction-severity-pill is-medium">{summary!.severityDist.medium} 中</span>
+                                                )}
+                                                {summary!.severityDist.low > 0 && (
+                                                    <span
+                                                        className="pe-contradiction-severity-pill is-low">{summary!.severityDist.low} 低</span>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="pe-contradiction-stat-card">
                                         <span
@@ -343,13 +390,19 @@ function ProjectContradictionPanel({
                                         {activeRecord.report.issues.length === 0 ? (
                                             <div className="pe-contradiction-empty">当前范围内没有发现明确冲突。</div>
                                         ) : activeRecord.report.issues.map((issue) => (
-                                            <article key={issue.issueId} className="pe-contradiction-issue-card">
+                                            <article key={issue.issueId}
+                                                     className={`pe-contradiction-issue-card is-severity-${issue.severity}`}>
                                                 <div className="pe-contradiction-issue-card__header">
                                                     <div className="pe-contradiction-issue-card__title-group">
                                                         <span
                                                             className={`pe-contradiction-issue-card__severity is-${issue.severity}`}>
                                                             {severityLabel(issue.severity)}
                                                         </span>
+                                                        {issue.category && (
+                                                            <span className="pe-contradiction-issue-card__category">
+                                                                {categoryLabel(issue.category)}
+                                                            </span>
+                                                        )}
                                                         <h5 className="pe-contradiction-issue-card__title">{issue.title}</h5>
                                                     </div>
                                                     <span
@@ -358,6 +411,8 @@ function ProjectContradictionPanel({
                                                 <p className="pe-contradiction-issue-card__desc">{issue.description}</p>
                                                 {issue.relatedEntryIds.length > 0 && (
                                                     <div className="pe-contradiction-chip-list">
+                                                        <span
+                                                            className="pe-contradiction-chip-list__label">相关词条</span>
                                                         {issue.relatedEntryIds.map((entryId) => (
                                                             <span key={`${issue.issueId}-${entryId}`}
                                                                   className="pe-contradiction-chip">
@@ -435,6 +490,7 @@ function ProjectContradictionPanel({
                                 </div>
                             </div>
                         </RollingBox>
+                        </div>
                     )}
                 </section>
             </div>

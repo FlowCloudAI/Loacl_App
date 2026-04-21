@@ -1,6 +1,7 @@
 import {
     type CSSProperties,
     type MouseEvent as ReactMouseEvent,
+    type ReactNode,
     useCallback,
     useEffect,
     useLayoutEffect,
@@ -10,7 +11,8 @@ import {
 import './DockableSidePanel.css'
 
 export type DockableSidePanelMode = 'fullscreen' | 'floating'
-const PANEL_COLLAPSE_THRESHOLD_RATIO = 1 / 3
+const PANEL_COLLAPSE_THRESHOLD_RATIO = 1 / 5
+const FULLSCREEN_TRIGGER_DISTANCE = 150
 
 interface DockableSidePanelProps {
     mode: DockableSidePanelMode
@@ -20,9 +22,10 @@ interface DockableSidePanelProps {
     collapsed?: boolean
     onCollapsedChange?: (collapsed: boolean) => void
     onWidthChange: (width: number) => void
+    onModeChange?: (mode: DockableSidePanelMode) => void
     className?: string
     handleTitle?: string
-    children: React.ReactNode
+    children: ReactNode
 }
 
 export default function DockableSidePanel({
@@ -33,6 +36,7 @@ export default function DockableSidePanel({
                                               collapsed = false,
                                               onCollapsedChange,
                                               onWidthChange,
+                                              onModeChange,
                                               className = '',
                                               handleTitle = '拖拽调整宽度',
                                               children,
@@ -113,11 +117,33 @@ export default function DockableSidePanel({
         document.body.style.userSelect = 'none'
     }, [collapsed, minWidth, mode, onCollapsedChange, onWidthChange, width])
 
+    const checkFullscreenTrigger = useCallback((panelRightEdgeX: number) => {
+        if (mode !== 'floating') return false
+        if (panelRightEdgeX <= FULLSCREEN_TRIGGER_DISTANCE) {
+            onModeChange?.('fullscreen')
+            return true
+        }
+        return false
+    }, [mode, onModeChange])
+
     useEffect(() => {
         const handleMouseMove = (event: MouseEvent) => {
             if (!isDraggingRef.current) return
             const delta = dragStartXRef.current - event.clientX
             const rawWidth = dragStartWidthRef.current + delta
+
+            // 检测是否触发全屏：面板右边缘距离视口左边界 <= 100px
+            const panelRightEdgeX = window.innerWidth - rawWidth
+            if (checkFullscreenTrigger(panelRightEdgeX)) {
+                isDraggingRef.current = false
+                setIsDragging(false)
+                isCollapsePreviewRef.current = false
+                setIsCollapsePreview(false)
+                document.body.style.cursor = ''
+                document.body.style.userSelect = ''
+                return
+            }
+
             const collapseThreshold = dragStartWidthRef.current * PANEL_COLLAPSE_THRESHOLD_RATIO
             const nextWidth = Math.min(
                 window.innerWidth * maxWidthRatio,
@@ -153,11 +179,12 @@ export default function DockableSidePanel({
             window.removeEventListener('mousemove', handleMouseMove)
             window.removeEventListener('mouseup', handleMouseUp)
         }
-    }, [maxWidthRatio, minWidth, onCollapsedChange, onWidthChange])
+    }, [maxWidthRatio, minWidth, onCollapsedChange, onWidthChange, checkFullscreenTrigger])
 
     const rootClassName = [
         'dockable-side-panel',
         `dockable-side-panel--${mode}`,
+        mode === 'floating' && isDragging ? 'is-dragging' : '',
         mode === 'floating' && collapsed ? 'is-collapsed' : '',
         mode === 'floating' && isCollapsePreview ? 'is-collapse-preview' : '',
         className,

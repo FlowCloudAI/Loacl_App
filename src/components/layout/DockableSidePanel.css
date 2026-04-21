@@ -23,11 +23,17 @@
     height: 100%;
     flex-shrink: 0;
     border-left: 1px solid var(--fc-color-border);
+    transition: width 0.18s ease, border-color 0.15s ease;
+}
+
+.dockable-side-panel--floating.is-dragging {
+    transition: none;
 }
 
 .dockable-side-panel--floating.is-collapsed,
 .dockable-side-panel--floating.is-collapse-preview {
     width: var(--dockable-side-panel-collapsed-width);
+    border-left-color: transparent;
 }
 
 .dockable-side-panel__body {
