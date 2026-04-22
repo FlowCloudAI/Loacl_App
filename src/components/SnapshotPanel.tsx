@@ -349,7 +349,10 @@ export default function SnapshotPanel({className}: SnapshotPanelProps) {
                             : GRAPH_COLORS[row.lane % GRAPH_COLORS.length]
                         const circleR = row.node.isActiveTip || row.node.isCurrentHead ? 6 : 5
                         return (
-                            <div key={row.node.id} className="snapshot-panel__graph-row">
+                            <div
+                                key={row.node.id}
+                                className={`snapshot-panel__graph-row${row.node.isActiveTip ? ' is-active' : ''}`}
+                            >
                                 <div className="snapshot-panel__graph-rail" style={{width: `${svgWidth}px`}}>
                                     <svg
                                         width={svgWidth}
@@ -399,30 +402,24 @@ export default function SnapshotPanel({className}: SnapshotPanelProps) {
                                         }}
                                     />
                                 </div>
-                                <div
-                                    className={`snapshot-panel__item${row.node.isActiveTip ? ' snapshot-panel__item--active' : ''}`}>
-                                    <div className="snapshot-panel__item-meta">
-                                        <span className="snapshot-panel__item-type">
-                                            {row.node.message.startsWith('auto') ? '自动' : '手动'}
-                                        </span>
+                                <div className="snapshot-panel__item">
+                                    <span className="snapshot-panel__item-type">
+                                        {row.node.message.startsWith('auto') ? '自动' : '手动'}
+                                    </span>
+                                    <span className="snapshot-panel__item-message">
+                                        {formatSnapshotMessage(row.node.message)}
+                                    </span>
+                                    <span className="snapshot-panel__item-branches">
                                         {row.node.branchNames.map(branchName => (
-                                            <span key={`${row.node.id}-${branchName}`}
-                                                  className="snapshot-panel__branch-tag">
+                                            <span
+                                                key={`${row.node.id}-${branchName}`}
+                                                className="snapshot-panel__branch-tag"
+                                            >
                                                 {branchName}
                                             </span>
                                         ))}
-                                        {row.node.isActiveTip &&
-                                            <span className="snapshot-panel__item-badge">活动分支</span>}
-                                        {row.node.isCurrentHead && !row.node.isActiveTip &&
-                                            <span className="snapshot-panel__item-badge">HEAD</span>}
-                                    </div>
-                                    <div className="snapshot-panel__item-message">
-                                        {formatSnapshotMessage(row.node.message)}
-                                    </div>
-                                    <span className="snapshot-panel__item-time">
-                                        {formatSnapshotTime(row.node.timestamp)}
                                     </span>
-                                    <div className="snapshot-panel__item-actions">
+                                    <span className="snapshot-panel__item-actions">
                                         <Button
                                             variant="ghost"
                                             size="sm"
@@ -439,7 +436,10 @@ export default function SnapshotPanel({className}: SnapshotPanelProps) {
                                         >
                                             恢复
                                         </Button>
-                                    </div>
+                                    </span>
+                                    <span className="snapshot-panel__item-time">
+                                        {formatSnapshotTime(row.node.timestamp)}
+                                    </span>
                                 </div>
                             </div>
                         )

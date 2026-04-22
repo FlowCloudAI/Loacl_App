@@ -87,13 +87,36 @@
 .snapshot-panel__graph-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    align-items: stretch;
+    align-items: center;
     gap: 10px;
+    min-height: 2rem;
+    padding: 2px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--fc-color-border) 45%, transparent);
+    transition: background 0.1s ease;
+}
+
+.snapshot-panel__graph-row:last-child {
+    border-bottom: none;
+}
+
+.snapshot-panel__graph-row:hover {
+    background: var(--fc-color-bg-secondary);
+}
+
+.snapshot-panel__graph-row.is-active {
+    background: color-mix(in srgb, var(--fc-color-primary) 5%, transparent);
+    border-bottom-color: color-mix(in srgb, var(--fc-color-primary) 20%, transparent);
+}
+
+.snapshot-panel__graph-row.is-active:hover {
+    background: color-mix(in srgb, var(--fc-color-primary) 7%, transparent);
 }
 
 .snapshot-panel__graph-rail {
     position: relative;
     flex-shrink: 0;
+    align-self: center;
+    height: 1.75rem;
 }
 
 .snapshot-panel__graph-rail svg {
@@ -115,40 +138,15 @@
 
 .snapshot-panel__item {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 7px 10px;
-    margin: 0;
-    border-radius: var(--fc-radius-md);
-    border: 1px solid var(--fc-color-border);
-    background: var(--fc-color-bg-secondary);
-    transition: border-color var(--fc-transition), box-shadow var(--fc-transition);
-    cursor: default;
-    position: relative;
-}
-
-.snapshot-panel__item--active {
-    border-color: var(--fc-color-primary);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--fc-color-primary) 25%, transparent);
-    background: color-mix(in srgb, var(--fc-color-primary-subtle) 60%, var(--fc-color-bg-secondary));
-}
-
-.snapshot-panel__item:hover {
-    border-color: var(--fc-color-border-hover);
-}
-
-.snapshot-panel__item--active:hover {
-    border-color: var(--fc-color-primary);
-}
-
-.snapshot-panel__item-meta {
-    display: flex;
+    flex-direction: row;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
+    min-width: 0;
+    padding: 0 2px;
 }
 
 .snapshot-panel__item-type {
+    flex-shrink: 0;
     font-size: 10px;
     padding: 1px 5px;
     border-radius: var(--fc-radius-sm);
@@ -158,39 +156,39 @@
     letter-spacing: 0.02em;
 }
 
-.snapshot-panel__item-badge {
-    font-size: 10px;
-    padding: 1px 6px;
-    border-radius: var(--fc-radius-full);
-    background: color-mix(in srgb, var(--fc-color-primary) 14%, transparent);
-    color: var(--fc-color-primary);
-    font-weight: 600;
+.snapshot-panel__item-message {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--fc-color-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .snapshot-panel__item-time {
+    flex-shrink: 0;
     font-size: 11px;
     color: var(--fc-color-text-tertiary);
     font-variant-numeric: tabular-nums;
 }
 
-.snapshot-panel__item-message {
-    font-size: 13px;
-    line-height: 1.4;
-    color: var(--fc-color-text);
-    word-break: break-word;
-    text-wrap: pretty;
-}
-
-.snapshot-panel__item-id {
-    font-size: 10px;
-    color: var(--fc-color-text-tertiary);
-    font-family: "JetBrains Mono", "Courier New", Consolas, monospace;
-}
-
-.snapshot-panel__branch-tags {
+.snapshot-panel__item-branches {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 4px;
+    flex-shrink: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+    overflow: hidden;
+}
+
+.snapshot-panel__graph-row:hover .snapshot-panel__item-branches {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .snapshot-panel__branch-tag {
@@ -201,16 +199,32 @@
     border: 1px solid var(--fc-color-border);
     color: var(--fc-color-text-secondary);
     font-family: "JetBrains Mono", monospace;
+    flex-shrink: 0;
 }
 
 .snapshot-panel__item-actions {
     display: flex;
-    gap: 4px;
-    margin-top: 2px;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
 }
 
-.snapshot-panel__branch-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+.snapshot-panel__graph-row:hover .snapshot-panel__item-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.snapshot-panel__item-actions .fc-btn {
+    height: 1.4rem;
+    padding: 0 5px;
+    font-size: 11px;
+}
+
+.snapshot-panel__item-id {
+    font-size: 10px;
+    color: var(--fc-color-text-tertiary);
+    font-family: "JetBrains Mono", "Courier New", Consolas, monospace;
 }
