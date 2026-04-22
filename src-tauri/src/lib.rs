@@ -259,6 +259,8 @@ pub fn run() {
             ai_get_conversation,
             ai_delete_conversation,
             ai_rename_conversation,
+            ai_get_character_conversation_meta,
+            ai_save_character_conversation_meta,
             confirm_entry_edit,
             ai_set_task_context,
             // App Settings

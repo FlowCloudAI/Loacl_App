@@ -21,6 +21,13 @@
     flex-shrink: 0;
 }
 
+.snapshot-panel__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
 .snapshot-panel__title {
     font-size: 15px;
     font-weight: 600;

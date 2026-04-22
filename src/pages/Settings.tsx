@@ -32,7 +32,11 @@ const BUILTIN_ENTRY_TYPES = ['note', 'task', 'event', 'contact']
 
 type SettingsTab = 'system' | 'ai'
 
-export default function Settings() {
+interface SettingsProps {
+    onBack?: () => void
+}
+
+export default function Settings({onBack}: SettingsProps) {
     const {showAlert} = useAlert()
     const [activeTab, setActiveTab] = useState<SettingsTab>('system')
 
@@ -547,6 +551,19 @@ export default function Settings() {
         <div className="settings-outer">
             <div className="settings-page-layout">
                 <aside className="settings-sidebar">
+                    {onBack && (
+                        <button
+                            type="button"
+                            className="settings-back-button"
+                            onClick={onBack}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M19 12H5M12 19l-7-7 7-7"/>
+                            </svg>
+                            <span>返回</span>
+                        </button>
+                    )}
                     <button
                         className={`settings-sidebar-item ${activeTab === 'system' ? 'active' : ''}`}
                         onClick={() => setActiveTab('system')}

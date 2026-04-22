@@ -36,6 +36,26 @@
   font-weight: 500;
 }
 
+.settings-back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+    border: none;
+    border-radius: var(--fc-radius-md);
+    background: transparent;
+    color: var(--fc-color-text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.settings-back-button:hover {
+    background: var(--fc-color-bg-elevated);
+    color: var(--fc-color-text);
+}
+
 .settings-sidebar-item:hover {
   background: var(--fc-color-bg-elevated, rgba(255, 255, 255, 0.05));
 }

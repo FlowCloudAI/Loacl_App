@@ -5,11 +5,13 @@ import {
     ai_delete_conversation,
     ai_disable_tool,
     ai_enable_tool,
+    ai_get_character_conversation_meta,
     ai_get_conversation,
     ai_list_conversations,
     ai_list_plugins,
     ai_list_tools,
     ai_rename_conversation,
+    ai_save_character_conversation_meta,
     ai_set_task_context,
     ai_update_session,
     type Category,
@@ -18,6 +20,7 @@ import {
     type CharacterChatProjectSnapshot,
     type CharacterChatRelationSnapshot,
     type CharacterChatTagSchemaSnapshot,
+    type CharacterConversationMeta,
     db_get_entry,
     db_get_project,
     db_list_categories,
@@ -63,11 +66,14 @@ const TAG_VALUE_LIMIT = 160
 const CHARACTER_CONVERSATION_META_STORAGE_KEY = 'flowcloudai.characterConversationMeta.v1'
 
 interface StoredCharacterConversationMeta {
+    mode?: 'character' | 'report' | null
     characterEntryId: string | null
     characterName: string | null
     backgroundImageUrl: string | null
     characterVoiceId: string | null
     characterAutoPlay: boolean | null
+    reportContext?: ReportConversationContext | null
+    reportSeeded?: boolean | null
 }
 
 function buildReportBootstrapPrompt(reportContext: ReportConversationContext, userQuestion: string): string {
@@ -117,19 +123,59 @@ function writeStoredCharacterConversationMetaMap(conversations: Conversation[]) 
     try {
         const stored: Record<string, StoredCharacterConversationMeta> = {}
         conversations.forEach((conversation) => {
-            if (conversation.mode !== 'character') return
+            if (conversation.mode !== 'character' && conversation.mode !== 'report') return
             stored[conversation.id] = {
+                mode: conversation.mode,
                 characterEntryId: conversation.characterEntryId ?? null,
                 characterName: conversation.characterName ?? null,
                 backgroundImageUrl: conversation.backgroundImageUrl ?? null,
                 characterVoiceId: conversation.characterVoiceId ?? null,
                 characterAutoPlay: conversation.characterAutoPlay ?? null,
+                reportContext: conversation.reportContext ?? null,
+                reportSeeded: conversation.reportSeeded ?? null,
             }
         })
         window.localStorage.setItem(CHARACTER_CONVERSATION_META_STORAGE_KEY, JSON.stringify(stored))
     } catch {
-        console.warn('写入角色会话元数据缓存失败')
+        console.warn('写入特殊会话元数据缓存失败')
     }
+}
+
+function normalizeStoredSpecialConversationMetaMap(
+    fileMetaMap: Record<string, CharacterConversationMeta>,
+): Record<string, StoredCharacterConversationMeta> {
+    const normalized: Record<string, StoredCharacterConversationMeta> = {}
+    Object.entries(fileMetaMap).forEach(([conversationId, meta]) => {
+        normalized[conversationId] = {
+            mode: meta.mode,
+            characterEntryId: meta.characterEntryId ?? null,
+            characterName: meta.characterName ?? null,
+            backgroundImageUrl: meta.backgroundImageUrl ?? null,
+            characterVoiceId: meta.characterVoiceId ?? null,
+            characterAutoPlay: meta.characterAutoPlay ?? null,
+            reportContext: (meta.reportContext as ReportConversationContext | null | undefined) ?? null,
+            reportSeeded: meta.reportSeeded ?? null,
+        }
+    })
+    return normalized
+}
+
+function buildCharacterConversationMetaMap(conversations: Conversation[]): Record<string, CharacterConversationMeta> {
+    const metadata: Record<string, CharacterConversationMeta> = {}
+    conversations.forEach((conversation) => {
+        if (conversation.mode !== 'character' && conversation.mode !== 'report') return
+        metadata[conversation.id] = {
+            mode: conversation.mode,
+            characterEntryId: conversation.characterEntryId ?? null,
+            characterName: conversation.characterName ?? null,
+            backgroundImageUrl: conversation.backgroundImageUrl ?? null,
+            characterVoiceId: conversation.characterVoiceId ?? null,
+            characterAutoPlay: conversation.characterAutoPlay ?? null,
+            reportContext: conversation.reportContext ?? null,
+            reportSeeded: conversation.reportSeeded ?? null,
+        }
+    })
+    return metadata
 }
 
 function truncateText(value: string | null | undefined, limit: number): string {
@@ -403,6 +449,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
 
     const [conversations, setConversations] = useState<Conversation[]>([])
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+    const [conversationMetaLoaded, setConversationMetaLoaded] = useState(false)
     const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
     const [autoScroll, setAutoScroll] = useState(true)
 
@@ -580,13 +627,19 @@ export function useAiController(focus: AiFocus): AiContextValue {
     useEffect(() => {
         let mounted = true
         const init = async () => {
-            const metas = await ai_list_conversations().catch(
-                () => [] as Awaited<ReturnType<typeof ai_list_conversations>>,
-            )
+            const [metas, fileMetaMap] = await Promise.all([
+                ai_list_conversations().catch(
+                    () => [] as Awaited<ReturnType<typeof ai_list_conversations>>,
+                ),
+                ai_get_character_conversation_meta().catch(() => ({} as Record<string, CharacterConversationMeta>)),
+            ])
             if (!mounted) return
 
             if (metas.length > 0) {
-                const storedMetaMap = readStoredCharacterConversationMetaMap()
+                const storedMetaMap = {
+                    ...readStoredCharacterConversationMetaMap(),
+                    ...normalizeStoredSpecialConversationMetaMap(fileMetaMap),
+                }
                 const convs: Conversation[] = metas.map((meta) => buildConversationFromMeta(meta, storedMetaMap))
 
                 setConversations(convs)
@@ -595,6 +648,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
                 setConversations([])
                 setActiveConversationId(null)
             }
+            setConversationMetaLoaded(true)
         }
 
         void init()
@@ -604,8 +658,12 @@ export function useAiController(focus: AiFocus): AiContextValue {
     }, [])
 
     useEffect(() => {
+        if (!conversationMetaLoaded) return
         writeStoredCharacterConversationMetaMap(conversations)
-    }, [conversations])
+        void ai_save_character_conversation_meta(buildCharacterConversationMetaMap(conversations)).catch((error) => {
+            console.warn('写入特殊会话元数据文件失败', error)
+        })
+    }, [conversationMetaLoaded, conversations])
 
     useEffect(() => {
         if (selectedPlugin && plugins.length > 0 && !selectedModel) {
@@ -1067,7 +1125,9 @@ function buildConversationFromMeta(
     meta: Awaited<ReturnType<typeof ai_list_conversations>>[number],
     storedMetaMap: Record<string, StoredCharacterConversationMeta>,
 ): Conversation {
-    const characterMeta = storedMetaMap[meta.id] ?? inferCharacterConversationMeta(meta.title)
+    const storedMeta = storedMetaMap[meta.id]
+    const isReport = storedMeta?.mode === 'report' || Boolean(storedMeta?.reportContext)
+    const characterMeta = isReport ? null : (storedMeta ?? inferCharacterConversationMeta(meta.title))
     const isCharacter = Boolean(characterMeta)
 
     return {
@@ -1079,13 +1139,13 @@ function buildConversationFromMeta(
         sessionId: null,
         runId: null,
         timestamp: new Date(meta.updated_at).getTime(),
-        mode: isCharacter ? 'character' : 'default',
+        mode: isReport ? 'report' : isCharacter ? 'character' : 'default',
         characterEntryId: characterMeta?.characterEntryId ?? null,
         characterName: characterMeta?.characterName ?? null,
         backgroundImageUrl: characterMeta?.backgroundImageUrl ?? null,
         characterVoiceId: characterMeta?.characterVoiceId ?? null,
         characterAutoPlay: characterMeta?.characterAutoPlay ?? null,
-        reportContext: null,
-        reportSeeded: false,
+        reportContext: isReport ? (storedMeta?.reportContext ?? null) : null,
+        reportSeeded: isReport ? (storedMeta?.reportSeeded ?? false) : false,
     }
 }

@@ -316,6 +316,17 @@ export interface ConversationMeta {
   updated_at: string
 }
 
+export interface CharacterConversationMeta {
+    mode?: 'character' | 'report' | null
+    characterEntryId: string | null
+    characterName: string | null
+    backgroundImageUrl: string | null
+    characterVoiceId: string | null
+    characterAutoPlay: boolean | null
+    reportContext?: unknown | null
+    reportSeeded?: boolean | null
+}
+
 export interface StoredMessage {
   message_id?: string | null
   node_id?: number | null
@@ -403,6 +414,12 @@ export const ai_delete_conversation = (id: string) =>
 
 export const ai_rename_conversation = (id: string, title: string) =>
     command<void>('ai_rename_conversation', {id, title})
+
+export const ai_get_character_conversation_meta = () =>
+    command<Record<string, CharacterConversationMeta>>('ai_get_character_conversation_meta')
+
+export const ai_save_character_conversation_meta = (metadata: Record<string, CharacterConversationMeta>) =>
+    command<void>('ai_save_character_conversation_meta', {metadata})
 
 // ── 编辑确认 ──────────────────────────────────────────────────────────────────
 

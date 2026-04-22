@@ -1,4 +1,4 @@
-import {memo, useEffect, useState, type CSSProperties} from 'react'
+import {type CSSProperties, memo, useEffect, useState} from 'react'
 import {convertFileSrc} from '@tauri-apps/api/core'
 import {Button, Card, Input, RollingBox} from 'flowcloudai-ui'
 import {db_count_entries, db_list_projects, type Project} from '../api'
@@ -18,8 +18,8 @@ const SORT_OPTIONS: Array<{ key: Exclude<SortMode, 'name-asc' | 'name-desc'>; la
 
 function toProjectImageSrc(coverPath?: string | null): string | undefined {
     if (!coverPath) return undefined
-    if (/^(https?:|data:|blob:|asset:)/i.test(coverPath)) return coverPath
-    return convertFileSrc(coverPath)
+    if (/^(https?:|data:|blob:|asset:|fcimg:)/i.test(coverPath)) return coverPath
+    return convertFileSrc(coverPath, 'fcimg')
 }
 
 function parseDateValue(value?: string | null): number {

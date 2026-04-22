@@ -6,6 +6,7 @@ export interface Project {
     id: string
     name: string
     description?: string | null
+    cover_image?: string | null
     cover_path?: string | null
     created_at?: string | null
     updated_at?: string | null
@@ -251,15 +252,21 @@ export const show_main_window = () => command<string>('show_main_window')
 
 export const showWindow = () => show_main_window().then(() => undefined)
 
-export const db_create_project = ({name, description, coverPath}: CreateProjectInput) =>
-    command<Project>('db_create_project', {name, description, coverImage: coverPath})
+const normalizeProject = (project: Project): Project => ({
+    ...project,
+    cover_path: project.cover_path ?? project.cover_image ?? null,
+})
 
-export const db_get_project = (id: string) => command<Project>('db_get_project', {id})
+export const db_create_project = ({name, description, coverPath}: CreateProjectInput) =>
+    command<Project>('db_create_project', {name, description, coverImage: coverPath}).then(normalizeProject)
+
+export const db_get_project = (id: string) => command<Project>('db_get_project', {id}).then(normalizeProject)
 
 export const db_list_projects = () => command<Project[]>('db_list_projects')
+    .then(projects => projects.map(normalizeProject))
 
 export const db_update_project = ({id, name, description, coverPath}: UpdateProjectInput) =>
-    command<Project>('db_update_project', {id, name, description, coverImage: coverPath})
+    command<Project>('db_update_project', {id, name, description, coverImage: coverPath}).then(normalizeProject)
 
 export const db_delete_project = (id: string) =>
     command<void>('db_delete_project', {id})

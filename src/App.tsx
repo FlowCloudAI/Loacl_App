@@ -65,17 +65,23 @@ function App() {
     const [entryDirtyMap, setEntryDirtyMap] = useState<Record<string, boolean>>({});
     const [recentPageKeys, setRecentPageKeys] = useState<string[]>([])
 
-    const [selectedKey, setSelectedKey] = useState<string>('home')
+    const [selectedKey, setSelectedKey] = useState<string>('')
     const [mainContentKey, setMainContentKey] = useState<MainContentKey>('home')
     const [sidePanelContentKey, setSidePanelContentKey] = useState<SidePanelContentKey>('ai-chat')
+    const [mountedSidePanelKeys, setMountedSidePanelKeys] = useState<SidePanelContentKey[]>(['ai-chat'])
     const [collapsed, setCollapsed] = useState(false)
     const [aiPanelWidth, setAiPanelWidth] = useState(AI_MIN_PANEL_WIDTH)
     const [aiPanelCollapsed, setAiPanelCollapsed] = useState(true)
     const [aiPanelMode, setAiPanelMode] = useState<'floating' | 'fullscreen'>('floating')
 
+    useEffect(() => {
+        setMountedSidePanelKeys(prev => (
+            prev.includes(sidePanelContentKey) ? prev : [...prev, sidePanelContentKey]
+        ))
+    }, [sidePanelContentKey])
+
     const showHomeWorkspace = useCallback(() => {
         setMainContentKey('home')
-        setSelectedKey('home')
         setCollapsed(true)
     }, [])
 
@@ -101,10 +107,14 @@ function App() {
 
     // 新增标签（通用）
     const handleAdd = useCallback(() => {
+        if (mainContentKey === 'settings') {
+            setMainContentKey('home')
+            setSelectedKey('')
+        }
         const newKey = `tab-${Date.now()}`;
         setTabs(prev => [...prev, {key: newKey, label: `新标签`, closable: true}]);
         setActiveKey(newKey);
-    }, []);
+    }, [mainContentKey]);
 
     // 打开项目标签页
     const handleOpenProject = useCallback((project: Project) => {
@@ -192,7 +202,10 @@ function App() {
     const handleTabChange = useCallback((key: string) => {
         const shouldShowHomeWorkspace = Boolean(projectTabMap[key] || toolTabMap[key] || entryTabMap[key])
         if (key === activeKey) {
-            if (shouldShowHomeWorkspace && selectedKey !== 'home') {
+            if (shouldShowHomeWorkspace && mainContentKey !== 'home') {
+                if (mainContentKey === 'settings') {
+                    setSelectedKey('')
+                }
                 touchRecentPage(key)
                 showHomeWorkspace()
             }
@@ -200,10 +213,13 @@ function App() {
         }
         setActiveKey(key);
         if (shouldShowHomeWorkspace) {
+            if (mainContentKey === 'settings') {
+                setSelectedKey('')
+            }
             touchRecentPage(key)
             showHomeWorkspace()
         }
-    }, [activeKey, entryTabMap, projectTabMap, selectedKey, showHomeWorkspace, toolTabMap, touchRecentPage])
+    }, [activeKey, entryTabMap, mainContentKey, projectTabMap, showHomeWorkspace, toolTabMap, touchRecentPage])
 
     // 删除标签
     const handleClose = useCallback(async (key: string) => {
@@ -275,13 +291,27 @@ function App() {
     }, [activeKey, entryDirtyMap, entryTabMap, projectTabMap, showAlert, showHomeWorkspace, tabs, toolTabMap, touchRecentPage]);
 
     const handleSideBarSelect = useCallback((key: string) => {
-        setSelectedKey(key)
         if (key === 'idea' || key === 'ai-chat' || key === 'snapshot') {
+            if (!aiPanelCollapsed && sidePanelContentKey === key) {
+                setAiPanelCollapsed(true)
+                setSelectedKey('')
+                return
+            }
+            setSelectedKey(key)
             setSidePanelContentKey(key as SidePanelContentKey)
+            setAiPanelCollapsed(false)
+            if (mainContentKey === 'settings') {
+                setMainContentKey('home')
+            }
             return
         }
-        setMainContentKey(key as MainContentKey)
-    }, [])
+        if (key === 'settings') {
+            setSelectedKey('settings')
+            setMainContentKey('settings')
+            setAiPanelCollapsed(true)
+            return
+        }
+    }, [aiPanelCollapsed, mainContentKey, sidePanelContentKey])
 
     const handleStartCharacterChat = useCallback(async (projectId: string, entry: { id: string; title: string }) => {
         setSelectedKey('ai-chat')
@@ -341,11 +371,6 @@ function App() {
     }, [entryTabMap, recentPageKeySet, tabs])
 
     // 侧边栏相关状态
-    const HomeIcon = (
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1V9.5z" strokeWidth="1.5"
-                  strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>)
     const IdeaIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
             <defs>
@@ -401,36 +426,6 @@ function App() {
             />
         </svg>)
 
-    const RelationIcon = (
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
-            <circle cx="5" cy="6" r="2.25" stroke="currentColor" strokeWidth="1.5"/>
-            <circle cx="18.5" cy="5" r="2.25" stroke="currentColor" strokeWidth="1.5"/>
-            <circle cx="12" cy="18" r="2.25" stroke="currentColor" strokeWidth="1.5"/>
-            <path
-                d="M7.1 7.05l9.3-1.1M6.8 7.8l4.8 8M17.1 7l-3.9 8.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-        </svg>)
-
-    const MapIcon = (
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
-            <path
-                d="M3.75 5.5 8.5 3.75l7 2.5 4.75-1.75v14l-4.75 1.75-7-2.5-4.75 1.75v-14Z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinejoin="round"
-            />
-            <path
-                d="M8.5 3.75v14m7-11.5v14"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-            />
-        </svg>)
-
     const SettingsIcon = (
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <circle cx="12" cy="12" r="3" strokeWidth="1.5"/>
@@ -440,10 +435,7 @@ function App() {
         </svg>)
 
     const menuItems: SideBarItem[] = [
-        {key: 'home', label: '首页', icon: HomeIcon},
         {key: 'idea', label: '灵感便签', icon: IdeaIcon},
-        {key: 'relation', label: '关系图谱', icon: RelationIcon},
-        {key: 'map-editor', label: '地图编辑', icon: MapIcon},
         {key: 'ai-chat', label: 'AI 对话', icon: AiChatIcon},
         {key: 'snapshot', label: '版本管理', icon: SnapshotIcon},
     ]
@@ -582,7 +574,10 @@ function App() {
                             <MapShapeEditorDemo/>
                         </div>
                         <div className={`page-wrapper ${mainContentKey === 'settings' ? 'active' : ''}`}>
-                            <Settings/>
+                            <Settings onBack={() => {
+                                setMainContentKey('home')
+                                setSelectedKey('')
+                            }}/>
                         </div>
                     </div>
                     <DockableSidePanel
@@ -597,31 +592,48 @@ function App() {
                         className="ai-shell"
                         handleTitle="拖拽调整宽度"
                     >
-                        {sidePanelContentKey === 'idea'
-                            ? <Idea
-                                contextProjectId={aiFocus.projectId}
-                                onOpenEntry={handleOpenEntry}
-                                panelMode={aiPanelMode}
-                                onTogglePanelMode={() =>
-                                    setAiPanelMode(
-                                        (prev) => prev === 'floating' ? 'fullscreen' : 'floating')
-                                }
-                                onToggleCollapsed={() => setAiPanelCollapsed(true)}/>
-                            : sidePanelContentKey === 'snapshot'
-                                ? <SnapshotPanel
-                                    className={`ai-chat-layout ${aiController.sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
-                                    panelMode={aiPanelMode}
-                                    onTogglePanelMode={() => setAiPanelMode((prev) => prev === 'floating' ? 'fullscreen' : 'floating')}
-                                    onToggleCollapsed={() => setAiPanelCollapsed(true)}
-                                />
-                                : (
-                                    <div
-                                        className={`ai-chat-layout ${aiController.sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-                                        <AIChatContent controller={aiController} panelMode={aiPanelMode}
-                                                       onTogglePanelMode={() => setAiPanelMode((prev) => prev === 'floating' ? 'fullscreen' : 'floating')}
-                                                       onToggleCollapsed={() => setAiPanelCollapsed(true)}/>
-                                    </div>
-                                )}
+                        <div className="side-panel-stack">
+                            {mountedSidePanelKeys.includes('idea') && (
+                                <div
+                                    className={`side-panel-layer ${sidePanelContentKey === 'idea' ? 'active' : ''}`}
+                                    aria-hidden={sidePanelContentKey !== 'idea'}
+                                >
+                                    <Idea
+                                        contextProjectId={aiFocus.projectId}
+                                        onOpenEntry={handleOpenEntry}
+                                        panelMode={aiPanelMode}
+                                        onTogglePanelMode={() =>
+                                            setAiPanelMode(
+                                                (prev) => prev === 'floating' ? 'fullscreen' : 'floating')
+                                        }
+                                        onToggleCollapsed={() => setAiPanelCollapsed(true)}/>
+                                </div>
+                            )}
+                            {mountedSidePanelKeys.includes('snapshot') && (
+                                <div
+                                    className={`side-panel-layer ${sidePanelContentKey === 'snapshot' ? 'active' : ''}`}
+                                    aria-hidden={sidePanelContentKey !== 'snapshot'}
+                                >
+                                    <SnapshotPanel
+                                        className={`ai-chat-layout ${aiController.sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
+                                        panelMode={aiPanelMode}
+                                        onTogglePanelMode={() => setAiPanelMode((prev) => prev === 'floating' ? 'fullscreen' : 'floating')}
+                                        onToggleCollapsed={() => setAiPanelCollapsed(true)}
+                                    />
+                                </div>
+                            )}
+                            <div
+                                className={`side-panel-layer ${sidePanelContentKey === 'ai-chat' ? 'active' : ''}`}
+                                aria-hidden={sidePanelContentKey !== 'ai-chat'}
+                            >
+                                <div
+                                    className={`ai-chat-layout ${aiController.sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+                                    <AIChatContent controller={aiController} panelMode={aiPanelMode}
+                                                   onTogglePanelMode={() => setAiPanelMode((prev) => prev === 'floating' ? 'fullscreen' : 'floating')}
+                                                   onToggleCollapsed={() => setAiPanelCollapsed(true)}/>
+                                </div>
+                            </div>
+                        </div>
                     </DockableSidePanel>
                 </div>
                 <SideBar

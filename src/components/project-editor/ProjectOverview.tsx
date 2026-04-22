@@ -64,8 +64,8 @@ interface ProjectOverviewProps {
 
 function toProjectImageSrc(coverPath?: string | null): string | undefined {
     if (!coverPath) return undefined
-    if (/^(https?:|data:|blob:|asset:)/i.test(coverPath)) return coverPath
-    return convertFileSrc(coverPath)
+    if (/^(https?:|data:|blob:|asset:|fcimg:)/i.test(coverPath)) return coverPath
+    return convertFileSrc(coverPath, 'fcimg')
 }
 
 function getTagTypeLabel(type: string): string {

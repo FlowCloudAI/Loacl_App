@@ -306,34 +306,38 @@ export default function SnapshotPanel({
         <div className={`snapshot-panel${className ? ` ${className}` : ''}`}>
             <div className="snapshot-panel__header">
                 <h3 className="snapshot-panel__title">版本管理</h3>
-                <button
-                    type="button"
-                    className="snapshot-panel__fullscreen-toggle"
-                    onClick={() => onTogglePanelMode?.()}
-                    title={panelMode === 'fullscreen' ? '退出全屏' : '全屏模式'}
-                >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        {panelMode === 'fullscreen' ? (
-                            <>
-                                <path d="M4 10v2h2M10 12h2v-2M12 4v2h-2M6 4H4v2"/>
-                            </>
-                        ) : (
-                            <>
-                                <path d="M4 4h3M4 4v3M12 4h-3M12 4v3M4 12h3M4 12v-3M12 12h-3M12 12v-3"/>
-                            </>
-                        )}
-                    </svg>
-                </button>
-                <button
-                    type="button"
-                    className="snapshot-panel__fullscreen-toggle"
-                    onClick={() => onToggleCollapsed?.()}
-                    title="最小化"
-                >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M6 4l4 4-4 4"/>
-                    </svg>
-                </button>
+                <div className="snapshot-panel__header-actions">
+                    <button
+                        type="button"
+                        className="snapshot-panel__fullscreen-toggle"
+                        onClick={() => onTogglePanelMode?.()}
+                        title={panelMode === 'fullscreen' ? '退出全屏' : '全屏模式'}
+                    >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                             strokeWidth="1.5">
+                            {panelMode === 'fullscreen' ? (
+                                <>
+                                    <path d="M4 10v2h2M10 12h2v-2M12 4v2h-2M6 4H4v2"/>
+                                </>
+                            ) : (
+                                <>
+                                    <path d="M4 4h3M4 4v3M12 4h-3M12 4v3M4 12h3M4 12v-3M12 12h-3M12 12v-3"/>
+                                </>
+                            )}
+                        </svg>
+                    </button>
+                    <button
+                        type="button"
+                        className="snapshot-panel__fullscreen-toggle"
+                        onClick={() => onToggleCollapsed?.()}
+                        title="最小化"
+                    >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                             strokeWidth="1.5">
+                            <path d="M6 4l4 4-4 4"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             <div className="snapshot-panel__section">

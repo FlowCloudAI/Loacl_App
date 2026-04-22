@@ -27,6 +27,7 @@ export default function AIChatContent({
     const isBlankChat = !ctx.activeConversationId
     const activeConversation = ctx.activeConversation
     const isCharacterConversation = activeConversation?.mode === 'character'
+    const isReportConversation = activeConversation?.mode === 'report'
     const {showAlert} = useAlert()
 
     const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -349,7 +350,7 @@ export default function AIChatContent({
                     {ctx.conversations.map((conv) => (
                         <div
                             key={conv.id}
-                            className={`ai-conversation-item ${conv.id === ctx.activeConversationId ? 'active' : ''}${conv.mode === 'character' ? ' is-character' : ''}`}
+                            className={`ai-conversation-item ${conv.id === ctx.activeConversationId ? 'active' : ''}${conv.mode === 'character' ? ' is-character' : ''}${conv.mode === 'report' ? ' is-report' : ''}`}
                             onClick={() => renamingId !== conv.id && void ctx.switchConversation(conv.id)}
                         >
                             {conv.mode === 'character' && (
@@ -359,6 +360,16 @@ export default function AIChatContent({
                                     ) : (
                                         <span>{(conv.characterName ?? conv.title).slice(0, 1) || '角'}</span>
                                     )}
+                                </div>
+                            )}
+                            {conv.mode === 'report' && (
+                                <div className="ai-conversation-report-icon" aria-hidden="true">
+                                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor"
+                                         strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round">
+                                        <path
+                                            d="M8.1 2.7L2.4 12.6a1.4 1.4 0 001.2 2.1h10.8a1.4 1.4 0 001.2-2.1L9.9 2.7a1.04 1.04 0 00-1.8 0z"/>
+                                        <path d="M9 6.2v3.4M9 12.2h.01"/>
+                                    </svg>
                                 </div>
                             )}
                             <div className="ai-conversation-info">
@@ -377,6 +388,9 @@ export default function AIChatContent({
                                         <div className="ai-conversation-title" title={conv.title}>{conv.title}</div>
                                         {conv.mode === 'character' && (
                                             <div className="ai-conversation-subtitle">角色对话</div>
+                                        )}
+                                        {conv.mode === 'report' && (
+                                            <div className="ai-conversation-subtitle">矛盾检测</div>
                                         )}
                                     </>
                                 )}
@@ -410,8 +424,9 @@ export default function AIChatContent({
                 </div>
             </aside>
 
-            <main className={`ai-main${isCharacterConversation ? ' is-character' : ''}`}>
-                {activeConversation?.backgroundImageUrl && (
+            <main
+                className={`ai-main${isCharacterConversation ? ' is-character' : ''}${isReportConversation ? ' is-report' : ''}`}>
+                {isCharacterConversation && activeConversation?.backgroundImageUrl && (
                     <div className="ai-main-background" aria-hidden="true">
                         <img src={activeConversation.backgroundImageUrl}
                              alt={activeConversation.characterName ?? '角色背景'}/>
@@ -514,6 +529,26 @@ export default function AIChatContent({
                     onScroll={handleMessagesScroll}
                     thumbSize={'thin'}
                 >
+                    {isReportConversation && activeConversation?.reportContext && (
+                        <div className="ai-report-context-bar">
+                            <div className="ai-report-context-icon" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor"
+                                     strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                                    <path
+                                        d="M8.1 2.7L2.4 12.6a1.4 1.4 0 001.2 2.1h10.8a1.4 1.4 0 001.2-2.1L9.9 2.7a1.04 1.04 0 00-1.8 0z"/>
+                                    <path d="M9 6.2v3.4M9 12.2h.01"/>
+                                </svg>
+                            </div>
+                            <div className="ai-report-context-main">
+                                <div className="ai-report-context-title">
+                                    <span>矛盾检测</span>
+                                    <strong>{activeConversation.reportContext.projectName}</strong>
+                                </div>
+                                <div
+                                    className="ai-report-context-scope">{activeConversation.reportContext.scopeSummary}</div>
+                            </div>
+                        </div>
+                    )}
                     {isBlankChat && (
                         <div className="ai-empty-state ai-empty-state--brand">
                             <p className="ai-empty-brand">流云AI</p>

@@ -1,6 +1,7 @@
 use crate::AiSessionKind;
 use crate::AiState;
 use crate::ApiKeyStore;
+use crate::PathsState;
 use crate::PendingEditsState;
 use flowcloudai_client::llm::config::SessionConfig;
 use flowcloudai_client::{
@@ -12,7 +13,7 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::mpsc;
@@ -74,6 +75,30 @@ pub struct CreateLlmSessionResult {
     pub session_id: String,
     pub conversation_id: String,
     pub run_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CharacterConversationMeta {
+    pub mode: Option<String>,
+    pub character_entry_id: Option<String>,
+    pub character_name: Option<String>,
+    pub background_image_url: Option<String>,
+    pub character_voice_id: Option<String>,
+    pub character_auto_play: Option<bool>,
+    pub report_context: Option<serde_json::Value>,
+    pub report_seeded: Option<bool>,
+}
+
+fn character_conversation_meta_path(paths: &PathsState) -> Result<std::path::PathBuf, String> {
+    let db_dir = paths
+        .db_path
+        .parent()
+        .ok_or_else(|| format!("无法解析数据库目录: {:?}", paths.db_path))?;
+    Ok(db_dir
+        .join("chats")
+        .join("metadata")
+        .join("character_conversations.json"))
 }
 
 #[derive(Serialize, Clone)]
@@ -1166,6 +1191,53 @@ pub async fn ai_rename_conversation(
     client
         .ai_rename_conversation(&id, title)
         .map_err(|e| e.to_string())
+}
+
+/// 读取特殊对话附加元数据。通用对话存储结构暂不包含这些字段，因此由应用侧单独持久化。
+#[tauri::command]
+pub fn ai_get_character_conversation_meta(
+    paths: State<'_, PathsState>,
+) -> Result<HashMap<String, CharacterConversationMeta>, String> {
+    let path = character_conversation_meta_path(paths.inner())?;
+    if !path.exists() {
+        return Ok(HashMap::new());
+    }
+
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("读取特殊对话元数据失败 {:?}: {}", path, e))?;
+    serde_json::from_str::<HashMap<String, CharacterConversationMeta>>(&content)
+        .map_err(|e| format!("解析特殊对话元数据失败 {:?}: {}", path, e))
+}
+
+/// 覆盖写入特殊对话附加元数据。
+#[tauri::command]
+pub fn ai_save_character_conversation_meta(
+    paths: State<'_, PathsState>,
+    metadata: HashMap<String, CharacterConversationMeta>,
+) -> Result<(), String> {
+    let path = character_conversation_meta_path(paths.inner())?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("创建特殊对话元数据目录失败 {:?}: {}", parent, e))?;
+    }
+
+    let json = serde_json::to_string_pretty(&metadata)
+        .map_err(|e| format!("序列化特殊对话元数据失败: {}", e))?;
+    let temp_path = path.with_extension("json.tmp");
+    {
+        let mut file = std::fs::File::create(&temp_path)
+            .map_err(|e| format!("创建特殊对话元数据临时文件失败 {:?}: {}", temp_path, e))?;
+        file.write_all(json.as_bytes())
+            .map_err(|e| format!("写入特殊对话元数据失败 {:?}: {}", temp_path, e))?;
+        file.flush()
+            .map_err(|e| format!("刷新特殊对话元数据失败 {:?}: {}", temp_path, e))?;
+    }
+    if path.exists() {
+        std::fs::remove_file(&path)
+            .map_err(|e| format!("移除旧特殊对话元数据失败 {:?}: {}", path, e))?;
+    }
+    std::fs::rename(&temp_path, &path)
+        .map_err(|e| format!("保存特殊对话元数据失败 {:?}: {}", path, e))
 }
 
 // ============ 编辑确认 ============

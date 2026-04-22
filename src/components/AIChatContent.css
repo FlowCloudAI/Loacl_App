@@ -142,7 +142,8 @@
     transition: background 0.15s;
 }
 
-.ai-conversation-item.is-character {
+.ai-conversation-item.is-character,
+.ai-conversation-item.is-report {
     gap: 0.55rem;
     align-items: flex-start;
 }
@@ -160,6 +161,11 @@
 .ai-conversation-item.is-character.active {
     background: color-mix(in srgb, var(--fc-color-primary-subtle) 72%, rgba(255, 255, 255, 0.08));
     border-color: color-mix(in srgb, var(--fc-color-primary) 40%, var(--fc-color-border));
+}
+
+.ai-conversation-item.is-report.active {
+    background: color-mix(in srgb, var(--fc-color-warning-bg, rgba(217, 130, 43, 0.16)) 78%, transparent);
+    border-color: color-mix(in srgb, var(--fc-color-warning, #d9822b) 46%, var(--fc-color-border));
 }
 
 .ai-conversation-avatar {
@@ -183,6 +189,19 @@
     height: 100%;
     object-fit: cover;
     display: block;
+}
+
+.ai-conversation-report-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.8rem;
+    background: color-mix(in srgb, var(--fc-color-warning-bg, rgba(217, 130, 43, 0.16)) 76%, transparent);
+    border: 1px solid color-mix(in srgb, var(--fc-color-warning, #d9822b) 42%, var(--fc-color-border));
+    color: var(--fc-color-warning, #d9822b);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .ai-conversation-info {
@@ -273,6 +292,11 @@
 
 .ai-main.is-character {
     background: linear-gradient(180deg, rgba(8, 10, 18, 0.34), rgba(8, 10, 18, 0.58));
+}
+
+.ai-main.is-report {
+    background: radial-gradient(circle at top left, color-mix(in srgb, var(--fc-color-warning-bg, rgba(217, 130, 43, 0.16)) 18%, transparent), transparent 34%),
+    var(--fc-color-bg);
 }
 
 .ai-main-background {
@@ -505,6 +529,61 @@
 
 .ai-messages-list .message-box-item--assistant {
     padding-inline: 1.5rem;
+}
+
+.ai-report-context-bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    width: calc(100% - 3rem);
+    max-width: var(--ai-chat-content-max-width);
+    margin: 1rem auto 0;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid color-mix(in srgb, var(--fc-color-warning, #d9822b) 36%, var(--fc-color-border));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--fc-color-warning-bg, rgba(217, 130, 43, 0.16)) 62%, var(--fc-color-bg));
+    color: var(--fc-color-text);
+}
+
+.ai-report-context-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--fc-color-warning, #d9822b);
+    background: color-mix(in srgb, var(--fc-color-warning-bg, rgba(217, 130, 43, 0.16)) 70%, transparent);
+}
+
+.ai-report-context-main {
+    min-width: 0;
+}
+
+.ai-report-context-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    font-size: 0.82rem;
+    color: var(--fc-color-text-secondary);
+}
+
+.ai-report-context-title strong {
+    min-width: 0;
+    color: var(--fc-color-text);
+    font-weight: var(--fc-font-weight-semibold);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ai-report-context-scope {
+    margin-top: 0.22rem;
+    color: var(--fc-color-text-secondary);
+    font-size: 0.76rem;
+    line-height: 1.35;
 }
 
 /* ========== 滚动到底部按钮 ========== */
