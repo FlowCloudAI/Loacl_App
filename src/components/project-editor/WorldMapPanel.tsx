@@ -32,32 +32,17 @@ import {
 } from '../../api'
 import './WorldMapPanel.css'
 import {
-    buildDeckStyleConfig,
-    createParchmentTexture,
-    createRicePaperTexture,
-} from './mapStyleUtils'
+    getStyleDefinition,
+    makeOceanSvgUrl,
+    type MapStyle,
+} from './map-styles'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-type MapStyle = 'flat' | 'tolkien' | 'ink'
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type ViewportMode = 'edit' | 'preview'
 
 const CANVAS = {width: 1000, height: 1000}
-
-const STYLE_LABELS: Record<MapStyle, string> = {flat: '扁平', tolkien: '托尔金', ink: '水墨'}
-const STYLE_FONT_FAMILY: Record<MapStyle, string> = {
-    flat: '"Microsoft YaHei UI", "PingFang SC", sans-serif',
-    tolkien: '"Georgia", "Times New Roman", "STSong", serif',
-    ink: '"STKaiti", "KaiTi", "FangSong", serif',
-}
-
-// Ocean colors per style (shown as deck background when no custom image is set)
-const OCEAN_COLORS: Record<MapStyle, string> = {
-    flat: '#b8d7ee',
-    tolkien: '#c9a86c',
-    ink: '#c4c4c4',
-}
 
 const DEFAULT_COASTLINE_PARAMS: CoastlineParamsPayload = {
     minSegments: 5,
@@ -74,140 +59,6 @@ const DEFAULT_COASTLINE_PARAMS: CoastlineParamsPayload = {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function makeOceanSvgUrl(color: string): string {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="${color}"/></svg>`
-    return `data:image/svg+xml;base64,${btoa(svg)}`
-}
-
-function svgToDataUrl(svg: string): string {
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
-}
-
-function deckColorToHex(color: [number, number, number, number]): string {
-    return `#${color.slice(0, 3).map(value => value.toString(16).padStart(2, '0')).join('')}`
-}
-
-function buildStyleLocationIcon(style: MapStyle, type: string, color: string) {
-    if (style === 'flat') return null
-
-    if (style === 'tolkien') {
-        return {
-            url: svgToDataUrl(`
-                <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
-                    <circle cx="22" cy="22" r="17" fill="#f7e7bc" stroke="${color}" stroke-width="2.2"/>
-                    <path d="M22 8L27.5 18.5L38 22L27.5 25.5L22 36L16.5 25.5L6 22L16.5 18.5Z" fill="${color}" fill-opacity="0.92"/>
-                    <circle cx="22" cy="22" r="3.2" fill="#fff8e7"/>
-                </svg>
-            `),
-            width: 44,
-            height: 44,
-            anchorX: 22,
-            anchorY: 22,
-        }
-    }
-
-    const isSettlement = /城|镇|都|村|港|要塞|关口/.test(type)
-    return {
-        url: svgToDataUrl(`
-            <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
-                <circle cx="22" cy="22" r="16" fill="#f5f5f5" fill-opacity="0.9"/>
-                <path d="${isSettlement ? 'M14 27L22 11L30 27M18 24H26' : 'M14 14L30 30M30 14L14 30'}"
-                      stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="22" cy="22" r="18" fill="none" stroke="#1a1a1a" stroke-width="1.4" stroke-dasharray="2.5 2"/>
-            </svg>
-        `),
-        width: 44,
-        height: 44,
-        anchorX: 22,
-        anchorY: 22,
-    }
-}
-
-function buildStyledScene(scene: MapPreviewScene, style: MapStyle): MapPreviewScene {
-    return {
-        ...scene,
-        keyLocations: scene.keyLocations.map(location => {
-            const color = deckColorToHex(location.color)
-            const icon = buildStyleLocationIcon(style, location.type, color)
-            return {
-                ...location,
-                icon,
-                iconSize: icon ? (style === 'tolkien' ? 30 : 28) : undefined,
-            }
-        }),
-    }
-}
-
-function buildStyleTooltip(style: MapStyle, detail: MapDeckPreviewPickDetail): MapDeckPreviewTooltip | string | null {
-    if (detail.kind === 'empty') return null
-
-    if (detail.kind === 'shape') {
-        if (style === 'flat') {
-            return {
-                html: `<div style="display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.98);color:#1f2937;border:1px solid rgba(148,163,184,0.35);box-shadow:0 10px 28px rgba(15,23,42,0.12);font-family:${STYLE_FONT_FAMILY.flat};"><strong>${detail.object.name}</strong><span>边界点数：${detail.object.polygon.length}</span></div>`,
-                style: {
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    padding: '0',
-                    boxShadow: 'none',
-                },
-            }
-        }
-        if (style === 'tolkien') {
-            return {
-                html: `<div style="display:flex;flex-direction:column;gap:4px;min-width:180px;padding:12px 14px;border-radius:12px;background:linear-gradient(180deg, rgba(249,237,203,0.98), rgba(230,207,160,0.96));color:#5c3b22;border:1px solid rgba(120,78,39,0.35);box-shadow:0 14px 32px rgba(88,52,24,0.18);font-family:${STYLE_FONT_FAMILY.tolkien};"><strong style="font-size:14px;">${detail.object.name}</strong><span>边界点数：${detail.object.polygon.length}</span></div>`,
-                style: {
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    padding: '0',
-                    boxShadow: 'none',
-                },
-            }
-        }
-        return {
-            html: `<div style="display:flex;flex-direction:column;gap:5px;min-width:170px;padding:10px 12px;border-radius:4px;background:rgba(255,255,255,0.96);color:#111111;border:1px solid rgba(17,17,17,0.22);box-shadow:6px 8px 0 rgba(17,17,17,0.08);font-family:${STYLE_FONT_FAMILY.ink};"><strong>${detail.object.name}</strong><span>边界点数：${detail.object.polygon.length}</span></div>`,
-            style: {
-                backgroundColor: 'transparent',
-                border: 'none',
-                padding: '0',
-                boxShadow: 'none',
-            },
-        }
-    }
-
-    if (style === 'flat') {
-        return {
-            html: `<div style="display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.98);color:#0f172a;border:1px solid rgba(59,130,246,0.18);box-shadow:0 10px 28px rgba(15,23,42,0.12);font-family:${STYLE_FONT_FAMILY.flat};"><strong>${detail.object.name}</strong><span>类型：${detail.object.type}</span><span>坐标：${Math.round(detail.object.position[0])}, ${Math.round(detail.object.position[1])}</span></div>`,
-            style: {
-                backgroundColor: 'transparent',
-                border: 'none',
-                padding: '0',
-                boxShadow: 'none',
-            },
-        }
-    }
-    if (style === 'tolkien') {
-        return {
-            html: `<div style="display:flex;flex-direction:column;gap:4px;min-width:190px;padding:12px 14px;border-radius:12px;background:linear-gradient(180deg, rgba(249,237,203,0.98), rgba(230,207,160,0.96));color:#5c3b22;border:1px solid rgba(120,78,39,0.35);box-shadow:0 14px 32px rgba(88,52,24,0.18);font-family:${STYLE_FONT_FAMILY.tolkien};"><strong style="font-size:14px;">${detail.object.name}</strong><span>类型：${detail.object.type}</span><span>坐标：${Math.round(detail.object.position[0])}, ${Math.round(detail.object.position[1])}</span></div>`,
-            style: {
-                backgroundColor: 'transparent',
-                border: 'none',
-                padding: '0',
-                boxShadow: 'none',
-            },
-        }
-    }
-    return {
-        html: `<div style="display:flex;flex-direction:column;gap:5px;min-width:180px;padding:10px 12px;border-radius:4px;background:rgba(255,255,255,0.96);color:#111111;border:1px solid rgba(17,17,17,0.22);box-shadow:6px 8px 0 rgba(17,17,17,0.08);font-family:${STYLE_FONT_FAMILY.ink};"><strong>${detail.object.name}</strong><span>类型：${detail.object.type}</span><span>坐标：${Math.round(detail.object.position[0])}, ${Math.round(detail.object.position[1])}</span></div>`,
-        style: {
-            backgroundColor: 'transparent',
-            border: 'none',
-            padding: '0',
-            boxShadow: 'none',
-        },
-    }
-}
 
 function emptyDraft(): MapShapeEditorDraft {
     return {shapes: [], keyLocations: []}
@@ -750,22 +601,12 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         setSelectedLocationId(loc.id)
     }, [draft, selectedShapeId, updateDraft])
 
-    // ── Style textures (cached once) ────────────────────────────────────────────
-
-    const styleTextures = useMemo(() => ({
-        parchment: createParchmentTexture(CANVAS.width, CANVAS.height),
-        ricePaper: createRicePaperTexture(CANVAS.width, CANVAS.height),
-    }), [])
-
     // ── Deck & SVG props ──────────────────────────────────────────────────────
 
     const displayScene = useMemo(() => {
-        const oceanUrl = makeOceanSvgUrl(OCEAN_COLORS[style])
-        const styleTextureUrl = style === 'tolkien'
-            ? styleTextures.parchment
-            : style === 'ink'
-                ? styleTextures.ricePaper
-                : null
+        const def = getStyleDefinition(style)
+        const oceanUrl = makeOceanSvgUrl(def.oceanColor)
+        const styleTextureUrl = !backgroundImageUrl ? def.createBackgroundTexture?.(CANVAS) ?? null : null
         const bgUrl = backgroundImageUrl ?? styleTextureUrl ?? oceanUrl
         const previewScene = buildPreviewSceneFromDraft({
             canvas: CANVAS,
@@ -777,19 +618,26 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
             : !sceneDirty && scene
                 ? scene
                 : previewScene
-        return buildStyledScene({
+        const withBg: MapPreviewScene = {
             ...base,
             backgroundImage: {url: bgUrl, fit: backgroundImageUrl ? 'cover' as const : 'fill' as const},
-        }, style)
-    }, [scene, sceneDirty, draft, style, backgroundImageUrl, viewportMode, styleTextures])
+        }
+        return def.transformScene?.(withBg) ?? withBg
+    }, [scene, sceneDirty, draft, style, backgroundImageUrl, viewportMode])
 
     const deckProps = useMemo(() => {
-        const base = buildDeckStyleConfig(style)
+        const def = getStyleDefinition(style)
         return {
-            ...base,
+            ...def.deckConfig,
             showLabels: true,
             keyLocationRenderMode: (style === 'flat' ? 'circle' : 'auto') as 'circle' | 'auto',
-            getTooltip: (detail: MapDeckPreviewPickDetail) => buildStyleTooltip(style, detail),
+            getTooltip: (detail: MapDeckPreviewPickDetail): MapDeckPreviewTooltip | string | null => {
+                if (detail.kind === 'empty') return null
+                if (detail.kind === 'shape') {
+                    return def.buildShapeTooltip?.(detail.object) ?? null
+                }
+                return def.buildLocationTooltip?.(detail.object) ?? null
+            },
         }
     }, [style])
 
@@ -899,10 +747,10 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                 <button type="button" className="wm-back-btn" onClick={onBack}><BackArrow/>返回</button>
                 <h2 className="wm-title">世界地图 · {projectName}</h2>
                 <div className="wm-style-switcher">
-                    {(Object.keys(STYLE_LABELS) as MapStyle[]).map(s => (
+                    {(['flat', 'tolkien', 'ink'] as MapStyle[]).map(s => (
                         <button key={s} type="button"
                                 className={`wm-style-btn${style === s ? ' is-active' : ''}`}
-                                onClick={() => setStyle(s)}>{STYLE_LABELS[s]}</button>
+                                onClick={() => setStyle(s)}>{getStyleDefinition(s).label}</button>
                     ))}
                 </div>
                 <div className="wm-header-actions">
@@ -1002,7 +850,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                                 >
                                     <span className="wm-map-item__name">{m.name}</span>
                                     <span
-                                        className="wm-map-item__meta">{STYLE_LABELS[(m.style as MapStyle) ?? 'flat'] ?? '扁平'}</span>
+                                        className="wm-map-item__meta">{getStyleDefinition((m.style as MapStyle) ?? 'flat').label}</span>
                                     <button
                                         type="button"
                                         className="wm-map-item__delete"
