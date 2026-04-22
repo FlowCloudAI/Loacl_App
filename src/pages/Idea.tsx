@@ -337,19 +337,25 @@ export default function Idea({contextProjectId = null, onOpenEntry, panelMode, o
         const element = layoutRef.current
         if (!element || typeof ResizeObserver === 'undefined') return
 
+        const updateFromWidth = (width: number) => {
+            const isCompact = width <= 960
+            setCompactLayout(isCompact)
+            setSidebarCollapsed(isCompact)
+        }
+
+        // 同步获取初始宽度，避免先展开再收起的闪烁/动画
+        const rect = element.getBoundingClientRect()
+        updateFromWidth(rect.width)
+
         const observer = new ResizeObserver((entries) => {
             const entry = entries[0]
             if (!entry) return
-            setCompactLayout(entry.contentRect.width <= 960)
+            updateFromWidth(entry.contentRect.width)
         })
 
         observer.observe(element)
         return () => observer.disconnect()
     }, [])
-
-    useEffect(() => {
-        setSidebarCollapsed(compactLayout)
-    }, [compactLayout])
 
     useEffect(() => {
         if (!initialized || loading) return

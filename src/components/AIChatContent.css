@@ -633,6 +633,7 @@
     resize: none;
     outline: none;
     font-family: inherit;
+    overflow-y: hidden;
 }
 
 .ai-floating-textarea:focus {

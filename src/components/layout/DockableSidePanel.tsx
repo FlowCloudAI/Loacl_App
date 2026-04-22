@@ -42,25 +42,43 @@ export default function DockableSidePanel({
                                               children,
                                           }: DockableSidePanelProps) {
     const rootRef = useRef<HTMLElement | null>(null)
-    const [isDragging, setIsDragging] = useState(false)
-    const [isCollapsePreview, setIsCollapsePreview] = useState(false)
+    // 仅用于控制 CSS class（mousedown/mouseup 各切一次）
+    const [isDraggingClass, setIsDraggingClass] = useState(false)
     const [fullscreenRect, setFullscreenRect] = useState<{
         top: number
         left: number
         width: number
         height: number
     } | null>(null)
+
     const isDraggingRef = useRef(false)
     const isCollapsePreviewRef = useRef(false)
     const dragStartXRef = useRef(0)
     const dragStartWidthRef = useRef(0)
     const lastExpandedWidthRef = useRef(width)
+    // mousedown 时已是 collapsed 状态，等待第一次 mousemove 再激活拖拽
+    const pendingExpandRef = useRef(false)
 
     useEffect(() => {
         if (mode === 'floating' && !collapsed) {
             lastExpandedWidthRef.current = width
         }
     }, [collapsed, mode, width])
+
+    // 非拖拽期间，props 变化时同步 CSS 变量到 DOM
+    useEffect(() => {
+        if (mode !== 'floating') return
+        if (isDraggingRef.current) return
+
+        const el = rootRef.current
+        if (!el) return
+
+        if (collapsed) {
+            el.style.setProperty('--dsp-width', '0px')
+        } else {
+            el.style.setProperty('--dsp-width', `${width}px`)
+        }
+    }, [mode, collapsed, width])
 
     useLayoutEffect(() => {
         if (mode !== 'fullscreen') return
@@ -104,18 +122,23 @@ export default function DockableSidePanel({
         if (mode !== 'floating') return
         event.preventDefault()
         isDraggingRef.current = true
-        setIsDragging(true)
         isCollapsePreviewRef.current = false
-        setIsCollapsePreview(false)
         dragStartXRef.current = event.clientX
         dragStartWidthRef.current = collapsed ? (lastExpandedWidthRef.current || width || minWidth) : width
+
+        const el = rootRef.current
         if (collapsed) {
+            // 收起状态下点击手柄：先触发展开（保留 transition），等到真正移动再激活拖拽模式
+            pendingExpandRef.current = true
             onCollapsedChange?.(false)
-            onWidthChange(dragStartWidthRef.current)
+            el?.style.setProperty('--dsp-width', `${dragStartWidthRef.current}px`)
+        } else {
+            pendingExpandRef.current = false
+            setIsDraggingClass(true)
         }
         document.body.style.cursor = 'col-resize'
         document.body.style.userSelect = 'none'
-    }, [collapsed, minWidth, mode, onCollapsedChange, onWidthChange, width])
+    }, [collapsed, minWidth, mode, onCollapsedChange, width])
 
     const checkFullscreenTrigger = useCallback((panelRightEdgeX: number) => {
         if (mode !== 'floating') return false
@@ -129,6 +152,16 @@ export default function DockableSidePanel({
     useEffect(() => {
         const handleMouseMove = (event: MouseEvent) => {
             if (!isDraggingRef.current) return
+
+            const el = rootRef.current
+            if (!el) return
+
+            // 从收起状态展开后第一次移动：此时才真正进入拖拽，关闭 transition
+            if (pendingExpandRef.current) {
+                pendingExpandRef.current = false
+                setIsDraggingClass(true)
+            }
+
             const delta = dragStartXRef.current - event.clientX
             const rawWidth = dragStartWidthRef.current + delta
 
@@ -136,9 +169,10 @@ export default function DockableSidePanel({
             const panelRightEdgeX = window.innerWidth - rawWidth
             if (checkFullscreenTrigger(panelRightEdgeX)) {
                 isDraggingRef.current = false
-                setIsDragging(false)
+                setIsDraggingClass(false)
                 isCollapsePreviewRef.current = false
-                setIsCollapsePreview(false)
+                el.classList.remove('is-collapse-preview')
+                pendingExpandRef.current = false
                 document.body.style.cursor = ''
                 document.body.style.userSelect = ''
                 return
@@ -150,27 +184,48 @@ export default function DockableSidePanel({
                 Math.max(minWidth, rawWidth),
             )
             const shouldCollapse = rawWidth <= collapseThreshold
+
+            const wasCollapsePreview = isCollapsePreviewRef.current
             isCollapsePreviewRef.current = shouldCollapse
-            setIsCollapsePreview(shouldCollapse)
-            if (!shouldCollapse) {
-                onCollapsedChange?.(false)
-                onWidthChange(nextWidth)
+            if (shouldCollapse !== wasCollapsePreview) {
+                el.classList.toggle('is-collapse-preview', shouldCollapse)
+            }
+
+            if (shouldCollapse) {
+                // 拖过阈值：CSS transition 接管，面板在用户手里就开始动画收起
+                el.style.setProperty('--dsp-width', '0px')
+            } else {
+                // 正常拖拽：直接写 DOM，零 React 渲染开销
+                el.style.setProperty('--dsp-width', `${nextWidth}px`)
             }
         }
 
         const handleMouseUp = () => {
             if (!isDraggingRef.current) return
+            const el = rootRef.current
+
             isDraggingRef.current = false
-            setIsDragging(false)
-            if (isCollapsePreviewRef.current) {
-                onCollapsedChange?.(true)
-            } else {
-                onCollapsedChange?.(false)
-            }
-            isCollapsePreviewRef.current = false
-            setIsCollapsePreview(false)
+            pendingExpandRef.current = false
             document.body.style.cursor = ''
             document.body.style.userSelect = ''
+
+            const shouldCollapse = isCollapsePreviewRef.current
+            isCollapsePreviewRef.current = false
+            setIsDraggingClass(false)
+            el?.classList.remove('is-collapse-preview')
+
+            if (shouldCollapse) {
+                onCollapsedChange?.(true)
+            } else {
+                const currentWidthStr = el?.style.getPropertyValue('--dsp-width')
+                const currentWidth = currentWidthStr ? parseFloat(currentWidthStr) : dragStartWidthRef.current
+                const finalWidth = Math.min(
+                    window.innerWidth * maxWidthRatio,
+                    Math.max(minWidth, currentWidth),
+                )
+                onCollapsedChange?.(false)
+                onWidthChange(finalWidth)
+            }
         }
 
         window.addEventListener('mousemove', handleMouseMove)
@@ -178,15 +233,19 @@ export default function DockableSidePanel({
         return () => {
             window.removeEventListener('mousemove', handleMouseMove)
             window.removeEventListener('mouseup', handleMouseUp)
+            // 组件卸载时若仍在拖拽，清理残留样式
+            if (isDraggingRef.current) {
+                document.body.style.cursor = ''
+                document.body.style.userSelect = ''
+            }
         }
     }, [maxWidthRatio, minWidth, onCollapsedChange, onWidthChange, checkFullscreenTrigger])
 
     const rootClassName = [
         'dockable-side-panel',
         `dockable-side-panel--${mode}`,
-        mode === 'floating' && isDragging ? 'is-dragging' : '',
+        mode === 'floating' && isDraggingClass ? 'is-dragging' : '',
         mode === 'floating' && collapsed ? 'is-collapsed' : '',
-        mode === 'floating' && isCollapsePreview ? 'is-collapse-preview' : '',
         className,
     ].filter(Boolean).join(' ')
 
@@ -202,10 +261,8 @@ export default function DockableSidePanel({
                 zIndex: 1000,
             }
         }
-
-        return {
-            width: collapsed || isCollapsePreview ? undefined : width,
-        }
+        // floating 模式下宽度由 CSS 变量 --dsp-width 控制，不通过 inline style
+        return undefined
     })()
 
     return (
@@ -216,7 +273,7 @@ export default function DockableSidePanel({
         >
             {mode === 'floating' && (
                 <div
-                    className={`dockable-side-panel__resize-handle${isDragging ? ' is-dragging' : ''}`}
+                    className={`dockable-side-panel__resize-handle${isDraggingClass ? ' is-dragging' : ''}`}
                     onMouseDown={handleResizeStart}
                     title={handleTitle}
                 >

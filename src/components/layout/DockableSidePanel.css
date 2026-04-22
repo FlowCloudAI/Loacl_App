@@ -23,16 +23,26 @@
     height: 100%;
     flex-shrink: 0;
     border-left: 1px solid var(--fc-color-border);
+    width: var(--dsp-width);
     transition: width 0.18s ease, border-color 0.15s ease;
 }
 
+/* 正常拖拽：无 transition */
 .dockable-side-panel--floating.is-dragging {
     transition: none;
 }
 
-.dockable-side-panel--floating.is-collapsed,
-.dockable-side-panel--floating.is-collapse-preview {
+/* 跨过阈值进入 collapse preview：transition 重新开启，面板在用户手里就开始动画 */
+.dockable-side-panel--floating.is-dragging.is-collapse-preview {
+    transition: width 0.14s ease, border-color 0.15s ease;
+}
+
+.dockable-side-panel--floating.is-collapsed {
     width: var(--dockable-side-panel-collapsed-width);
+    border-left-color: transparent;
+}
+
+.dockable-side-panel--floating.is-collapse-preview {
     border-left-color: transparent;
 }
 
@@ -42,6 +52,7 @@
     min-height: 0;
     display: flex;
     overflow: hidden;
+    transition: opacity 0.15s ease, padding-left 0.15s ease;
 }
 
 .dockable-side-panel--floating .dockable-side-panel__body {
@@ -53,6 +64,10 @@
     padding-left: 0;
     opacity: 0;
     pointer-events: none;
+}
+
+.dockable-side-panel--floating.is-dragging .dockable-side-panel__body {
+    transition: none;
 }
 
 .dockable-side-panel__resize-handle {

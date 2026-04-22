@@ -35,7 +35,7 @@ type MainContentKey = 'home' | 'relation' | 'map-editor' | 'settings'
 type SidePanelContentKey = 'idea' | 'ai-chat' | 'snapshot'
 
 function App() {
-    const AI_MIN_PANEL_WIDTH = 460
+    const AI_MIN_PANEL_WIDTH = 470
     const win = getCurrentWindow();
     const {showAlert} = useAlert()
 

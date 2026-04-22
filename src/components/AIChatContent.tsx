@@ -119,15 +119,43 @@ export default function AIChatContent({controller, panelMode, onTogglePanelMode}
         })
     }, [])
 
-    useLayoutEffect(() => {
+    const resizeTextarea = useCallback(() => {
         const textarea = textareaRef.current
         if (!textarea) return
-        const scrollTop = textarea.scrollTop
         textarea.style.height = 'auto'
         const nextHeight = Math.min(Math.max(textarea.scrollHeight, 60), 200)
         textarea.style.height = `${nextHeight}px`
-        textarea.scrollTop = scrollTop
+    }, [])
+
+    useLayoutEffect(() => {
+        resizeTextarea()
     }, [ctx.inputValue])
+
+    useEffect(() => {
+        const textarea = textareaRef.current
+        if (!textarea) return
+
+        const target = textarea.closest('.dockable-side-panel') as HTMLElement | null
+            ?? textarea.closest('.ai-main') as HTMLElement | null
+        if (!target) return
+
+        const ro = new ResizeObserver(() => {
+            resizeTextarea()
+        })
+        ro.observe(target)
+
+        const handleTransitionEnd = () => resizeTextarea()
+        target.addEventListener('transitionend', handleTransitionEnd)
+        target.addEventListener('animationend', handleTransitionEnd)
+
+        resizeTextarea()
+
+        return () => {
+            ro.disconnect()
+            target.removeEventListener('transitionend', handleTransitionEnd)
+            target.removeEventListener('animationend', handleTransitionEnd)
+        }
+    }, [resizeTextarea])
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
