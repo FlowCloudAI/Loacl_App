@@ -1,32 +1,7 @@
-import type {
-    MapDeckPreviewTooltip,
-    MapPreviewKeyLocation,
-    MapPreviewKeyLocationIcon,
-    MapPreviewScene,
-    MapPreviewShape
-} from 'flowcloudai-ui'
+import type {MapDeckPreviewTooltip, MapPreviewKeyLocation, MapPreviewScene, MapPreviewShape,} from 'flowcloudai-ui'
 import type {MapStyleDefinition} from './types'
 import {createRicePaperTexture} from './textures'
 import {createInkBleedEffect} from './effects'
-import {deckColorToHex, svgToDataUrl} from './utils'
-
-function buildLocationIcon(type: string, colorHex: string): MapPreviewKeyLocationIcon | null {
-    const isSettlement = /城|镇|都|村|港|要塞|关口/.test(type)
-    return {
-        url: svgToDataUrl(`
-            <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
-                <circle cx="22" cy="22" r="16" fill="#f5f5f5" fill-opacity="0.9"/>
-                <path d="${isSettlement ? 'M14 27L22 11L30 27M18 24H26' : 'M14 14L30 30M30 14L14 30'}"
-                      stroke="${colorHex}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="22" cy="22" r="18" fill="none" stroke="#1a1a1a" stroke-width="1.4" stroke-dasharray="2.5 2"/>
-            </svg>
-        `),
-        width: 44,
-        height: 44,
-        anchorX: 22,
-        anchorY: 22,
-    }
-}
 
 function buildShapeTooltip(shape: MapPreviewShape): MapDeckPreviewTooltip {
     return {
@@ -55,14 +30,11 @@ function buildLocationTooltip(location: MapPreviewKeyLocation): MapDeckPreviewTo
 function transformScene(scene: MapPreviewScene): MapPreviewScene {
     return {
         ...scene,
-        keyLocations: scene.keyLocations.map(location => {
-            const icon = buildLocationIcon(location.type, deckColorToHex(location.color))
-            return {
-                ...location,
-                icon,
-                iconSize: icon ? 28 : undefined,
-            }
-        }),
+        keyLocations: scene.keyLocations.map(location => ({
+            ...location,
+            icon: undefined,
+            iconSize: undefined,
+        })),
     }
 }
 
@@ -70,47 +42,51 @@ export const inkStyle: MapStyleDefinition = {
     id: 'ink',
     label: '水墨',
     fontFamily: '"STKaiti", "KaiTi", "FangSong", serif',
-    oceanColor: '#c4c4c4',
+    oceanColor: '#ede9e0',
 
     deckConfig: {
         polygonShaderInject: {
             'fs:DECKGL_FILTER_COLOR': `
                 float lum = color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
-                float darkness = 1.0 - lum;
-                color.r = lum;
-                color.g = lum;
-                color.b = lum * 0.94;
-                color.a *= 0.55 + darkness * 0.40;
-                // 向墨色偏移
-                color.rgb = mix(color.rgb, vec3(0.05, 0.05, 0.06), 0.15);
+                // 轻微去饱和，保留淡墨韵味，不强制灰度
+                vec3 tint = vec3(0.10, 0.10, 0.12);
+                vec3 base = mix(color.rgb, vec3(lum), 0.35);
+                color.rgb = mix(base, tint, 0.06);
+                color.a *= 0.82;
             `,
         },
         polygonLayerProps: {
-            lineWidthMinPixels: 5,
-            getLineColor: () => [35, 35, 35, 55] as [number, number, number, number],
+            lineWidthMinPixels: 3,
+            getLineColor: () => [18, 18, 18, 210] as [number, number, number, number],
             getFillColor: (s: {fillColor: [number, number, number, number]}) =>
-                [s.fillColor[0], s.fillColor[1], s.fillColor[2], 18] as [number, number, number, number],
+                [s.fillColor[0], s.fillColor[1], s.fillColor[2], 8] as [number, number, number, number],
         },
         scatterplotLayerProps: {
-            getRadius: 6,
-            radiusMaxPixels: 14,
-            stroked: true,
-            getLineColor: () => [255, 255, 255, 235] as [number, number, number, number],
-            lineWidthMinPixels: 1.5,
+            getRadius: 4,
+            radiusMaxPixels: 9,
+            stroked: false,
+            filled: true,
+            getFillColor: (loc: { type?: string }) => {
+                const isCapital = loc.type ? /都|京/.test(loc.type) : false
+                return isCapital
+                    ? ([155, 35, 35, 180] as [number, number, number, number])
+                    : ([16, 16, 16, 170] as [number, number, number, number])
+            },
         },
         iconLayerProps: {
-            getSize: 28,
+            getSize: 0,
         },
         textLayerProps: {
             getSize: 14,
-            getColor: () => [15, 15, 15, 240] as [number, number, number, number],
+            getColor: () => [12, 12, 12, 230] as [number, number, number, number],
             fontFamily: '"STKaiti", "KaiTi", "FangSong", serif',
+            getPixelOffset: () => [0, -12] as [number, number],
         },
         deckEffects: [createInkBleedEffect()],
     },
 
     createBackgroundTexture: (canvas) => createRicePaperTexture(canvas.width, canvas.height),
-    buildLocationIcon,
+    buildLocationIcon: () => null,
     buildShapeTooltip,
     buildLocationTooltip,
     transformScene,

@@ -50,7 +50,7 @@ interface Props {
         model: string
         reportContext: ReportConversationContext
     }) => void
-    forcedProjectPanel?: Exclude<ProjectPanel, 'overview'> | null
+    activeToolPanel?: ProjectPanel | null
     onOpenProjectPanel?: (panel: Exclude<ProjectPanel, 'overview'>, project: { id: string; name: string }) => void
 }
 
@@ -69,7 +69,7 @@ function ProjectEditorInner({
                                 onEntryDirtyChange,
                                 onStartCharacterChat,
                                 onStartReportDiscussion,
-                                forcedProjectPanel = null,
+                                activeToolPanel = null,
                                 onOpenProjectPanel,
                             }: Props) {
     const [treeWidth, setTreeWidth] = useState(TREE_DEFAULT_PX)
@@ -96,9 +96,7 @@ function ProjectEditorInner({
 
     const [selection, setSelection] = useState<Selection>({kind: 'project'})
     const [selectedKey, setSelectedKey] = useState<string | undefined>(ROOT_ID)
-    const [projectPanel, setProjectPanel] = useState<ProjectPanel>('overview')
     const {showAlert} = useAlert()
-    const effectiveProjectPanel = forcedProjectPanel ?? projectPanel
 
     const touchProjectUpdatedAt = useCallback(() => {
         setProject(current => current ? {...current, updated_at: new Date().toISOString()} : current)
@@ -180,12 +178,6 @@ function ProjectEditorInner({
     }, [fetchAll, projectId])
 
     useEffect(() => {
-        if (!forcedProjectPanel) return
-        setSelection(current => current.kind === 'project' ? current : {kind: 'project'})
-        setSelectedKey(ROOT_ID)
-    }, [forcedProjectPanel])
-
-    useEffect(() => {
         if (!treeCollapsed) {
             lastExpandedWidthRef.current = treeWidth
         }
@@ -257,12 +249,9 @@ function ProjectEditorInner({
             setSelection({kind: 'project'})
         } else {
             setSelection({kind: 'category', id: key})
-            if (!forcedProjectPanel) {
-                setProjectPanel('overview')
-            }
         }
 
-        if (activeEntryId) {
+        if (activeEntryId || activeToolPanel) {
             void onBackToProject?.(projectId)
         }
     }
@@ -270,18 +259,8 @@ function ProjectEditorInner({
     const handleOpenProjectPanel = useCallback((panel: Exclude<ProjectPanel, 'overview'>) => {
         if (project && onOpenProjectPanel) {
             onOpenProjectPanel(panel, {id: projectId, name: project.name})
-            return
         }
-        setProjectPanel(panel)
     }, [onOpenProjectPanel, project, projectId])
-
-    const handleProjectPanelBack = useCallback(() => {
-        if (forcedProjectPanel) {
-            void onBackToProject?.(projectId)
-            return
-        }
-        setProjectPanel('overview')
-    }, [forcedProjectPanel, onBackToProject, projectId])
 
     const handleRename = async (key: string, newName: string) => {
         if (key === ROOT_ID) {
@@ -458,6 +437,7 @@ function ProjectEditorInner({
 
     const visibleEntryIds = useMemo(() => openEntryIds.slice(-10), [openEntryIds])
     const hasActiveEntry = Boolean(activeEntryId)
+    const hasActiveTool = Boolean(activeToolPanel)
 
     if (!project) {
         return <div className="pe-loading">加载中…</div>
@@ -510,81 +490,43 @@ function ProjectEditorInner({
             </div>
 
             <div className="pe-content">
-                <div className={`pe-project-view${hasActiveEntry ? '' : ' active'}`}>
+                <div className={`pe-project-view${hasActiveEntry || hasActiveTool ? '' : ' active'}`}>
                     {selection.kind === 'project' ? (
-                        effectiveProjectPanel === 'overview' ? (
-                            <ProjectOverview
-                                project={project}
-                                categories={categories}
-                                entryTypes={entryTypes}
-                                tagSchemas={tagSchemas}
-                                entryCount={entryCount}
-                                tagCount={tagSchemas.length}
-                                imageCount={imageCount}
-                                wordCount={wordCount}
-                                onCreateTag={() => {
-                                    setEditingTag(null)
-                                    setTagCreatorOpen(true)
-                                }}
-                                onCreateEntryType={() => {
-                                    setEditingEntryType(null)
-                                    setEntryTypeCreatorOpen(true)
-                                }}
-                                onEditTag={(tag) => {
-                                    setEditingTag(tag)
-                                    setTagCreatorOpen(true)
-                                }}
-                                onEditEntryType={(entryType) => {
-                                    setEditingEntryType(entryType)
-                                    setEntryTypeCreatorOpen(true)
-                                }}
-                                onOpenRelationGraph={() => handleOpenProjectPanel('relation-graph')}
-                                onOpenTimeline={() => handleOpenProjectPanel('timeline')}
-                                onOpenWorldMap={() => handleOpenProjectPanel('world-map')}
-                                onOpenContradiction={() => handleOpenProjectPanel('contradiction')}
-                                onEditCover={() => setCoverPickerOpen(true)}
-                                onClearCover={() => {
-                                    void handleUpdateProjectCover(null).catch(() => undefined)
-                                }}
-                                coverUpdating={coverUpdating}
-                            />
-                        ) : effectiveProjectPanel === 'relation-graph' ? (
-                            <div className="pe-project-panel">
-                                <ProjectRelationGraph
-                                    projectId={projectId}
-                                    onBack={handleProjectPanelBack}
-                                />
-                            </div>
-                        ) : effectiveProjectPanel === 'contradiction' ? (
-                            <div className="pe-project-panel">
-                                <ProjectContradictionPanel
-                                    projectId={projectId}
-                                    projectName={project.name}
-                                    aiPluginId={aiPluginId}
-                                    aiModel={aiModel}
-                                    onBack={handleProjectPanelBack}
-                                    onStartDiscussion={onStartReportDiscussion}
-                                />
-                            </div>
-                        ) : effectiveProjectPanel === 'world-map' ? (
-                            <div className="pe-project-panel">
-                                <WorldMapPanel
-                                    projectId={projectId}
-                                    projectName={project.name}
-                                    onBack={handleProjectPanelBack}
-                                    onOpenEntry={(entry) => onOpenEntry?.(projectId, entry)}
-                                />
-                            </div>
-                        ) : (
-                            <div className="pe-project-panel">
-                                <ProjectTimeline
-                                    projectId={projectId}
-                                    tagSchemas={tagSchemas}
-                                    onBack={handleProjectPanelBack}
-                                    onOpenEntry={(entry) => onOpenEntry?.(projectId, entry)}
-                                />
-                            </div>
-                        )
+                        <ProjectOverview
+                            project={project}
+                            categories={categories}
+                            entryTypes={entryTypes}
+                            tagSchemas={tagSchemas}
+                            entryCount={entryCount}
+                            tagCount={tagSchemas.length}
+                            imageCount={imageCount}
+                            wordCount={wordCount}
+                            onCreateTag={() => {
+                                setEditingTag(null)
+                                setTagCreatorOpen(true)
+                            }}
+                            onCreateEntryType={() => {
+                                setEditingEntryType(null)
+                                setEntryTypeCreatorOpen(true)
+                            }}
+                            onEditTag={(tag) => {
+                                setEditingTag(tag)
+                                setTagCreatorOpen(true)
+                            }}
+                            onEditEntryType={(entryType) => {
+                                setEditingEntryType(entryType)
+                                setEntryTypeCreatorOpen(true)
+                            }}
+                            onOpenRelationGraph={() => handleOpenProjectPanel('relation-graph')}
+                            onOpenTimeline={() => handleOpenProjectPanel('timeline')}
+                            onOpenWorldMap={() => handleOpenProjectPanel('world-map')}
+                            onOpenContradiction={() => handleOpenProjectPanel('contradiction')}
+                            onEditCover={() => setCoverPickerOpen(true)}
+                            onClearCover={() => {
+                                void handleUpdateProjectCover(null).catch(() => undefined)
+                            }}
+                            coverUpdating={coverUpdating}
+                        />
                     ) : (
                         <CategoryView
                             key={selection.id}
@@ -598,6 +540,41 @@ function ProjectEditorInner({
                                 setEntryCount(count => count + 1)
                                 touchProjectUpdatedAt()
                             }}
+                            onOpenEntry={(entry) => onOpenEntry?.(projectId, entry)}
+                        />
+                    )}
+                </div>
+
+                <div className={`pe-tool-stack${hasActiveTool ? ' active' : ''}`}>
+                    {activeToolPanel === 'relation-graph' && (
+                        <ProjectRelationGraph
+                            projectId={projectId}
+                            onBack={() => onBackToProject?.(projectId)}
+                        />
+                    )}
+                    {activeToolPanel === 'timeline' && (
+                        <ProjectTimeline
+                            projectId={projectId}
+                            tagSchemas={tagSchemas}
+                            onBack={() => onBackToProject?.(projectId)}
+                            onOpenEntry={(entry) => onOpenEntry?.(projectId, entry)}
+                        />
+                    )}
+                    {activeToolPanel === 'contradiction' && (
+                        <ProjectContradictionPanel
+                            projectId={projectId}
+                            projectName={project.name}
+                            aiPluginId={aiPluginId}
+                            aiModel={aiModel}
+                            onBack={() => onBackToProject?.(projectId)}
+                            onStartDiscussion={onStartReportDiscussion}
+                        />
+                    )}
+                    {activeToolPanel === 'world-map' && (
+                        <WorldMapPanel
+                            projectId={projectId}
+                            projectName={project.name}
+                            onBack={() => onBackToProject?.(projectId)}
                             onOpenEntry={(entry) => onOpenEntry?.(projectId, entry)}
                         />
                     )}

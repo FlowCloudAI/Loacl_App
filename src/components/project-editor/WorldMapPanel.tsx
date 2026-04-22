@@ -174,6 +174,9 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         setSaveStatus('idle')
     }, [])
 
+    const loadMapDataRef = useRef<(entry: MapEntry) => void>(() => {
+    })
+
     // ── Load map list on mount ────────────────────────────────────────────────
 
     useEffect(() => {
@@ -184,7 +187,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
             if (cancelled) return
             setMaps(entries)
             if (entries.length > 0) {
-                loadMapData(entries[0])
+                loadMapDataRef.current(entries[0])
             }
             setIsLoading(false)
         }).catch((e: unknown) => {
@@ -197,7 +200,6 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         return () => {
             cancelled = true
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [projectId])
 
     useEffect(() => {
@@ -254,6 +256,10 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         setSaveStatus('idle')
         setErrorMsg(null)
     }, [])
+
+    useEffect(() => {
+        loadMapDataRef.current = loadMapData
+    }, [loadMapData])
 
     // ── Build current entry from editor state ─────────────────────────────────
 
@@ -630,6 +636,8 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                 : previewScene
         const withBg: MapPreviewScene = {
             ...base,
+            // 关键地点属于编辑草稿数据，预览时始终以 draft 为准，避免旧 scene 覆盖最新地点。
+            keyLocations: previewScene.keyLocations,
             backgroundImage: {url: bgUrl, fit: backgroundImageUrl ? 'cover' as const : 'fill' as const},
         }
         return def.transformScene?.(withBg) ?? withBg
@@ -637,11 +645,14 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
 
     const deckProps = useMemo(() => {
         const def = getStyleDefinition(style)
+        const decorations = def.buildDecorations?.({canvas: CANVAS, scene: displayScene}) ?? {}
+        const extraLayers = def.createExtraLayers?.({canvas: CANVAS, scene: displayScene, decorations}) ?? []
         return {
             ...def.deckConfig,
             style: {backgroundColor: def.oceanColor},
             showLabels: true,
             keyLocationRenderMode: (style === 'flat' ? 'circle' : 'auto') as 'circle' | 'auto',
+            extraLayers,
             getTooltip: (detail: MapDeckPreviewPickDetail): MapDeckPreviewTooltip | string | null => {
                 if (detail.kind === 'empty') return null
                 if (detail.kind === 'shape') {
@@ -650,7 +661,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                 return def.buildLocationTooltip?.(detail.object) ?? null
             },
         }
-    }, [style])
+    }, [style, displayScene])
 
     const svgProps = useMemo(() => ({
         draft,

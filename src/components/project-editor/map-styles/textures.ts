@@ -18,35 +18,35 @@ export function createParchmentTexture(width: number, height: number): string {
     ctx.fillStyle = base
     ctx.fillRect(0, 0, width, height)
 
-    // 四角老化晕染
+    // 四角老化晕染（降低透明度，避免边角过重）
     const corners: [number, number][] = [[0, 0], [width, 0], [0, height], [width, height]]
     for (const [cx, cy] of corners) {
         const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, width * 0.58)
-        g.addColorStop(0, 'rgba(95, 60, 18, 0.32)')
-        g.addColorStop(0.45, 'rgba(95, 60, 18, 0.12)')
+        g.addColorStop(0, 'rgba(95, 60, 18, 0.16)')
+        g.addColorStop(0.45, 'rgba(95, 60, 18, 0.06)')
         g.addColorStop(1, 'rgba(95, 60, 18, 0)')
         ctx.fillStyle = g
         ctx.fillRect(0, 0, width, height)
     }
 
-    // 顶部光照 + 底部阴影
+    // 顶部光照 + 底部轻阴影
     const topLight = ctx.createLinearGradient(0, 0, 0, height)
     topLight.addColorStop(0, 'rgba(255, 244, 210, 0.14)')
     topLight.addColorStop(0.35, 'rgba(255, 244, 210, 0)')
-    topLight.addColorStop(1, 'rgba(70, 35, 0, 0.10)')
+    topLight.addColorStop(1, 'rgba(70, 35, 0, 0.06)')
     ctx.fillStyle = topLight
     ctx.fillRect(0, 0, width, height)
 
-    // 侧边光照渐变（模拟羊皮纸卷曲边缘）
+    // 侧边渐变（模拟羊皮纸卷曲边缘）
     const sideLight = ctx.createLinearGradient(0, 0, width, 0)
-    sideLight.addColorStop(0, 'rgba(80, 40, 0, 0.08)')
+    sideLight.addColorStop(0, 'rgba(80, 40, 0, 0.06)')
     sideLight.addColorStop(0.12, 'rgba(80, 40, 0, 0)')
     sideLight.addColorStop(0.88, 'rgba(80, 40, 0, 0)')
-    sideLight.addColorStop(1, 'rgba(80, 40, 0, 0.08)')
+    sideLight.addColorStop(1, 'rgba(80, 40, 0, 0.06)')
     ctx.fillStyle = sideLight
     ctx.fillRect(0, 0, width, height)
 
-    // 纸纤维（较少数量但更长、趋近水平，避免杂乱感）
+    // 纸纤维（趋近水平，避免杂乱感）
     for (let i = 0; i < 180; i++) {
         const x = Math.random() * width
         const y = Math.random() * height
@@ -66,7 +66,7 @@ export function createParchmentTexture(width: number, height: number): string {
 }
 
 /**
- * 宣纸纹理生成器——米白底色 + 噪点 + 纸纤维。
+ * 宣纸纹理生成器——米白底色 + 轻噪点 + 纸纤维。
  */
 export function createRicePaperTexture(width: number, height: number): string {
     const canvas = document.createElement('canvas')
@@ -74,30 +74,30 @@ export function createRicePaperTexture(width: number, height: number): string {
     canvas.height = height
     const ctx = canvas.getContext('2d')!
 
-    // 米白底色
-    ctx.fillStyle = '#f5f3ee'
+    // 略亮的米白底色
+    ctx.fillStyle = '#fbfaf7'
     ctx.fillRect(0, 0, width, height)
 
-    // 全局噪点
+    // 轻微噪点（减小幅度避免灰蒙感）
     const imageData = ctx.getImageData(0, 0, width, height)
     const data = imageData.data
     for (let i = 0; i < data.length; i += 4) {
-        const noise = (Math.random() - 0.5) * 12
+        const noise = (Math.random() - 0.5) * 6
         data[i] = Math.min(255, Math.max(0, data[i] + noise))
         data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise))
         data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise))
     }
     ctx.putImageData(imageData, 0, 0)
 
-    // 纸纤维
-    for (let i = 0; i < 400; i++) {
+    // 纸纤维（减少数量，趋近水平）
+    for (let i = 0; i < 180; i++) {
         const x = Math.random() * width
         const y = Math.random() * height
         const len = 10 + Math.random() * 40
-        const angle = (Math.random() - 0.5) * 0.5
-        ctx.globalAlpha = 0.04 + Math.random() * 0.08
+        const angle = (Math.random() - 0.5) * 0.4
+        ctx.globalAlpha = 0.03 + Math.random() * 0.06
         ctx.strokeStyle = '#b0a898'
-        ctx.lineWidth = 0.3 + Math.random() * 0.8
+        ctx.lineWidth = 0.3 + Math.random() * 0.7
         ctx.beginPath()
         ctx.moveTo(x, y)
         ctx.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len)

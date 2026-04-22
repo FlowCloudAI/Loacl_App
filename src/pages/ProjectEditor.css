@@ -206,6 +206,26 @@
     overflow: hidden;
 }
 
+.pe-tool-stack {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.16s ease, visibility 0s linear 0.16s;
+    background: var(--fc-color-bg);
+    z-index: 0;
+    overflow: hidden;
+}
+
+.pe-tool-stack.active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 0.16s ease, visibility 0s linear 0s;
+    z-index: 1;
+}
+
 .pe-entry-layer {
     display: flex;
     flex-direction: column;

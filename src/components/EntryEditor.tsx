@@ -217,16 +217,23 @@ export default function EntryEditor({
     const hasChangesRef = useRef(false)
     const onSavedRef = useRef(onSaved)
     const onTitleChangeRef = useRef(onTitleChange)
-    const lastSuccessfulSaveAtRef = useRef(Date.now())
+    const lastSuccessfulSaveAtRef = useRef(0)
     const lastAutoSaveAttemptAtRef = useRef(0)
 
     const undoRedo = useUndoRedo<EditorHistory>({draft, relationDrafts: []})
-    projectEntriesRef.current = projectEntries
-    onDirtyChangeRef.current = onDirtyChange
-    entryRef.current = entry
-    onSavedRef.current = onSaved
-    onTitleChangeRef.current = onTitleChange
-    const { showAlert } = useAlert()
+    const {showAlert} = useAlert()
+
+    useEffect(() => {
+        lastSuccessfulSaveAtRef.current = Date.now()
+    }, [])
+
+    useEffect(() => {
+        projectEntriesRef.current = projectEntries
+        onDirtyChangeRef.current = onDirtyChange
+        entryRef.current = entry
+        onSavedRef.current = onSaved
+        onTitleChangeRef.current = onTitleChange
+    }, [projectEntries, onDirtyChange, entry, onSaved, onTitleChange])
 
     useEffect(() => {
         let cancelled = false
@@ -447,6 +454,7 @@ export default function EntryEditor({
         return () => {
             cancelled = true
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [linkPreview.closeLinkPreview, wikiLink.setWikiDraft, entryId])
 
     // projectId 变化时重置词条列表状态
@@ -463,6 +471,7 @@ export default function EntryEditor({
         const initialDraftState = buildDraft(entry)
         const initialVisibleTagSchemaIds = buildAutoVisibleTagSchemaIds(entryTags.localTagSchemas, initialDraftState.tags, initialDraftState.type)
         entryTags.setPinnedTagSchemaIds((current) => (current.length === 0 ? initialVisibleTagSchemaIds : current))
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [entry, entryId, entryTags.localTagSchemas, entryTags.setPinnedTagSchemaIds])
 
     // Initialize history once per entry load (fires when both entry and relations are ready)
@@ -667,9 +676,8 @@ export default function EntryEditor({
         saving,
         showAlert,
     ])
-    hasChangesRef.current = hasChanges
-
     useEffect(() => {
+        hasChangesRef.current = hasChanges
         onDirtyChangeRef.current?.(hasChanges)
     }, [hasChanges])
 

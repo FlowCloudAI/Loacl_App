@@ -129,7 +129,7 @@ export default function AIChatContent({controller, panelMode, onTogglePanelMode}
 
     useLayoutEffect(() => {
         resizeTextarea()
-    }, [ctx.inputValue])
+    }, [ctx.inputValue, resizeTextarea])
 
     useEffect(() => {
         const textarea = textareaRef.current
@@ -158,6 +158,16 @@ export default function AIChatContent({controller, panelMode, onTogglePanelMode}
     }, [resizeTextarea])
 
     const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (
+            event.key === 'ArrowLeft'
+            || event.key === 'ArrowRight'
+            || event.key === 'ArrowUp'
+            || event.key === 'ArrowDown'
+        ) {
+            event.stopPropagation()
+            return
+        }
+
         if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
             event.preventDefault()
             if (!ctx.inputValue.trim() || ctx.isStreaming) return

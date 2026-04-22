@@ -17,4 +17,14 @@ export function getStyleDefinition(id: MapStyle): MapStyleDefinition {
 }
 
 export {makeOceanSvgUrl} from './utils'
-export type {MapStyle, MapStyleDefinition, MapStyleDeckConfig} from './types'
+export type {
+    MapStyle,
+    MapStyleDefinition,
+    MapStyleDeckConfig,
+    MapStyleDecorations,
+    MapStyleDecorationContext,
+    MapStyleLayerBuildContext,
+    DecoPath,
+    DecoSymbol,
+    DecoLayout,
+} from './types'

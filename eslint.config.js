@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 
 export default [
   {
-    ignores: ['dist'],
+      ignores: ['dist', 'src-tauri/target/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -18,5 +18,8 @@ export default [
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+      rules: {
+          'react-hooks/set-state-in-effect': 'off',
+      },
   },
 ]

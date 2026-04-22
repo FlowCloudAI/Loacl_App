@@ -558,7 +558,7 @@ function App() {
                                     >
                                         <ProjectEditor
                                             projectId={projectId}
-                                            forcedProjectPanel={toolTabMap[activeKey]?.projectId === projectId ? toolTabMap[activeKey].panel : null}
+                                            activeToolPanel={toolTabMap[activeKey]?.projectId === projectId ? toolTabMap[activeKey].panel : null}
                                             onOpenProjectPanel={handleOpenProjectTool}
                                                 aiPluginId={aiController.selectedPlugin || null}
                                                 aiModel={aiController.selectedModel || null}

@@ -1,30 +1,18 @@
+import {PathLayer, PolygonLayer} from '@deck.gl/layers'
+import type {Layer} from '@deck.gl/core'
+import type {MapDeckPreviewTooltip, MapPreviewKeyLocation, MapPreviewScene, MapPreviewShape,} from 'flowcloudai-ui'
 import type {
-    MapDeckPreviewTooltip,
-    MapPreviewKeyLocation,
-    MapPreviewKeyLocationIcon,
-    MapPreviewScene,
-    MapPreviewShape
-} from 'flowcloudai-ui'
-import type {MapStyleDefinition} from './types'
+    MapStyleDecorationContext,
+    MapStyleDecorations,
+    MapStyleDefinition,
+    MapStyleLayerBuildContext,
+} from './types'
 import {createParchmentTexture} from './textures'
 import {createVignetteEffect} from './effects'
-import {deckColorToHex, svgToDataUrl} from './utils'
-
-function buildLocationIcon(_type: string, colorHex: string): MapPreviewKeyLocationIcon | null {
-    return {
-        url: svgToDataUrl(`
-            <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
-                <circle cx="22" cy="22" r="17" fill="#f7e7bc" stroke="${colorHex}" stroke-width="2.2"/>
-                <path d="M22 8L27.5 18.5L38 22L27.5 25.5L22 36L16.5 25.5L6 22L16.5 18.5Z" fill="${colorHex}" fill-opacity="0.92"/>
-                <circle cx="22" cy="22" r="3.2" fill="#fff8e7"/>
-            </svg>
-        `),
-        width: 44,
-        height: 44,
-        anchorX: 22,
-        anchorY: 22,
-    }
-}
+import {deckColorToHex} from './utils'
+import {buildTolkienLocationIcon} from './icons'
+import {buildCoastOutlines} from './generators/coast'
+import {buildCompassPaths, buildCompassPolygons} from './generators/compass'
 
 function buildShapeTooltip(shape: MapPreviewShape): MapDeckPreviewTooltip {
     return {
@@ -54,14 +42,81 @@ function transformScene(scene: MapPreviewScene): MapPreviewScene {
     return {
         ...scene,
         keyLocations: scene.keyLocations.map(location => {
-            const icon = buildLocationIcon(location.type, deckColorToHex(location.color))
+            const icon = buildTolkienLocationIcon(location.type, deckColorToHex(location.color))
             return {
                 ...location,
-                icon,
-                iconSize: icon ? 30 : undefined,
+                icon: icon ?? undefined,
+                iconSize: icon ? (location.type && /城|都|要塞|港/.test(location.type) ? 36 : 28) : undefined,
             }
         }),
     }
+}
+
+function buildDecorations(ctx: MapStyleDecorationContext): MapStyleDecorations {
+    return {
+        coastOutlines: buildCoastOutlines(ctx.scene),
+    }
+}
+
+function createExtraLayers(ctx: MapStyleLayerBuildContext): Layer[] {
+    const {decorations, canvas} = ctx
+    const layers: Layer[] = []
+
+    // 海岸线双重描边
+    if (decorations.coastOutlines?.length) {
+        layers.push(
+            new PathLayer({
+                id: 'tolkien-coast-outlines',
+                data: decorations.coastOutlines,
+                getPath: d => d.path,
+                getColor: d => d.color,
+                getWidth: d => d.widthPixels,
+                widthMinPixels: 0.5,
+                jointRounded: true,
+                capRounded: true,
+                pickable: false,
+            })
+        )
+    }
+
+    // 罗盘（画布右上角），使用填充面 + 描边，避免缩放后只剩细线。
+    const compassPolygons = buildCompassPolygons(
+        canvas.width - 72,
+        72,
+        58,
+        [90, 58, 28, 200],
+    )
+    const compassPaths = buildCompassPaths(
+        canvas.width - 72,
+        72,
+        58,
+        [90, 58, 28, 200],
+    )
+    layers.push(
+        new PolygonLayer({
+            id: 'tolkien-compass-fill',
+            data: compassPolygons,
+            getPolygon: d => d.polygon,
+            getFillColor: d => d.fillColor,
+            getLineColor: d => d.lineColor,
+            lineWidthMinPixels: 0.6,
+            stroked: true,
+            filled: true,
+            pickable: false,
+        }),
+        new PathLayer({
+            id: 'tolkien-compass',
+            data: compassPaths,
+            getPath: d => d.path,
+            getColor: d => d.color,
+            getWidth: d => d.widthPixels,
+            widthMinPixels: 0.5,
+            jointRounded: true,
+            pickable: false,
+        })
+    )
+
+    return layers
 }
 
 export const tolkienStyle: MapStyleDefinition = {
@@ -74,17 +129,16 @@ export const tolkienStyle: MapStyleDefinition = {
         polygonShaderInject: {
             'fs:DECKGL_FILTER_COLOR': `
                 float lum = color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
-                color.r = min(lum * 1.30 + 0.10, 1.0);
-                color.g = min(lum * 1.05 + 0.05, 1.0);
-                color.b = min(lum * 0.72, 1.0);
-                color.a *= 0.92;
-                // 细微噪点抖动，模拟墨水在羊皮纸上的不均匀沉积
+                color.r = min(lum * 1.10 + 0.06, 1.0);
+                color.g = min(lum * 1.02 + 0.02, 1.0);
+                color.b = min(lum * 0.82, 1.0);
+                color.a *= 0.94;
                 float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233))) * 43758.5453);
-                color.rgb *= (0.96 + n * 0.08);
+                color.rgb *= (0.97 + n * 0.06);
             `,
         },
         polygonLayerProps: {
-            lineWidthMinPixels: 2.5,
+            lineWidthMinPixels: 4,
         },
         scatterplotLayerProps: {
             getRadius: 7,
@@ -94,7 +148,7 @@ export const tolkienStyle: MapStyleDefinition = {
             lineWidthMinPixels: 2,
         },
         iconLayerProps: {
-            getSize: 30,
+            getSize: 32,
         },
         textLayerProps: {
             getSize: 15,
@@ -105,8 +159,10 @@ export const tolkienStyle: MapStyleDefinition = {
     },
 
     createBackgroundTexture: (canvas) => createParchmentTexture(canvas.width, canvas.height),
-    buildLocationIcon,
+    buildLocationIcon: buildTolkienLocationIcon,
     buildShapeTooltip,
     buildLocationTooltip,
     transformScene,
+    buildDecorations,
+    createExtraLayers,
 }

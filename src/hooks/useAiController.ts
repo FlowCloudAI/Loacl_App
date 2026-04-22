@@ -738,7 +738,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
         setInputValue('')
         setEditingMessageId(null)
         setAutoScroll(true)
-    }, [selectedModel, selectedPlugin, session])
+    }, [selectedModel, selectedPlugin, session, sessionParams.maxToolRounds])
 
     const updateConversationCharacterAutoPlay = useCallback((convId: string, autoPlay: boolean) => {
         setConversations((prev) => prev.map((conversation) => (
@@ -954,7 +954,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
 
         setInputValue('')
         await session.sendMessage(actualPrompt, currentSid!)
-    }, [editingMessageId, selectedModel, selectedPlugin, session, resolveContextPayload])
+    }, [editingMessageId, selectedModel, selectedPlugin, session, resolveContextPayload, sessionParams.maxToolRounds])
 
     const stopStreaming = useCallback(() => {
         abortControllerRef.current?.abort()

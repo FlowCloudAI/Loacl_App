@@ -53,6 +53,7 @@ flowcloudai_app/
 │   ├── components/           # React 组件
 │   │   ├── project-editor/   # 项目编辑器子组件
 │   │   └── hooks/            # 组件级自定义 Hooks
+│   ├── contexts/             # 前端上下文（如 AiControllerTypes）
 │   ├── hooks/                # 全局自定义 Hooks
 │   ├── i18n/                 # 国际化配置与语言包
 │   ├── pages/                # 页面级组件
@@ -61,11 +62,15 @@ flowcloudai_app/
 ├── src-tauri/                # Tauri / Rust 后端
 │   ├── src/
 │   │   ├── apis/             # Tauri Commands（暴露给前端的 API）
+│   │   ├── ai_services/      # AI 服务：Artifact 解析、上下文构建、矛盾检测加载
 │   │   ├── layout/           # 确定性图布局引擎
 │   │   ├── map/              # 地图生成服务
 │   │   ├── tools/            # AI 工具注册中心与 Worldflow 工具实现
+│   │   ├── senses/           # Sense（模式预设）实现
+│   │   ├── reports/          # 报告生成（矛盾报告、摘要结果）
 │   │   ├── lib.rs            # Tauri Builder 配置与状态初始化
 │   │   ├── main.rs           # 程序入口
+│   │   ├── prompt.rs         # Prompt 模板
 │   │   ├── settings.rs       # 应用设置与密钥存取
 │   │   └── state.rs          # 全局状态定义（AiState、AppState 等）
 │   ├── capabilities/         # Tauri 权限配置
@@ -156,7 +161,7 @@ AI 会话采用**后端事件流**推送到前端。Rust 通过 `app.emit(event,
 ### TypeScript / React 前端
 
 - **严格模式开启**：`tsconfig.app.json` 中 `strict: true`，并启用了 `noUnusedLocals`、`noUnusedParameters`、
-  `noFallthroughCasesInSwitch`。
+  `noFallthroughCasesInSwitch`、`erasableSyntaxOnly`、`noUncheckedSideEffectImports`。
 - **模块类型**：ES Modules（`"type": "module"`），使用 `import` / `export`。
 - **JSX 转换**：`"jsx": "react-jsx"`。
 - **CSS**：各组件通常配有同名的 `.css` 文件，使用原生 CSS 变量（由 `flowcloudai-ui` 提供设计 token）。
