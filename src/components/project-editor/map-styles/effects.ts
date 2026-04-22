@@ -1,5 +1,5 @@
-import {PostProcessEffect} from '@deck.gl/core'
 import type {Effect} from '@deck.gl/core'
+import {PostProcessEffect} from '@deck.gl/core'
 
 /**
  * 暗角后处理效果——边缘向中心逐渐变暗，模拟古地图/老照片氛围。
@@ -12,8 +12,8 @@ export function createVignetteEffect(): Effect {
                 vec2 center = vec2(0.5, 0.5);
                 float dist = distance(coord, center);
                 float radius = 0.75;
-                float amount = 0.45;
-                float mask = smoothstep(radius, radius * 0.35, dist);
+                float amount = 0.35;
+                float mask = smoothstep(radius, radius * 0.30, dist);
                 color.rgb *= mix(1.0 - amount, 1.0, mask);
                 return color;
             }
@@ -56,9 +56,9 @@ export function createInkBleedEffect(): Effect {
                 float alpha = center.a;
 
                 // 暗色向外晕染
-                vec4 result = mix(center, blurred, ink * 0.4 * alpha);
+                vec4 result = mix(center, blurred, ink * 0.55 * alpha);
                 // 轻微压暗晕染区，增加墨的堆积感
-                result.rgb *= (1.0 - ink * 0.08);
+                result.rgb *= (1.0 - ink * 0.12);
                 return result;
             }
         `,

@@ -1,5 +1,5 @@
 /**
- * 羊皮纸纹理生成器——暖黄底色 + 纤维线 + 岁月斑点。
+ * 羊皮纸纹理生成器——渐变基底 + 四角老化晕染 + 光照层 + 纸纤维。
  */
 export function createParchmentTexture(width: number, height: number): string {
     const canvas = document.createElement('canvas')
@@ -7,35 +7,58 @@ export function createParchmentTexture(width: number, height: number): string {
     canvas.height = height
     const ctx = canvas.getContext('2d')!
 
-    // 暖黄底色
-    ctx.fillStyle = '#e8d5b5'
+    // 暖黄径向渐变基底（中心亮、四周暗）
+    const base = ctx.createRadialGradient(
+        width * 0.5, height * 0.45, width * 0.08,
+        width * 0.5, height * 0.5, width * 0.78,
+    )
+    base.addColorStop(0, '#f2e0ba')
+    base.addColorStop(0.55, '#e5cb9c')
+    base.addColorStop(1, '#c8a46a')
+    ctx.fillStyle = base
     ctx.fillRect(0, 0, width, height)
 
-    // 纤维纹理
-    for (let i = 0; i < 600; i++) {
+    // 四角老化晕染
+    const corners: [number, number][] = [[0, 0], [width, 0], [0, height], [width, height]]
+    for (const [cx, cy] of corners) {
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, width * 0.58)
+        g.addColorStop(0, 'rgba(95, 60, 18, 0.32)')
+        g.addColorStop(0.45, 'rgba(95, 60, 18, 0.12)')
+        g.addColorStop(1, 'rgba(95, 60, 18, 0)')
+        ctx.fillStyle = g
+        ctx.fillRect(0, 0, width, height)
+    }
+
+    // 顶部光照 + 底部阴影
+    const topLight = ctx.createLinearGradient(0, 0, 0, height)
+    topLight.addColorStop(0, 'rgba(255, 244, 210, 0.14)')
+    topLight.addColorStop(0.35, 'rgba(255, 244, 210, 0)')
+    topLight.addColorStop(1, 'rgba(70, 35, 0, 0.10)')
+    ctx.fillStyle = topLight
+    ctx.fillRect(0, 0, width, height)
+
+    // 侧边光照渐变（模拟羊皮纸卷曲边缘）
+    const sideLight = ctx.createLinearGradient(0, 0, width, 0)
+    sideLight.addColorStop(0, 'rgba(80, 40, 0, 0.08)')
+    sideLight.addColorStop(0.12, 'rgba(80, 40, 0, 0)')
+    sideLight.addColorStop(0.88, 'rgba(80, 40, 0, 0)')
+    sideLight.addColorStop(1, 'rgba(80, 40, 0, 0.08)')
+    ctx.fillStyle = sideLight
+    ctx.fillRect(0, 0, width, height)
+
+    // 纸纤维（较少数量但更长、趋近水平，避免杂乱感）
+    for (let i = 0; i < 180; i++) {
         const x = Math.random() * width
         const y = Math.random() * height
-        const len = 20 + Math.random() * 80
-        const angle = (Math.random() - 0.5) * Math.PI
-        ctx.globalAlpha = 0.03 + Math.random() * 0.06
-        ctx.strokeStyle = Math.random() > 0.5 ? '#8b6914' : '#c2a86b'
-        ctx.lineWidth = 0.5 + Math.random() * 1.5
+        const len = 50 + Math.random() * 160
+        const angle = (Math.random() - 0.5) * 0.35
+        ctx.globalAlpha = 0.018 + Math.random() * 0.038
+        ctx.strokeStyle = Math.random() > 0.55 ? '#7a5018' : '#b89050'
+        ctx.lineWidth = 0.4 + Math.random() * 0.7
         ctx.beginPath()
         ctx.moveTo(x, y)
         ctx.lineTo(x + Math.cos(angle) * len, y + Math.sin(angle) * len)
         ctx.stroke()
-    }
-
-    // 随机斑点（霉斑/岁月痕迹）
-    for (let i = 0; i < 200; i++) {
-        const x = Math.random() * width
-        const y = Math.random() * height
-        const r = 2 + Math.random() * 8
-        ctx.globalAlpha = 0.02 + Math.random() * 0.05
-        ctx.fillStyle = Math.random() > 0.5 ? '#6b4c1e' : '#a08050'
-        ctx.beginPath()
-        ctx.arc(x, y, r, 0, Math.PI * 2)
-        ctx.fill()
     }
 
     ctx.globalAlpha = 1

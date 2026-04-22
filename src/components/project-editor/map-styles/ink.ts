@@ -1,4 +1,10 @@
-import type {MapDeckPreviewTooltip, MapPreviewKeyLocation, MapPreviewKeyLocationIcon, MapPreviewScene, MapPreviewShape} from 'flowcloudai-ui'
+import type {
+    MapDeckPreviewTooltip,
+    MapPreviewKeyLocation,
+    MapPreviewKeyLocationIcon,
+    MapPreviewScene,
+    MapPreviewShape
+} from 'flowcloudai-ui'
 import type {MapStyleDefinition} from './types'
 import {createRicePaperTexture} from './textures'
 import {createInkBleedEffect} from './effects'
@@ -74,16 +80,16 @@ export const inkStyle: MapStyleDefinition = {
                 color.r = lum;
                 color.g = lum;
                 color.b = lum * 0.94;
-                color.a *= 0.4 + darkness * 0.55;
+                color.a *= 0.55 + darkness * 0.40;
                 // 向墨色偏移
                 color.rgb = mix(color.rgb, vec3(0.05, 0.05, 0.06), 0.15);
             `,
         },
         polygonLayerProps: {
-            lineWidthMinPixels: 8,
-            getLineColor: () => [20, 20, 20, 110] as [number, number, number, number],
+            lineWidthMinPixels: 5,
+            getLineColor: () => [35, 35, 35, 55] as [number, number, number, number],
             getFillColor: (s: {fillColor: [number, number, number, number]}) =>
-                [s.fillColor[0], s.fillColor[1], s.fillColor[2], 60] as [number, number, number, number],
+                [s.fillColor[0], s.fillColor[1], s.fillColor[2], 18] as [number, number, number, number],
         },
         scatterplotLayerProps: {
             getRadius: 6,

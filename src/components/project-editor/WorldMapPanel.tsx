@@ -31,11 +31,7 @@ import {
     type MapEntry,
 } from '../../api'
 import './WorldMapPanel.css'
-import {
-    getStyleDefinition,
-    makeOceanSvgUrl,
-    type MapStyle,
-} from './map-styles'
+import {getStyleDefinition, makeOceanSvgUrl, type MapStyle,} from './map-styles'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -295,12 +291,15 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         if (!existing) return
         if (currentDraft.shapes.length === 0 && !currentBg) return // nothing worth saving
 
+        const previewScene = buildPreviewSceneFromDraft({
+            canvas: CANVAS,
+            shapes: currentDraft.shapes,
+            keyLocations: currentDraft.keyLocations
+        })
+        const hasContent = currentDraft.shapes.length > 0 || currentDraft.keyLocations.length > 0
         const sceneToSave = currentScene
-            ?? buildPreviewSceneFromDraft({
-                canvas: CANVAS,
-                shapes: currentDraft.shapes,
-                keyLocations: currentDraft.keyLocations
-            })
+            ? {...currentScene, keyLocations: previewScene.keyLocations}
+            : hasContent ? previewScene : null
 
         const entry = buildCurrentEntry(existing, sceneToSave, currentDraft, currentStyle, currentBg, currentName, currentCoastlineParams)
         try {
@@ -387,9 +386,15 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         const existing = maps.find(m => m.id === activeMapId)
         if (!existing) return
 
+        const previewScene = buildPreviewSceneFromDraft({
+            canvas: CANVAS,
+            shapes: draft.shapes,
+            keyLocations: draft.keyLocations
+        })
+        const hasContent = draft.shapes.length > 0 || draft.keyLocations.length > 0
         const sceneToSave = scene
-            ?? buildPreviewSceneFromDraft({canvas: CANVAS, shapes: draft.shapes, keyLocations: draft.keyLocations})
-        if (!scene && draft.shapes.length > 0) setScene(sceneToSave)
+            ? {...scene, keyLocations: previewScene.keyLocations}
+            : hasContent ? previewScene : null
 
         setSaveStatus('saving')
         setErrorMsg(null)
@@ -603,10 +608,15 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
 
     // ── Deck & SVG props ──────────────────────────────────────────────────────
 
+    const styleTextureUrl = useMemo(() => {
+        if (backgroundImageUrl) return null
+        const def = getStyleDefinition(style)
+        return def.createBackgroundTexture?.(CANVAS) ?? null
+    }, [style, backgroundImageUrl])
+
     const displayScene = useMemo(() => {
         const def = getStyleDefinition(style)
         const oceanUrl = makeOceanSvgUrl(def.oceanColor)
-        const styleTextureUrl = !backgroundImageUrl ? def.createBackgroundTexture?.(CANVAS) ?? null : null
         const bgUrl = backgroundImageUrl ?? styleTextureUrl ?? oceanUrl
         const previewScene = buildPreviewSceneFromDraft({
             canvas: CANVAS,
@@ -623,12 +633,13 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
             backgroundImage: {url: bgUrl, fit: backgroundImageUrl ? 'cover' as const : 'fill' as const},
         }
         return def.transformScene?.(withBg) ?? withBg
-    }, [scene, sceneDirty, draft, style, backgroundImageUrl, viewportMode])
+    }, [scene, sceneDirty, draft, style, backgroundImageUrl, viewportMode, styleTextureUrl])
 
     const deckProps = useMemo(() => {
         const def = getStyleDefinition(style)
         return {
             ...def.deckConfig,
+            style: {backgroundColor: def.oceanColor},
             showLabels: true,
             keyLocationRenderMode: (style === 'flat' ? 'circle' : 'auto') as 'circle' | 'auto',
             getTooltip: (detail: MapDeckPreviewPickDetail): MapDeckPreviewTooltip | string | null => {

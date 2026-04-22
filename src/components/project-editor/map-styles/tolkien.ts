@@ -1,4 +1,10 @@
-import type {MapDeckPreviewTooltip, MapPreviewKeyLocation, MapPreviewKeyLocationIcon, MapPreviewScene, MapPreviewShape} from 'flowcloudai-ui'
+import type {
+    MapDeckPreviewTooltip,
+    MapPreviewKeyLocation,
+    MapPreviewKeyLocationIcon,
+    MapPreviewScene,
+    MapPreviewShape
+} from 'flowcloudai-ui'
 import type {MapStyleDefinition} from './types'
 import {createParchmentTexture} from './textures'
 import {createVignetteEffect} from './effects'
@@ -68,10 +74,10 @@ export const tolkienStyle: MapStyleDefinition = {
         polygonShaderInject: {
             'fs:DECKGL_FILTER_COLOR': `
                 float lum = color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
-                color.r = min(lum * 1.40 + 0.13, 1.0);
-                color.g = min(lum * 1.12 + 0.07, 1.0);
-                color.b = min(lum * 0.68, 1.0);
-                color.a *= 0.88;
+                color.r = min(lum * 1.30 + 0.10, 1.0);
+                color.g = min(lum * 1.05 + 0.05, 1.0);
+                color.b = min(lum * 0.72, 1.0);
+                color.a *= 0.92;
                 // 细微噪点抖动，模拟墨水在羊皮纸上的不均匀沉积
                 float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233))) * 43758.5453);
                 color.rgb *= (0.96 + n * 0.08);
