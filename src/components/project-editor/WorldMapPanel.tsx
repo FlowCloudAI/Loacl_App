@@ -1,19 +1,13 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
     buildPreviewSceneFromDraft,
     createEmptyShapeDraft,
     createInitialMapShapeEditorViewBox,
     createMapShapeEditorLocalId,
-    type MapDeckPreviewPickDetail,
-    type MapDeckPreviewTooltip,
     type MapKeyLocationDraft,
     type MapPreviewScene,
     type MapShapeDraft,
     type MapShapeEditorDraft,
-    type MapShapeSvgEditorCanvasContextMenuDetail,
-    type MapShapeSvgEditorLocationContextMenuDetail,
-    type MapShapeSvgEditorShapeContextMenuDetail,
-    type MapShapeSvgEditorVertexContextMenuDetail,
     MapShapeViewport,
     RollingBox,
     useAlert,
@@ -136,7 +130,7 @@ function readLinkedEntryId(location: MapKeyLocationDraft | null): string {
 
 export default function WorldMapPanel({projectId, projectName, onBack, onOpenEntry}: WorldMapPanelProps) {
     const {showAlert} = useAlert()
-    const {showContextMenu} = useContextMenu()
+    useContextMenu()
     const imageInputRef = useRef<HTMLInputElement>(null)
 
     // ── Map list state ────────────────────────────────────────────────────────
@@ -495,7 +489,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
 
     // ── Background image upload ───────────────────────────────────────────────
 
-    const handleImageFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
         const reader = new FileReader()
@@ -653,13 +647,6 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
             showLabels: true,
             keyLocationRenderMode: (style === 'flat' ? 'circle' : 'auto') as 'circle' | 'auto',
             extraLayers,
-            getTooltip: (detail: MapDeckPreviewPickDetail): MapDeckPreviewTooltip | string | null => {
-                if (detail.kind === 'empty') return null
-                if (detail.kind === 'shape') {
-                    return def.buildShapeTooltip?.(detail.object) ?? null
-                }
-                return def.buildLocationTooltip?.(detail.object) ?? null
-            },
         }
     }, [style, displayScene])
 
@@ -683,46 +670,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         onRequestShapeDelete: requestDeleteShape,
         onRequestVertexDelete: deleteVertex,
         onRequestLocationDelete: requestDeleteLocation,
-        onShapeContextMenu: ({nativeEvent, shapeId}: MapShapeSvgEditorShapeContextMenuDetail) => {
-            showContextMenu(nativeEvent, [
-                {
-                    label: '选中图形', onClick: () => {
-                        setSelectedShapeId(shapeId);
-                        setSelectedLocationId(null)
-                    }
-                },
-                {label: '删除图形', danger: true, onClick: () => void requestDeleteShape(shapeId)},
-            ])
-        },
-        onVertexContextMenu: ({nativeEvent, shapeId, vertexId}: MapShapeSvgEditorVertexContextMenuDetail) => {
-            showContextMenu(nativeEvent, [
-                {label: '删除顶点', danger: true, onClick: () => deleteVertex(shapeId, vertexId)},
-            ])
-        },
-        onLocationContextMenu: ({nativeEvent, locationId}: MapShapeSvgEditorLocationContextMenuDetail) => {
-            showContextMenu(nativeEvent, [
-                {
-                    label: '选中地点', onClick: () => {
-                        setSelectedLocationId(locationId);
-                        setSelectedShapeId(null)
-                    }
-                },
-                {label: '删除地点', danger: true, onClick: () => void requestDeleteLocation(locationId)},
-            ])
-        },
-        onCanvasContextMenu: ({nativeEvent}: MapShapeSvgEditorCanvasContextMenuDetail) => {
-            showContextMenu(nativeEvent, [
-                {label: '新增图形', onClick: handleAddShape},
-                {label: '新增地点', onClick: handleAddLocation},
-                {
-                    label: '清空选中', onClick: () => {
-                        setSelectedShapeId(null);
-                        setSelectedLocationId(null)
-                    }
-                },
-            ])
-        },
-    }), [draft, selectedShapeId, selectedLocationId, drawingShape, requestDeleteShape, deleteVertex, requestDeleteLocation, showContextMenu, handleAddShape, handleAddLocation, updateDraft])
+    }), [draft, selectedShapeId, selectedLocationId, drawingShape, requestDeleteShape, deleteVertex, requestDeleteLocation, updateDraft])
 
     // ── Derived ───────────────────────────────────────────────────────────────
 
