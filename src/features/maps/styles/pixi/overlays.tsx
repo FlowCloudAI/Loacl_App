@@ -1,8 +1,14 @@
 import '@pixi/react'
+import {extend} from '@pixi/react'
+import {Container, Graphics, Sprite, Text} from 'pixi.js'
+extend({Container, Graphics, Sprite, Text})
+pixiOverlayLog('MODULE_INIT: extend called for Container, Graphics, Sprite, Text')
+
 import type {ReactNode} from 'react'
 import {useEffect, useMemo, useState} from 'react'
 import type {TextStyleOptions} from 'pixi.js'
 import {Texture} from 'pixi.js'
+import {log_message} from '../../../../api'
 import type {MapPixiPreviewOverlayContext, MapPreviewKeyLocation, MapRgbaColor} from 'flowcloudai-ui'
 import type {
     PixiCoastlineLayerStyle,
@@ -19,6 +25,12 @@ import {
     type PixiBrushAssetId,
     type PixiCompassAssetId,
 } from './assets'
+
+function pixiOverlayLog(msg: string) {
+    void log_message('info', `[PixiOverlay] ${msg}`)
+}
+
+pixiOverlayLog('MODULE_INIT: overlays.tsx loaded, extend already called')
 
 type PixiOverlayRenderer = (context: MapPixiPreviewOverlayContext) => ReactNode
 
@@ -152,12 +164,16 @@ function isEffectPluginId(id: string): id is PixiEffectPluginId {
 }
 
 function createOverlayDataUrl(context: MapPixiPreviewOverlayContext, style: PixiMapStyle): string {
+    pixiOverlayLog(`createOverlayDataUrl: canvas=${context.scene.canvas.width}x${context.scene.canvas.height} shapes=${context.scene.shapes.length}`)
     const canvas = document.createElement('canvas')
     canvas.width = context.scene.canvas.width
     canvas.height = context.scene.canvas.height
     const ctx = canvas.getContext('2d')
 
-    if (!ctx) return ''
+    if (!ctx) {
+        pixiOverlayLog('createOverlayDataUrl: getContext(2d) returned null')
+        return ''
+    }
 
     for (const effect of style.effects ?? []) {
         if (!isEffectPluginId(effect.id)) continue
@@ -181,7 +197,9 @@ function createOverlayDataUrl(context: MapPixiPreviewOverlayContext, style: Pixi
         drawCompass(ctx, context, style)
     }
 
-    return canvas.toDataURL('image/png')
+    const dataUrl = canvas.toDataURL('image/png')
+    pixiOverlayLog(`createOverlayDataUrl: dataUrlLen=${dataUrl.length} prefix=${dataUrl.slice(0, 40)}`)
+    return dataUrl
 }
 
 function useImageTexture(url: string): Texture {
@@ -199,11 +217,20 @@ function useImageTexture(url: string): Texture {
 
         image.onload = () => {
             if (cancelled) return
-            activeTexture = Texture.from({resource: image}, true)
-            setTexture(activeTexture)
+            try {
+                activeTexture = Texture.from({resource: image}, true)
+                setTexture(activeTexture)
+                pixiOverlayLog(`useImageTexture: loaded ok urlLen=${url.length}`)
+            } catch (e) {
+                pixiOverlayLog(`useImageTexture: Texture.from failed ${e instanceof Error ? e.message : String(e)}`)
+                setTexture(Texture.EMPTY)
+            }
         }
         image.onerror = () => {
-            if (!cancelled) setTexture(Texture.EMPTY)
+            if (!cancelled) {
+                pixiOverlayLog(`useImageTexture: image.onerror urlLen=${url.length} prefix=${url.slice(0, 60)}`)
+                setTexture(Texture.EMPTY)
+            }
         }
         image.src = url
 
@@ -219,11 +246,19 @@ function useImageTexture(url: string): Texture {
 }
 
 function PixiTextureOverlay({context, style}: { context: MapPixiPreviewOverlayContext; style: PixiMapStyle }) {
+    pixiOverlayLog('PixiTextureOverlay: ENTER')
     const dataUrl = useMemo(() => createOverlayDataUrl(context, style), [context.scene, style])
+    pixiOverlayLog(`PixiTextureOverlay: useMemo dataUrl=${dataUrl ? 'present' : 'empty'}`)
     const texture = useImageTexture(dataUrl)
+    pixiOverlayLog(`PixiTextureOverlay: useImageTexture returned texture=${texture !== Texture.EMPTY ? 'loaded' : 'empty'}`)
+    pixiOverlayLog(`PixiTextureOverlay: dataUrl=${dataUrl ? 'present' : 'empty'} texture=${texture !== Texture.EMPTY ? 'loaded' : 'empty'}`)
 
-    if (!dataUrl) return null
+    if (!dataUrl) {
+        pixiOverlayLog('PixiTextureOverlay: EXIT early (no dataUrl)')
+        return null
+    }
 
+    pixiOverlayLog(`PixiTextureOverlay: RETURN pixiSprite w=${context.scene.canvas.width} h=${context.scene.canvas.height}`)
     return (
         <pixiSprite
             texture={texture}
@@ -280,8 +315,13 @@ function PixiOverlayLabel({
 }
 
 function PixiOverlayLabels({context, style}: { context: MapPixiPreviewOverlayContext; style: PixiMapStyle }) {
-    if (!style.labels.show || style.labels.renderer !== 'overlay') return null
+    pixiOverlayLog(`PixiOverlayLabels: ENTER show=${style.labels.show} renderer=${style.labels.renderer} locCount=${context.scene.keyLocations.length}`)
+    if (!style.labels.show || style.labels.renderer !== 'overlay') {
+        pixiOverlayLog('PixiOverlayLabels: EXIT early')
+        return null
+    }
 
+    pixiOverlayLog(`PixiOverlayLabels: RETURN ${context.scene.keyLocations.length} labels`)
     return (
         <>
             {context.scene.keyLocations.map(location => (
@@ -303,12 +343,17 @@ export function createPixiOverlayRenderer(style: PixiMapStyle): PixiOverlayRende
     const showOverlayLabels = Boolean(style.labels.show && style.labels.renderer === 'overlay')
     const showTextureOverlay = showEffects || showCoastline || showCompass
 
+    pixiOverlayLog(`createPixiOverlayRenderer: effects=${showEffects} coastline=${showCoastline} compass=${showCompass} labels=${showOverlayLabels}`)
+
     if (!showEffects && !showCoastline && !showCompass && !showOverlayLabels) return undefined
 
-    return (context) => (
-        <>
-            {showTextureOverlay && <PixiTextureOverlay context={context} style={style}/>}
-            {showOverlayLabels && <PixiOverlayLabels context={context} style={style}/>}
-        </>
-    )
+    return (context) => {
+        pixiOverlayLog(`RENDER_FN: called showTextureOverlay=${showTextureOverlay} showOverlayLabels=${showOverlayLabels} sceneShapes=${context.scene.shapes.length} sceneKeyLocs=${context.scene.keyLocations.length} canvas=${context.scene.canvas.width}x${context.scene.canvas.height}`)
+        return (
+            <>
+                {showTextureOverlay && <PixiTextureOverlay context={context} style={style}/>}
+                {showOverlayLabels && <PixiOverlayLabels context={context} style={style}/>}
+            </>
+        )
+    }
 }

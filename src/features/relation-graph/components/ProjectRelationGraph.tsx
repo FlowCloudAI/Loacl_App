@@ -21,6 +21,7 @@ import {
     toRelationNodes,
 } from '../fixtures/relationGraphFixture'
 import '../dev/RelationDemo.css'
+import '../../../shared/ui/layout/WorkspaceScaffold.css'
 import './ProjectRelationGraph.css'
 
 interface ProjectRelationGraphProps {
@@ -28,9 +29,9 @@ interface ProjectRelationGraphProps {
     onBack?: () => void
 }
 
-function BackArrowIcon() {
+function BackArrow() {
     return (
-        <svg viewBox="0 0 16 16" aria-hidden="true">
+        <svg viewBox="0 0 16 16" aria-hidden="true" style={{width: 16, height: 16}}>
             <path
                 d="M8.6 3.25L4.1 7.75L8.6 12.25"
                 fill="none"
@@ -115,6 +116,18 @@ export default function ProjectRelationGraph({projectId, onBack}: ProjectRelatio
         void loadGraphData()
     }, [loadGraphData])
 
+    const statsChips = [
+        {label: '词条', value: entries.length},
+        {label: '关系', value: relations.length},
+    ]
+
+    const statusItems = [
+        dataLoading ? '数据加载中' : null,
+        dataError ? '数据加载失败' : null,
+        layoutState.layoutLoading ? '布局计算中' : null,
+        layoutState.layoutError ? '布局失败' : null,
+    ].filter(Boolean)
+
     const renderNode = useCallback((data: RelationNodeInput, selected: boolean) => {
         const node = data as RelationDemoNode
 
@@ -140,52 +153,72 @@ export default function ProjectRelationGraph({projectId, onBack}: ProjectRelatio
     }, [])
 
     return (
-        <div className="project-relation-graph">
-            <div className="project-relation-graph__toolbar">
-                <div className="project-relation-graph__toolbar-left">
-                    {onBack && (
-                        <Button size="sm" variant="ghost" onClick={onBack}>
-                            <span className="project-relation-graph__back-icon" aria-hidden="true">
-                                <BackArrowIcon/>
-                            </span>
-                            返回
-                        </Button>
-                    )}
+        <div className="project-relation-graph fc-op-panel">
+            {/* ── Header ── */}
+            <div className="fc-op-header">
+                {onBack && (
+                    <button type="button" className="fc-op-back-btn" onClick={onBack}>
+                        <BackArrow/>返回
+                    </button>
+                )}
+                <div className="fc-op-header__title-block">
+                    <h2 className="fc-op-header__title">关系图谱</h2>
+                    <p className="fc-op-header__subtitle">
+                        可视化展示项目内词条之间的关联结构。
+                    </p>
                 </div>
-                <div className="project-relation-graph__toolbar-right">
+                <div className="fc-op-header__actions">
                     <Button size="sm" variant="outline" onClick={handleRefresh} disabled={dataLoading}>
                         {dataLoading ? '刷新中' : '刷新'}
                     </Button>
                 </div>
             </div>
 
-            <div className="project-relation-graph__meta">
-                业务数据：{entries.length} 个词条，{relations.length} 条关系
-                {dataLoading && ' · 数据加载中'}
-                {dataError && ' · 数据加载失败'}
-                {layoutState.layoutLoading && ' · 布局计算中'}
-                {layoutState.layoutError && ' · 布局失败'}
-            </div>
+            {/* ── Toolbar (stats + status) ── */}
+            {(entries.length > 0 || statusItems.length > 0) && (
+                <div className="fc-op-toolbar">
+                    {statsChips.map((chip) => (
+                        <span key={chip.label} className="fc-op-chip">
+                            {chip.label} {chip.value}
+                        </span>
+                    ))}
+                    {statusItems.length > 0 && (
+                        <>
+                            <div className="fc-op-toolbar__sep" />
+                            {statusItems.map((item, index) => (
+                                <span
+                                    key={index}
+                                    className={`fc-op-status${dataError || layoutState.layoutError ? ' fc-op-status--error' : ''}`}
+                                >
+                                    {item}
+                                </span>
+                            ))}
+                        </>
+                    )}
+                </div>
+            )}
 
+            {/* ── Error Banner ── */}
             {dataError && (
-                <div className="project-relation-graph__error">
+                <div className="fc-status-banner fc-status-banner--error">
                     数据加载失败：{dataError.message}
                 </div>
             )}
 
             {layoutState.layoutError && (
-                <div className="project-relation-graph__error">
+                <div className="fc-status-banner fc-status-banner--error">
                     布局失败：{layoutState.layoutError.message}
                 </div>
             )}
 
-            <div className="project-relation-graph__shell">
+            {/* ── Viewport ── */}
+            <div className="fc-op-viewport">
                 {dataLoading && entries.length === 0 ? (
-                    <div className="project-relation-graph__notice">正在加载项目关系数据…</div>
+                    <div className="fc-op-viewport-empty">正在加载项目关系数据…</div>
                 ) : dataError ? (
-                    <div className="project-relation-graph__notice">无法展示关系图，请先处理数据加载错误。</div>
+                    <div className="fc-op-viewport-empty">无法展示关系图，请先处理数据加载错误。</div>
                 ) : entries.length === 0 ? (
-                    <div className="project-relation-graph__notice">当前项目还没有词条，暂时无法生成关系图。</div>
+                    <div className="fc-op-viewport-empty">当前项目还没有词条，暂时无法生成关系图。</div>
                 ) : (
                     <RelationGraph
                         key={graphKey}

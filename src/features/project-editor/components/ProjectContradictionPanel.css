@@ -9,18 +9,15 @@
     background: var(--fc-color-bg);
 }
 
-/* ── Toolbar ───────────────────────────────────────────────────────────────── */
+/* ── Toolbar / Header ──────────────────────────────────────────────────────── */
 
 .pe-contradiction-toolbar {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--fc-space-lg);
-    padding: var(--fc-space-lg) var(--fc-space-xl);
+    gap: var(--fc-space-md);
+    padding: var(--fc-space-md) var(--fc-space-lg);
     border-bottom: 1px solid var(--fc-color-border);
     flex-shrink: 0;
     flex-wrap: wrap;
-    background: var(--fc-color-bg);
+    background: var(--fc-color-bg-elevated);
 }
 
 .pe-contradiction-toolbar__left {
@@ -54,7 +51,7 @@
     display: grid;
     grid-template-columns: minmax(17rem, 21rem) minmax(0, 1fr);
     gap: var(--fc-space-lg);
-    padding: 0 var(--fc-space-xl) var(--fc-space-xl);
+    padding: var(--fc-space-lg) var(--fc-space-xl) var(--fc-space-xl);
 }
 
 /* ── History & Report sections ─────────────────────────────────────────────── */
@@ -78,7 +75,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.75rem 0.9rem;
+    padding: 8px 12px 6px;
     border-bottom: 1px solid var(--fc-color-border);
     flex-shrink: 0;
 }
@@ -97,46 +94,34 @@
 .pe-contradiction-history__scroll {
     flex: 1;
     min-height: 0;
-    padding: 0.75rem;
+    padding: 6px 8px;
 }
 
 .pe-contradiction-history__list {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 2px;
 }
 
-/* ── History item ──────────────────────────────────────────────────────────── */
+/* ── History item (flattened, using fc-op-item) ───────────────────────────── */
 
 .pe-contradiction-history__item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.75rem;
-    border: 1px solid var(--fc-color-border);
-    border-radius: var(--fc-radius-md);
-    background: var(--fc-color-bg);
-    transition: border-color 0.15s ease, background 0.15s ease;
+    padding: 5px 8px;
 }
 
 .pe-contradiction-history__item.is-active {
-    border-color: var(--fc-color-primary);
-    background: color-mix(in srgb, var(--fc-color-primary) 6%, var(--fc-color-bg));
+    background: color-mix(in srgb, var(--fc-color-primary) 12%, transparent);
+    color: var(--fc-color-primary);
 }
 
-.pe-contradiction-history__button {
+.pe-contradiction-history__topline {
     display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    padding: 0;
-    border: none;
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-    color: inherit;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
 }
 
-.pe-contradiction-history__topline,
+.pe-contradiction-history__time,
 .pe-contradiction-history__meta,
 .pe-contradiction-report__meta {
     display: flex;
@@ -152,25 +137,14 @@
     color: var(--fc-color-text-secondary);
 }
 
-.pe-contradiction-history__badge,
 .pe-contradiction-history__warning,
-.pe-contradiction-report__warning,
-.pe-contradiction-chip {
+.pe-contradiction-report__warning {
     display: inline-flex;
     align-items: center;
     padding: 0.12rem 0.44rem;
     border-radius: 999px;
     font-size: var(--fc-font-size-xs);
     line-height: 1.2;
-}
-
-.pe-contradiction-history__badge {
-    background: color-mix(in srgb, var(--fc-color-primary) 13%, transparent);
-    color: var(--fc-color-primary);
-}
-
-.pe-contradiction-history__warning,
-.pe-contradiction-report__warning {
     background: color-mix(in srgb, var(--fc-color-warning) 14%, transparent);
     color: var(--fc-color-warning);
 }
@@ -200,17 +174,20 @@
     gap: 0.9rem;
 }
 
-/* ── Hero ──────────────────────────────────────────────────────────────────── */
+/* ── Hero (flattened summary bar) ──────────────────────────────────────────── */
 
 .pe-contradiction-report__hero {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1rem;
-    border: 1px solid var(--fc-color-border);
-    border-radius: var(--fc-radius-lg);
-    background: var(--fc-color-bg);
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--fc-color-border);
+}
+
+.pe-contradiction-report__hero-main {
+    min-width: 0;
+    flex: 1;
 }
 
 .pe-contradiction-report__hero-actions {
@@ -218,8 +195,8 @@
 }
 
 .pe-contradiction-report__title {
-    margin: 0.35rem 0 0.5rem;
-    font-size: var(--fc-font-size-xl);
+    margin: 0.25rem 0 0.35rem;
+    font-size: var(--fc-font-size-lg);
     font-weight: var(--fc-font-weight-bold);
     color: var(--fc-color-text);
 }
@@ -237,21 +214,21 @@
 .pe-contradiction-stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem;
+    gap: 0.6rem;
 }
 
 .pe-contradiction-stat-card {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
-    padding: 0.8rem;
+    gap: 0.25rem;
+    padding: 0.6rem 0.7rem;
     border: 1px solid var(--fc-color-border);
     border-radius: var(--fc-radius-md);
     background: var(--fc-color-bg);
 }
 
 .pe-contradiction-stat-card__value {
-    font-size: var(--fc-font-size-xl);
+    font-size: var(--fc-font-size-lg);
     font-weight: var(--fc-font-weight-bold);
     color: var(--fc-color-primary);
 }
@@ -264,8 +241,8 @@
 .pe-contradiction-severity-dist {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.3rem;
-    margin-top: 0.3rem;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
 }
 
 .pe-contradiction-severity-pill {
@@ -325,7 +302,7 @@
 .pe-contradiction-issue-card,
 .pe-contradiction-list__item,
 .pe-contradiction-empty {
-    padding: 0.85rem 1rem;
+    padding: 0.75rem 0.85rem;
     border: 1px solid var(--fc-color-border);
     border-radius: var(--fc-radius-md);
     background: var(--fc-color-bg);
@@ -348,7 +325,7 @@
 .pe-contradiction-issue-card {
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
+    gap: 0.6rem;
     border-left-width: 3px;
 }
 
@@ -380,7 +357,7 @@
 .pe-contradiction-issue-card__category {
     display: inline-flex;
     align-items: center;
-    padding: 0.14rem 0.5rem;
+    padding: 0.12rem 0.45rem;
     border-radius: var(--fc-radius-sm);
     font-size: var(--fc-font-size-xs);
     line-height: 1.2;
@@ -402,7 +379,7 @@
 .pe-contradiction-issue-card__severity {
     display: inline-flex;
     align-items: center;
-    padding: 0.14rem 0.5rem;
+    padding: 0.12rem 0.45rem;
     border-radius: 999px;
     font-size: var(--fc-font-size-xs);
     line-height: 1.2;
@@ -449,21 +426,28 @@
 }
 
 .pe-contradiction-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.45rem;
+    border-radius: var(--fc-radius-sm);
+    font-size: var(--fc-font-size-xs);
+    line-height: 1.2;
     background: color-mix(in srgb, var(--fc-color-primary) 10%, transparent);
     color: var(--fc-color-text-secondary);
+    border: 1px solid var(--fc-color-border);
 }
 
 .pe-contradiction-evidence-list {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-    gap: 0.6rem;
+    gap: 0.5rem;
 }
 
 .pe-contradiction-evidence-card {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.7rem 0.8rem;
+    gap: 0.25rem;
+    padding: 0.6rem 0.7rem;
     border: 1px solid var(--fc-color-border-light);
     border-radius: var(--fc-radius-md);
     background: var(--fc-color-bg-secondary);

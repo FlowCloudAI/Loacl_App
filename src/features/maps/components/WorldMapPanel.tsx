@@ -19,6 +19,7 @@ import {
     type CoastlineParamsPayload,
     db_list_entries,
     type EntryBrief,
+    log_message,
     map_delete_map_entry,
     map_list_project_maps,
     map_save_map_entry,
@@ -29,6 +30,10 @@ import '../../../shared/ui/layout/WorkspaceScaffold.css'
 import './WorldMapPanel.css'
 import {getStyleDefinition, makeOceanSvgUrl, type MapStyle,} from '../styles/deck/presets'
 import {compilePixiMapStyle, getPixiMapStyle} from '../styles/pixi'
+
+function mapLog(msg: string) {
+    void log_message('info', `[WorldMap] ${msg}`)
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -630,11 +635,13 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                 ? scene
                 : previewScene
 
-        return {
+        const result = {
             ...base,
             // 关键地点属于编辑草稿数据，预览时始终以 draft 为准，避免旧 scene 覆盖最新地点。
             keyLocations: previewScene.keyLocations,
         }
+        mapLog(`baseScene: shapes=${result.shapes?.length ?? 0} keyLocations=${result.keyLocations?.length ?? 0} hasBg=${!!result.backgroundImage} viewportMode=${viewportMode} sceneDirty=${sceneDirty}`)
+        return result
     }, [scene, sceneDirty, draft, viewportMode])
 
     const deckScene = useMemo(() => {
@@ -650,8 +657,12 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
 
     const pixiStyle = useMemo(() => {
         const def = getPixiMapStyle(style)
-        if (!backgroundImageUrl) return def
+        if (!backgroundImageUrl) {
+            mapLog(`pixiStyle: style=${style} bg=none keys=${Object.keys(def).join(',')}`)
+            return def
+        }
 
+        mapLog(`pixiStyle: style=${style} bg=image(${backgroundImageUrl.slice(0, 40)}) keys=${Object.keys(def).join(',')}`)
         return {
             ...def,
             background: {
@@ -664,9 +675,11 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         }
     }, [style, backgroundImageUrl])
 
-    const compiledPixiStyle = useMemo(() => (
-        compilePixiMapStyle({style: pixiStyle, canvas: CANVAS, scene: baseScene})
-    ), [pixiStyle, baseScene])
+    const compiledPixiStyle = useMemo(() => {
+        const result = compilePixiMapStyle({style: pixiStyle, canvas: CANVAS, scene: baseScene})
+        mapLog(`compiledPixiStyle: shapes=${result.scene?.shapes?.length ?? 0} keyLocations=${result.scene?.keyLocations?.length ?? 0} pixiProps=${JSON.stringify(result.pixiProps).slice(0, 120)}`)
+        return result
+    }, [pixiStyle, baseScene])
 
     const renderedScene = previewRenderer === 'pixi'
         ? compiledPixiStyle.scene
@@ -695,6 +708,24 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
     const viewportLabelStyle = previewRenderer === 'pixi' ? compiledPixiStyle.labelStyle : undefined
 
     const viewportRenderKey = `${previewRenderer}-${viewportMode}-${style}-${backgroundImageUrl ? 'custom-bg' : 'style-bg'}`
+
+    useEffect(() => {
+        const mspLog = {
+            renderer: previewRenderer,
+            mode: viewportMode,
+            sceneShapes: renderedScene?.shapes?.length ?? 0,
+            sceneKeyLocs: renderedScene?.keyLocations?.length ?? 0,
+            sceneHasBg: !!renderedScene?.backgroundImage,
+            pixiPropsKeys: pixiProps ? Object.keys(pixiProps) : 'null',
+            pixiPropsShowLabels: pixiProps?.showLabels,
+            pixiPropsRenderOverlay: !!pixiProps?.renderOverlay,
+            pixiPropsKeyLocationRenderMode: pixiProps?.keyLocationRenderMode,
+            shapeStyle: viewportShapeStyle,
+            keyLocationStyle: viewportKeyLocationStyle,
+            labelStyle: viewportLabelStyle,
+        }
+        mapLog(`renderEffect: ${JSON.stringify(mspLog)}`)
+    }, [viewportRenderKey, previewRenderer, style, viewportMode, renderedScene, pixiProps, viewportShapeStyle, viewportKeyLocationStyle, viewportLabelStyle])
 
     const svgProps = useMemo(() => ({
         draft,

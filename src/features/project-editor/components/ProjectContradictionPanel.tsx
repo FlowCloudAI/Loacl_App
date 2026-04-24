@@ -29,6 +29,28 @@ interface ProjectContradictionPanelProps {
     }) => void
 }
 
+function BackArrow() {
+    return (
+        <svg viewBox="0 0 16 16" aria-hidden="true" style={{width: 16, height: 16}}>
+            <path
+                d="M8.6 3.25L4.1 7.75L8.6 12.25"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            <path
+                d="M4.5 7.75H12.25"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+            />
+        </svg>
+    )
+}
+
 function formatDateTime(value: string): string {
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) return value
@@ -244,15 +266,17 @@ function ProjectContradictionPanel({
 
     return (
         <div className="pe-contradiction-panel">
-            <div className="pe-contradiction-toolbar">
+            <div className="pe-contradiction-toolbar fc-op-header">
                 <div className="pe-contradiction-toolbar__left">
-                    <Button variant="ghost" size="sm" onClick={onBack}>返回概览</Button>
-                    <div className="fc-page-title-block">
-                        <h2 className="pe-contradiction-title fc-page-title">设定矛盾检测</h2>
-                        <p className="pe-contradiction-desc fc-page-subtitle">生成结构化报告，保留历史记录，并可在右侧聊天区继续讨论这份报告。</p>
+                    <button type="button" className="fc-op-back-btn" onClick={onBack}>
+                        <BackArrow/>返回
+                    </button>
+                    <div className="fc-op-header__title-block">
+                        <h2 className="pe-contradiction-title fc-op-header__title">设定矛盾检测</h2>
+                        <p className="pe-contradiction-desc fc-op-header__subtitle">生成结构化报告，保留历史记录，并可在右侧聊天区继续讨论这份报告。</p>
                     </div>
                 </div>
-                <div className="pe-contradiction-toolbar__actions fc-page-header-actions">
+                <div className="pe-contradiction-toolbar__actions fc-op-header__actions">
                     <Button variant="outline" size="sm" onClick={() => void loadHistory()}
                             disabled={historyLoading || generating}>
                         刷新历史
@@ -278,33 +302,35 @@ function ProjectContradictionPanel({
                             ) : historyItems.map((item) => (
                                 <article
                                     key={item.reportId}
-                                    className={`pe-contradiction-history__item${item.reportId === selectedReportId ? ' is-active' : ''}`}
+                                    className={`pe-contradiction-history__item fc-op-item${item.reportId === selectedReportId ? ' is-active' : ''}`}
                                 >
                                     <button
                                         type="button"
-                                        className="pe-contradiction-history__button"
+                                        className="fc-op-item__content"
                                         onClick={() => setSelectedReportId(item.reportId)}
                                     >
                                         <div className="pe-contradiction-history__topline">
                                             <span
-                                                className="pe-contradiction-history__time">{formatDateTime(item.createdAt)}</span>
+                                                className="fc-op-item__meta">{formatDateTime(item.createdAt)}</span>
                                             <span
-                                                className="pe-contradiction-history__badge">{item.issueCount} 个冲突</span>
+                                                className="fc-op-count">{item.issueCount} 个冲突</span>
                                         </div>
-                                        <div className="pe-contradiction-history__summary">{item.overview}</div>
-                                        <div className="pe-contradiction-history__meta">
+                                        <div className="fc-op-item__title">{item.overview}</div>
+                                        <div className="fc-op-item__meta">
                                             <span>{item.scopeSummary}</span>
                                             {item.truncated &&
-                                                <span className="pe-contradiction-history__warning">已裁剪</span>}
+                                                <span className="fc-op-hint--error">已裁剪</span>}
                                         </div>
                                     </button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => void handleDelete(item.reportId)}
-                                    >
-                                        删除
-                                    </Button>
+                                    <div className="fc-op-item__actions">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => void handleDelete(item.reportId)}
+                                        >
+                                            删除
+                                        </Button>
+                                    </div>
                                 </article>
                             ))}
                         </div>
@@ -325,7 +351,7 @@ function ProjectContradictionPanel({
                             <RollingBox className="pe-contradiction-report__scroll" thumbSize="thin">
                                 <div className="pe-contradiction-report__content">
                                     <div className="pe-contradiction-report__hero">
-                                        <div>
+                                        <div className="pe-contradiction-report__hero-main">
                                             <div className="pe-contradiction-report__meta">
                                                 <span>{formatDateTime(activeRecord.createdAt)}</span>
                                                 <span>范围：{activeRecord.scopeSummary}</span>

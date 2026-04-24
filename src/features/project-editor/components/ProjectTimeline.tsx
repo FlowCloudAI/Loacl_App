@@ -1,10 +1,11 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {Button, Timeline, type TimelineEvent} from 'flowcloudai-ui'
 import {
     db_list_timeline_events,
     type ProjectTimelineData,
     type TagSchema,
 } from '../../../api'
+import '../../../shared/ui/layout/WorkspaceScaffold.css'
 import './ProjectTimeline.css'
 
 interface ProjectTimelineProps {
@@ -27,29 +28,6 @@ const TIMELINE_TAG_HINTS: TimelineTagHintGroup[] = [
     {label: '父事件', examples: ['父事件ID', '父级事件', 'parent_id']},
     {label: '是否显示', examples: ['时间线', '纳入时间线', 'show_timeline']},
 ]
-
-
-function BackArrowIcon() {
-    return (
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path
-                d="M8.6 3.25L4.1 7.75L8.6 12.25"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-            />
-            <path
-                d="M4.5 7.75H12.25"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-            />
-        </svg>
-    )
-}
 
 function normalizeTagName(name: string) {
     return name
@@ -131,14 +109,33 @@ function normalizeError(error: unknown): Error {
     return error instanceof Error ? error : new Error(typeof error === 'string' ? error : '未知错误')
 }
 
+function BackArrow() {
+    return (
+        <svg viewBox="0 0 16 16" aria-hidden="true" style={{width: 16, height: 16}}>
+            <path
+                d="M8.6 3.25L4.1 7.75L8.6 12.25"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            <path
+                d="M4.5 7.75H12.25"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+            />
+        </svg>
+    )
+}
+
 export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEntry}: ProjectTimelineProps) {
     const [data, setData] = useState<ProjectTimelineData | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<Error | null>(null)
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
-
-    const heroListRef = useRef<HTMLDivElement>(null)
-    const heroCardRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
     const matchedSchemaNames = useMemo(() => {
         const groups: Record<TimelineTagRole, string[]> = {
@@ -216,18 +213,6 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [events, selectedEventId])
 
-    useEffect(() => {
-        if (!selectedEventId) return
-        const cardEl = heroCardRefs.current[selectedEventId]
-        const listEl = heroListRef.current
-        if (!cardEl || !listEl) return
-
-        const listRect = listEl.getBoundingClientRect()
-        const cardRect = cardEl.getBoundingClientRect()
-        const scrollLeft = listEl.scrollLeft + cardRect.left - listRect.left - (listRect.width - cardRect.width) / 2
-        listEl.scrollTo({left: scrollLeft, behavior: 'smooth'})
-    }, [selectedEventId])
-
     const timelineEvents = useMemo<TimelineEvent[]>(
         () => events.map((event) => ({
             id: event.id,
@@ -243,19 +228,21 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
     const matchedTagCount = Object.values(matchedSchemaNames).reduce((sum, names) => sum + names.length, 0)
 
     return (
-        <div className="project-timeline">
-            <div className="project-timeline__toolbar">
-                <div className="project-timeline__toolbar-left">
-                    {onBack && (
-                        <Button size="sm" variant="ghost" onClick={onBack}>
-                            <span className="project-timeline__back-icon" aria-hidden="true">
-                                <BackArrowIcon/>
-                            </span>
-                            返回
-                        </Button>
-                    )}
+        <div className="project-timeline fc-op-panel">
+            {/* ── Header ── */}
+            <div className="fc-op-header">
+                {onBack && (
+                    <button type="button" className="fc-op-back-btn" onClick={onBack}>
+                        <BackArrow/>返回
+                    </button>
+                )}
+                <div className="fc-op-header__title-block">
+                    <h2 className="fc-op-header__title">时间线</h2>
+                    <p className="fc-op-header__subtitle">
+                        系统会扫描项目中的词条标签，并自动识别时间线语义。
+                    </p>
                 </div>
-                <div className="project-timeline__toolbar-right">
+                <div className="fc-op-header__actions">
                     {selectedEvent && onOpenEntry && (
                         <Button
                             size="sm"
@@ -271,135 +258,92 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
                 </div>
             </div>
 
-            <div className="project-timeline__intro">
-                <div>
-                    <p className="project-timeline__eyebrow">项目业务数据时间线</p>
-                    <h1 className="project-timeline__title">时间线</h1>
-                    <p className="project-timeline__description">
-                        系统会扫描项目中的词条标签，并自动识别“开始时间 / 结束时间 / 父事件 / 是否显示”这四类时间线语义。
-                    </p>
+            {/* ── Toolbar (stats chips) ── */}
+            {data && events.length > 0 && (
+                <div className="fc-op-toolbar">
+                    <span className="fc-op-chip">扫描词条 {data.scannedEntryCount}</span>
+                    <span className="fc-op-chip">时间线事件 {data.matchedEntryCount}</span>
+                    <span className="fc-op-chip">持续区间 {eventStats.rangeEvents}</span>
+                    <span className="fc-op-chip">单点事件 {eventStats.pointEvents}</span>
+                    <span className="fc-op-chip">层级事件 {eventStats.hierarchyEvents}</span>
+                    <div className="fc-op-toolbar__sep" />
+                    <span className="fc-op-status">范围：{buildRangeText(data)}</span>
+                    {matchedTagCount > 0 && (
+                        <span className="fc-op-status">
+                            标签：{[
+                                matchedSchemaNames.start.length > 0 ? `开始 ${matchedSchemaNames.start.join('、')}` : '',
+                                matchedSchemaNames.end.length > 0 ? `结束 ${matchedSchemaNames.end.join('、')}` : '',
+                                matchedSchemaNames.parent.length > 0 ? `父事件 ${matchedSchemaNames.parent.join('、')}` : '',
+                                matchedSchemaNames.show.length > 0 ? `显示 ${matchedSchemaNames.show.join('、')}` : '',
+                            ].filter(Boolean).join('；')}
+                        </span>
+                    )}
                 </div>
-            </div>
+            )}
 
-            <div className="project-timeline__meta">
-                <div className="project-timeline__meta-card">
-                    <span className="project-timeline__meta-label">扫描词条</span>
-                    <span className="project-timeline__meta-value">{data?.scannedEntryCount ?? 0} 个</span>
-                </div>
-                <div className="project-timeline__meta-card">
-                    <span className="project-timeline__meta-label">时间线事件</span>
-                    <span className="project-timeline__meta-value">{data?.matchedEntryCount ?? 0} 个</span>
-                </div>
-                <div className="project-timeline__meta-card">
-                    <span className="project-timeline__meta-label">持续区间</span>
-                    <span className="project-timeline__meta-value">{eventStats.rangeEvents} 个</span>
-                </div>
-                <div className="project-timeline__meta-card">
-                    <span className="project-timeline__meta-label">单点事件</span>
-                    <span className="project-timeline__meta-value">{eventStats.pointEvents} 个</span>
-                </div>
-                <div className="project-timeline__meta-card">
-                    <span className="project-timeline__meta-label">层级事件</span>
-                    <span className="project-timeline__meta-value">{eventStats.hierarchyEvents} 个</span>
-                </div>
-                <div className="project-timeline__meta-card project-timeline__meta-card--wide">
-                    <span className="project-timeline__meta-label">时间范围</span>
-                    <span className="project-timeline__meta-value">{buildRangeText(data ?? {
-                        events: [],
-                        scannedEntryCount: 0,
-                        matchedEntryCount: 0
-                    })}</span>
-                </div>
-                <div className="project-timeline__meta-card project-timeline__meta-card--wide">
-                    <span className="project-timeline__meta-label">已识别标签</span>
-                    <span className="project-timeline__meta-value project-timeline__meta-value--normal">
-                        {matchedTagCount > 0
-                            ? [
-                                matchedSchemaNames.start.length > 0 ? `开始：${matchedSchemaNames.start.join('、')}` : '',
-                                matchedSchemaNames.end.length > 0 ? `结束：${matchedSchemaNames.end.join('、')}` : '',
-                                matchedSchemaNames.parent.length > 0 ? `父事件：${matchedSchemaNames.parent.join('、')}` : '',
-                                matchedSchemaNames.show.length > 0 ? `显示：${matchedSchemaNames.show.join('、')}` : '',
-                            ].filter(Boolean).join('；')
-                            : '当前项目还没有命中时间线语义的标签定义。'}
-                    </span>
-                </div>
-            </div>
-
+            {/* ── Error Banner ── */}
             {error && (
-                <div className="project-timeline__error">
+                <div className="fc-status-banner fc-status-banner--error">
                     时间线数据加载失败：{error.message}
                 </div>
             )}
 
+            {/* ── Body ── */}
             {events.length === 0 ? (
-                <div className="project-timeline__empty">
-                    <div className="project-timeline__empty-title">当前项目还没有可渲染的时间线事件</div>
-                    <p className="project-timeline__empty-text">
-                        至少需要在某些词条上设置一个可识别的“开始时间”标签。建议优先建立下面这组标签命名。
-                    </p>
-                    <div className="project-timeline__hint-grid">
+                <div className="fc-op-viewport-empty">
+                    <div className="fc-op-hint-block">
+                        <div className="fc-op-hint">当前项目还没有可渲染的时间线事件。</div>
+                        <div className="fc-op-hint">至少需要在某些词条上设置一个可识别的“开始时间”标签。</div>
                         {TIMELINE_TAG_HINTS.map((group) => (
-                            <div key={group.label} className="project-timeline__hint-card">
-                                <div className="project-timeline__hint-title">{group.label}</div>
-                                <div className="project-timeline__hint-text">{group.examples.join(' / ')}</div>
+                            <div key={group.label} className="fc-op-hint">
+                                {group.label}：{group.examples.join(' / ')}
                             </div>
                         ))}
                     </div>
                 </div>
             ) : (
-                <>
-                    <div className="project-timeline__hero-panel">
-                        <div className="project-timeline__panel-head">
-                            <div>
-                                <h2 className="project-timeline__panel-title">事件概览</h2>
-                                <p className="project-timeline__panel-text">
-                                    使用 ← → 切换焦点事件，主时间线会自动联动滚动。
-                                </p>
-                            </div>
-                            <span className="project-timeline__sync-tag">
-                                {selectedEvent ? `${events.findIndex((event) => event.id === selectedEvent.id) + 1} / ${events.length}` : `0 / ${events.length}`}
+                <div className="fc-op-body">
+                    {/* ── Sidebar: Event List ── */}
+                    <div className="fc-op-sidebar">
+                        <div className="fc-op-sidebar__header">
+                            <span className="fc-op-sidebar__title">事件列表</span>
+                            <span className="fc-op-count">
+                                {selectedEvent
+                                    ? `${events.findIndex((event) => event.id === selectedEvent.id) + 1} / ${events.length}`
+                                    : `0 / ${events.length}`}
                             </span>
                         </div>
-                        <div className="project-timeline__hero-list" ref={heroListRef}>
+                        <div className="fc-op-sidebar__body">
                             {events.map((event) => {
                                 const isSelected = event.id === selectedEventId
                                 return (
-                                    <div
+                                    <button
                                         key={event.id}
-                                        ref={(element) => {
-                                            heroCardRefs.current[event.id] = element
-                                        }}
-                                        className={`project-timeline__hero-card ${isSelected ? 'project-timeline__hero-card--selected' : ''}`}
+                                        type="button"
+                                        className={`project-timeline__event-item fc-op-item${isSelected ? ' is-active' : ''}`}
                                         onClick={() => setSelectedEventId(event.id)}
-                                        tabIndex={0}
-                                        role="button"
-                                        onKeyDown={(eventKey) => {
-                                            if (eventKey.key === 'Enter' || eventKey.key === ' ') {
-                                                eventKey.preventDefault()
-                                                setSelectedEventId(event.id)
-                                            }
-                                        }}
                                     >
-                                        <div className="project-timeline__hero-title">{event.title}</div>
-                                        <div className="project-timeline__hero-range">{formatRange(event)}</div>
-                                        <p className="project-timeline__hero-desc">
-                                            {event.description?.trim() || '该词条未填写摘要，时间线将直接使用标题展示。'}
-                                        </p>
-                                    </div>
+                                        <div className="fc-op-item__content">
+                                            <span className="fc-op-item__title">{event.title}</span>
+                                            <span className="fc-op-item__meta">{formatRange(event)}</span>
+                                            {event.description?.trim() ? (
+                                                <span className="fc-op-item__excerpt">
+                                                    {event.description.trim()}
+                                                </span>
+                                            ) : (
+                                                <span className="fc-op-item__excerpt">
+                                                    该词条未填写摘要，时间线将直接使用标题展示。
+                                                </span>
+                                            )}
+                                        </div>
+                                    </button>
                                 )
                             })}
                         </div>
                     </div>
 
-                    <div className="project-timeline__timeline-panel">
-                        <div className="project-timeline__panel-head">
-                            <div>
-                                <h2 className="project-timeline__panel-title">主时间线</h2>
-                                <p className="project-timeline__panel-text">
-                                    鼠标滚轮可缩放与横向浏览，点击时间轴事件会同步更新上方概览卡片。
-                                </p>
-                            </div>
-                        </div>
+                    {/* ── Viewport: Timeline ── */}
+                    <div className="fc-op-viewport">
                         <div className="project-timeline__timeline-shell">
                             <Timeline
                                 events={timelineEvents}
@@ -410,7 +354,7 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
                             />
                         </div>
                     </div>
-                </>
+                </div>
             )}
         </div>
     )

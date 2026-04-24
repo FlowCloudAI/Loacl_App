@@ -25,11 +25,11 @@
         "transparent": true,
         "decorations": false,
         "center": true,
-        "additionalBrowserArgs": "--disable-extensions --disable-background-networking --disable-sync --metrics-recording-only --disable-features=Spellcheck,AutofillServerCommunication,Translate --disable-component-update --disable-default-apps --disable-domain-reliability --no-first-run --disable-features=AudioServiceOutOfProcess --js-flags=\"--max-old-space-size=128\" --disable-backgrounding-occluded-windows"
+        "additionalBrowserArgs": "--disable-extensions --disable-background-networking --disable-sync --metrics-recording-only --disable-features=Spellcheck,AutofillServerCommunication,Translate --disable-component-update --disable-default-apps --disable-domain-reliability --no-first-run --disable-features=AudioServiceOutOfProcess --js-flags=\"--max-old-space-size=128\" --disable-backgrounding-occluded-windows --proxy-bypass-list=*.localhost"
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: fcimg: https://asset.localhost https://fcimg.localhost https://www.flowcloudai.cn",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: fcimg: http://asset.localhost http://fcimg.localhost https://www.flowcloudai.cn",
       "assetProtocol": {
         "enable": true,
         "scope": ["$TEMP/**"]

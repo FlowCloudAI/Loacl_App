@@ -175,3 +175,409 @@
         padding: var(--fc-space-xl);
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Operational Workbench 共享类
+   基于 WorldMapPanel 母版抽象，供 EntryRelationViewer /
+   ProjectContradictionPanel / ProjectTimeline 统一使用。
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Panel root ───────────────────────────────────────────────────────────── */
+
+.fc-op-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    background: var(--fc-color-bg);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.fc-op-header {
+    display: flex;
+    align-items: center;
+    gap: var(--fc-space-sm);
+    padding: var(--fc-space-md) var(--fc-space-lg);
+    border-bottom: 1px solid var(--fc-color-border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    background: var(--fc-color-bg-elevated);
+}
+
+.fc-op-header__title-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--fc-space-xs);
+    min-width: 0;
+    flex: 1 1 18rem;
+}
+
+.fc-op-header__title {
+    font-size: var(--fc-font-size-lg);
+    font-weight: var(--fc-font-weight-bold);
+    color: var(--fc-color-text);
+    margin: 0;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: var(--fc-line-height-tight);
+}
+
+.fc-op-header__subtitle {
+    margin: 0;
+    color: var(--fc-color-text-secondary);
+    font-size: var(--fc-font-size-sm);
+    line-height: var(--fc-line-height-normal);
+}
+
+.fc-op-header__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--fc-space-sm);
+    flex-shrink: 0;
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+
+.fc-op-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--fc-space-xs);
+    padding: var(--fc-space-sm) var(--fc-space-lg);
+    border-bottom: 1px solid var(--fc-color-border);
+    background: var(--fc-color-bg-elevated);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.fc-op-toolbar__sep {
+    width: 1px;
+    height: 18px;
+    background: var(--fc-color-border);
+    flex-shrink: 0;
+}
+
+/* ── Body & Sidebar ───────────────────────────────────────────────────────── */
+
+.fc-op-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.fc-op-sidebar {
+    width: 240px;
+    min-width: 240px;
+    border-right: 1px solid var(--fc-color-border);
+    background: var(--fc-color-bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.fc-op-sidebar__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid var(--fc-color-border);
+    flex-shrink: 0;
+}
+
+.fc-op-sidebar__title {
+    font-size: var(--fc-font-size-sm);
+    font-weight: var(--fc-font-weight-medium);
+    color: var(--fc-color-text-secondary);
+    letter-spacing: 0.01em;
+}
+
+.fc-op-sidebar__body {
+    flex: 1;
+    min-height: 0;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+    overscroll-behavior: contain;
+}
+
+/* ── Item (compact clickable row) ─────────────────────────────────────────── */
+
+.fc-op-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: var(--fc-radius-sm);
+    cursor: pointer;
+    transition: background 0.12s;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    text-align: left;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.fc-op-item:hover {
+    background: var(--fc-color-bg-secondary);
+}
+
+.fc-op-item.is-active {
+    background: color-mix(in srgb, var(--fc-color-primary) 12%, transparent);
+    color: var(--fc-color-primary);
+}
+
+.fc-op-item__content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.fc-op-item__title {
+    font-size: var(--fc-font-size-sm);
+    font-weight: var(--fc-font-weight-medium);
+    color: var(--fc-color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+}
+
+.fc-op-item.is-active .fc-op-item__title {
+    color: var(--fc-color-primary);
+}
+
+.fc-op-item__meta {
+    font-size: var(--fc-font-size-xs);
+    color: var(--fc-color-text-secondary);
+    line-height: 1.45;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fc-op-item__excerpt {
+    font-size: var(--fc-font-size-xs);
+    color: var(--fc-color-text-secondary);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: 1px;
+}
+
+.fc-op-item__actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+
+.fc-op-item:hover .fc-op-item__actions {
+    opacity: 1;
+}
+
+/* ── Chip ─────────────────────────────────────────────────────────────────── */
+
+.fc-op-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--fc-color-bg);
+    border: 1px solid var(--fc-color-border);
+    border-radius: var(--fc-radius-sm);
+    padding: 4px 10px;
+    font-size: var(--fc-font-size-sm);
+    color: var(--fc-color-text);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.fc-op-chip:hover:not(:disabled) {
+    background: var(--fc-color-bg-secondary);
+    border-color: var(--fc-color-primary);
+}
+
+.fc-op-chip:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+}
+
+.fc-op-chip--active {
+    background: var(--fc-color-primary);
+    border-color: var(--fc-color-primary);
+    color: #fff;
+}
+
+.fc-op-chip--danger {
+    color: var(--fc-color-danger);
+    border-color: var(--fc-color-danger-border);
+}
+
+.fc-op-chip--danger:hover:not(:disabled) {
+    background: var(--fc-color-danger-bg);
+    border-color: var(--fc-color-danger);
+}
+
+.fc-op-chip--full {
+    width: 100%;
+    justify-content: center;
+}
+
+/* ── Hint ─────────────────────────────────────────────────────────────────── */
+
+.fc-op-hint {
+    font-size: var(--fc-font-size-xs);
+    color: var(--fc-color-text-secondary);
+    line-height: 1.5;
+    padding-left: 10px;
+    position: relative;
+}
+
+.fc-op-hint::before {
+    content: '·';
+    position: absolute;
+    left: 2px;
+}
+
+.fc-op-hint--error {
+    color: var(--fc-color-danger);
+}
+
+.fc-op-hint-block {
+    padding: var(--fc-space-md);
+    border-radius: var(--fc-radius-md);
+    background: var(--fc-color-bg-secondary);
+    border: 1px solid var(--fc-color-border);
+}
+
+/* ── Status ───────────────────────────────────────────────────────────────── */
+
+.fc-op-status {
+    font-size: var(--fc-font-size-xs);
+    color: var(--fc-color-text-secondary);
+    white-space: nowrap;
+}
+
+.fc-op-status--saving {
+    color: var(--fc-color-primary);
+}
+
+.fc-op-status--saved {
+    color: var(--fc-color-success);
+}
+
+.fc-op-status--error {
+    color: var(--fc-color-danger);
+}
+
+/* ── Icon button (for item actions) ───────────────────────────────────────── */
+
+.fc-op-icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--fc-color-text-secondary);
+    display: flex;
+    align-items: center;
+    padding: 3px;
+    border-radius: var(--fc-radius-sm);
+    transition: background 0.15s, color 0.15s;
+}
+
+.fc-op-icon-btn:hover {
+    background: var(--fc-color-bg-secondary);
+    color: var(--fc-color-text);
+}
+
+/* ── Back button ──────────────────────────────────────────────────────────── */
+
+.fc-op-back-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--fc-space-xs);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--fc-color-text-secondary);
+    font-size: var(--fc-font-size-sm);
+    padding: 0.38rem 0.68rem;
+    border-radius: var(--fc-radius-md);
+    transition: background 0.16s ease, color 0.16s ease;
+    flex-shrink: 0;
+}
+
+.fc-op-back-btn:hover {
+    background: var(--fc-color-bg-secondary);
+    color: var(--fc-color-text);
+}
+
+/* ── Count badge ──────────────────────────────────────────────────────────── */
+
+.fc-op-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--fc-color-primary) 14%, transparent);
+    color: var(--fc-color-primary);
+    font-size: var(--fc-font-size-xs);
+    font-weight: var(--fc-font-weight-medium);
+    white-space: nowrap;
+}
+
+/* ── Viewport ─────────────────────────────────────────────────────────────── */
+
+.fc-op-viewport {
+    flex: 1;
+    overflow: hidden;
+    min-width: 0;
+    position: relative;
+}
+
+.fc-op-viewport-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--fc-color-text-secondary);
+    font-size: var(--fc-font-size-sm);
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+    .fc-op-sidebar {
+        width: 200px;
+        min-width: 200px;
+    }
+}
+
+@media (max-width: 560px) {
+    .fc-op-body {
+        flex-direction: column;
+    }
+
+    .fc-op-sidebar {
+        width: 100%;
+        min-width: 0;
+        border-right: none;
+        border-bottom: 1px solid var(--fc-color-border);
+        max-height: 40%;
+    }
+}

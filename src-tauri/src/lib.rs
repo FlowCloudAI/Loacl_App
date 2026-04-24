@@ -74,7 +74,7 @@ pub fn run() {
         }))
         .plugin(
             tauri_plugin_log::Builder::default()
-                .level(log::LevelFilter::Info)
+                .level(log::LevelFilter::Debug)
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
@@ -396,7 +396,11 @@ fn handle_fcimg_request<R: Runtime>(
     ctx: UriSchemeContext<R>,
     request: tauri::http::Request<Vec<u8>>,
 ) -> Response<Vec<u8>> {
+    let raw_uri = request.uri().to_string();
+    log::debug!("[fcimg] request uri: {}", raw_uri);
+
     let Some(paths) = ctx.app_handle().try_state::<PathsState>() else {
+        log::warn!("[fcimg] PathsState not ready — db may still be initializing. uri={}", raw_uri);
         return build_fcimg_response(
             StatusCode::SERVICE_UNAVAILABLE,
             b"paths state unavailable".to_vec(),
@@ -404,9 +408,9 @@ fn handle_fcimg_request<R: Runtime>(
         );
     };
 
-    let raw_uri = request.uri().to_string();
     let encoded_path = request.uri().path().trim_start_matches('/');
     if encoded_path.is_empty() {
+        log::warn!("[fcimg] empty path in uri={}", raw_uri);
         return build_fcimg_response(
             StatusCode::BAD_REQUEST,
             b"missing image path".to_vec(),
@@ -416,7 +420,8 @@ fn handle_fcimg_request<R: Runtime>(
 
     let decoded_path = match urlencoding::decode(encoded_path) {
         Ok(value) => value.into_owned(),
-        Err(_) => {
+        Err(e) => {
+            log::warn!("[fcimg] url-decode failed: {} | uri={}", e, raw_uri);
             return build_fcimg_response(
                 StatusCode::BAD_REQUEST,
                 format!("invalid image path: {}", raw_uri).into_bytes(),
@@ -424,11 +429,13 @@ fn handle_fcimg_request<R: Runtime>(
             );
         }
     };
+    log::debug!("[fcimg] decoded path: {}", decoded_path);
 
-    let requested_path = PathBuf::from(decoded_path);
+    let requested_path = PathBuf::from(&decoded_path);
     let canonical_requested = match std::fs::canonicalize(&requested_path) {
         Ok(path) => path,
-        Err(_) => {
+        Err(e) => {
+            log::warn!("[fcimg] canonicalize requested failed: {} | decoded={}", e, decoded_path);
             return build_fcimg_response(
                 StatusCode::NOT_FOUND,
                 b"image not found".to_vec(),
@@ -436,8 +443,10 @@ fn handle_fcimg_request<R: Runtime>(
             );
         }
     };
+    log::debug!("[fcimg] canonical requested: {:?}", canonical_requested);
 
     let Some(db_dir) = paths.db_path.parent() else {
+        log::error!("[fcimg] db_path has no parent: {:?}", paths.db_path);
         return build_fcimg_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             b"invalid db path".to_vec(),
@@ -445,9 +454,12 @@ fn handle_fcimg_request<R: Runtime>(
         );
     };
     let images_root = db_dir.join("images");
+    log::debug!("[fcimg] images_root (pre-canonical): {:?}", images_root);
+
     let canonical_images_root = match std::fs::canonicalize(&images_root) {
         Ok(path) => path,
-        Err(_) => {
+        Err(e) => {
+            log::warn!("[fcimg] canonicalize images_root failed: {} | path={:?}", e, images_root);
             return build_fcimg_response(
                 StatusCode::NOT_FOUND,
                 b"images root not found".to_vec(),
@@ -455,8 +467,14 @@ fn handle_fcimg_request<R: Runtime>(
             );
         }
     };
+    log::debug!("[fcimg] canonical images_root: {:?}", canonical_images_root);
 
     if !canonical_requested.starts_with(&canonical_images_root) {
+        log::warn!(
+            "[fcimg] path outside images root — requested={:?} root={:?}",
+            canonical_requested,
+            canonical_images_root
+        );
         return build_fcimg_response(
             StatusCode::FORBIDDEN,
             b"forbidden".to_vec(),
@@ -465,8 +483,12 @@ fn handle_fcimg_request<R: Runtime>(
     }
 
     let bytes = match std::fs::read(&canonical_requested) {
-        Ok(bytes) => bytes,
-        Err(_) => {
+        Ok(bytes) => {
+            log::debug!("[fcimg] OK {} bytes for {:?}", bytes.len(), canonical_requested);
+            bytes
+        }
+        Err(e) => {
+            log::error!("[fcimg] read failed: {} | path={:?}", e, canonical_requested);
             return build_fcimg_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 b"failed to read image".to_vec(),
