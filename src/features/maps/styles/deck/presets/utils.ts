@@ -1,8 +1,9 @@
 /**
- * 将 SVG 字符串编码为 DataURL（utf8 编码）。
+ * 将 SVG 字符串编码为 DataURL（base64 编码）。
+ * 兼容 WebView2 等对 ;utf8 非标准格式支持不完整的环境。
  */
 export function svgToDataUrl(svg: string): string {
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+    return `data:image/svg+xml;base64,${btoa(svg)}`
 }
 
 /**

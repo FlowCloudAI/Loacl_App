@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import {Button, Input, Select, Slider, type Theme, useAlert, useTheme} from 'flowcloudai-ui'
+import {Button, Input, RollingBox, Select, Slider, type Theme, useAlert, useTheme} from 'flowcloudai-ui'
 import {open} from '@tauri-apps/plugin-dialog'
+import {openPath} from '@tauri-apps/plugin-opener'
+import {appConfigDir} from '@tauri-apps/api/path'
 import {listen} from '@tauri-apps/api/event'
 import {
     ai_close_all_sessions,
@@ -46,6 +48,7 @@ export default function Settings({onBack}: SettingsProps) {
     const [settings, setSettings] = useState<AppSettings | null>(null)
     const [mediaDir, setMediaDir] = useState<string>('')
     const [defaultPaths, setDefaultPaths] = useState<{ db_path: string; plugins_path: string } | null>(null)
+    const [configDir, setConfigDir] = useState<string>('')
 
     // ── AI 配置状态 ──
     const [llmPlugins, setLlmPlugins] = useState<PluginInfo[]>([])
@@ -107,14 +110,16 @@ export default function Settings({onBack}: SettingsProps) {
                 imageData,
                 ttsData,
                 mediaDirData,
-                defaultPathsData
+                defaultPathsData,
+                configDirData,
             ] = await Promise.all([
                 setting_get_settings(),
                 ai_list_plugins('llm'),
                 ai_list_plugins('image'),
                 ai_list_plugins('tts'),
                 setting_get_media_dir(),
-                setting_get_default_paths()
+                setting_get_default_paths(),
+                appConfigDir(),
             ])
 
             setSettings(settingsData)
@@ -123,6 +128,7 @@ export default function Settings({onBack}: SettingsProps) {
             setTtsPlugins(ttsData)
             setMediaDir(mediaDirData)
             setDefaultPaths(defaultPathsData)
+            setConfigDir(configDirData)
 
             // 检查每个插件的 API Key 状态
             const allPlugins = [...llmData, ...imageData, ...ttsData]
@@ -282,6 +288,12 @@ export default function Settings({onBack}: SettingsProps) {
         }
         setSettings(defaultSettings)
         void showAlert('已重置为默认设置', 'info')
+    }
+
+    // 在资源管理器中打开目录
+    const handleOpenDir = (path: string) => {
+        if (!path) return
+        openPath(path).catch(console.error)
     }
 
     // 选择媒体目录
@@ -549,7 +561,7 @@ export default function Settings({onBack}: SettingsProps) {
     })
 
     return (
-        <div className="settings-outer">
+        <RollingBox className="settings-outer">
             <div className="settings-page-layout">
                 <aside className="settings-sidebar">
                     {onBack && (
@@ -591,6 +603,21 @@ export default function Settings({onBack}: SettingsProps) {
                             {/* 存储 */}
                             <section className="settings-section fc-section-card">
                                 <h2 className="settings-section-title fc-section-title">存储</h2>
+                                <div className="settings-field">
+                                    <label className="settings-label-wide">配置目录</label>
+                                    <Input
+                                        value={configDir}
+                                        readOnly
+                                        placeholder="加载中…"
+                                        style={{flex: 1}}
+                                    />
+                                    <div className="settings-field-actions">
+                                        <Button size={"sm"} variant="outline"
+                                                onClick={() => handleOpenDir(configDir)}>
+                                            打开
+                                        </Button>
+                                    </div>
+                                </div>
                                 <div className="settings-field">
                                     <label className="settings-label-wide">媒体目录</label>
                                     <Input
@@ -1069,6 +1096,6 @@ export default function Settings({onBack}: SettingsProps) {
                     )}
                 </div>
             </div>
-        </div>
+        </RollingBox>
     )
 }

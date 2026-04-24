@@ -72,14 +72,38 @@ pub fn run() {
             log::info!("Single instance detected, quitting.");
             exit(0);
         }))
-        .plugin(
-            tauri_plugin_log::Builder::default()
-                .level(log::LevelFilter::Debug)
-                .build(),
-        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            // ── 日志初始化 ────────────────────────────────────────────────────────
+            // release 模式：写入 settings.json 同目录（app_config_dir）；
+            //   文件目标过滤至 Info 级，避免 wasmtime/cranelift Debug 噪音。
+            // debug 模式：仅 stdout，保留 Debug 级别。
+            {
+                #[cfg(not(debug_assertions))]
+                let log_config_dir = app.handle()
+                    .path()
+                    .app_config_dir()
+                    .unwrap_or_else(|_| std::env::current_dir().unwrap());
+
+                let log_builder = tauri_plugin_log::Builder::new()
+                    .level(log::LevelFilter::Debug)
+                    .target(tauri_plugin_log::Target::new(
+                        tauri_plugin_log::TargetKind::Stdout,
+                    ));
+
+                #[cfg(not(debug_assertions))]
+                let log_builder = log_builder.target(
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+                        path: log_config_dir,
+                        file_name: Some("app".to_string()),
+                    })
+                        .filter(|meta| meta.level() <= log::Level::Info),
+                );
+
+                app.handle().plugin(log_builder.build())?;
+            }
+
             // 禁用 release 模式下的 WebView 右键菜单
             #[cfg(not(debug_assertions))]
             if let Some(window) = app.get_webview_window("main") {

@@ -80,7 +80,7 @@
 }
 
 .settings-section {
-    margin-bottom: 0;
+  margin-bottom: var(--fc-space-xl);
 }
 
 .settings-section-title {

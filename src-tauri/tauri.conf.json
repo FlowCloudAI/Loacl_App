@@ -5,7 +5,7 @@
   "identifier": "cn.flowcloudai.www",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5174",
+    "devUrl": "http://localhost:5175",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
@@ -29,7 +29,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: fcimg: http://asset.localhost http://fcimg.localhost https://www.flowcloudai.cn",
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: fcimg: http://asset.localhost http://fcimg.localhost https://www.flowcloudai.cn",
       "assetProtocol": {
         "enable": true,
         "scope": ["$TEMP/**"]
@@ -80,7 +80,8 @@
         "installerIcon": "icons/icon.ico",
         "compression": "lzma",
         "startMenuFolder": "流云AI",
-        "minimumWebview2Version": "110.0.1531.0"
+        "minimumWebview2Version": "110.0.1531.0",
+        "installerHooks": "nsis/installer-hooks.nsh"
       }
     },
     "linux": {

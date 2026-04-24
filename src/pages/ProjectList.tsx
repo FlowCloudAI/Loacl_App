@@ -40,12 +40,6 @@ function formatDate(value?: string | null): string {
         day: '2-digit',
     }).format(timestamp)
 }
-
-function placeholderMark(name: string): string {
-    const trimmed = name.trim()
-    return trimmed ? trimmed[0] : 'P'
-}
-
 function asOptionalString(value: unknown): string | null | undefined {
     return typeof value === 'string' || value == null ? value : undefined
 }
@@ -226,9 +220,6 @@ function ProjectList({onOpenProject}: ProjectListProps) {
                                                 image={image}
                                                 imageSlot={!image ? (
                                                     <div className="project-list-placeholder">
-                                                    <span className="project-list-placeholder-mark">
-                                                        {placeholderMark(project.name)}
-                                                    </span>
                                                     </div>
                                                 ) : undefined}
                                                 title={project.name}

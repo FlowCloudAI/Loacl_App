@@ -30,14 +30,15 @@ export function strokeToRgbaColor(stroke: MapStyleStrokeToken): MapRgbaColor {
 
 export function makeSolidBackgroundDataUrl(color: string): string {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="${color}"/></svg>`
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+    return `data:image/svg+xml;base64,${btoa(svg)}`
 }
 
 /**
  * 将 SVG 字符串编码为 Data URL，供图标和轻量纹理复用。
+ * 使用 base64 编码，兼容 WebView2 等对 ;utf8 非标准格式支持不完整的环境。
  */
 export function svgToDataUrl(svg: string): string {
-    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+    return `data:image/svg+xml;base64,${btoa(svg)}`
 }
 
 export function resolveBackgroundImage(
