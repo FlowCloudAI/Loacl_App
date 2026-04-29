@@ -63,6 +63,7 @@ interface ProjectOverviewProps {
     coverUpdating?: boolean
     onDelete?: () => void | Promise<void>
     onDescriptionChange?: (description: string) => void | Promise<void>
+    children?: ReactNode
 }
 
 function toProjectImageSrc(coverPath?: string | null): string | undefined {
@@ -263,6 +264,7 @@ function ProjectOverview({
                              coverUpdating = false,
                              onDelete,
                              onDescriptionChange,
+                             children,
                          }: ProjectOverviewProps) {
     const {showAlert} = useAlert()
     const [descEditing, setDescEditing] = useState(false)
@@ -569,6 +571,7 @@ function ProjectOverview({
                     </RollingBox>
                 </section>
             </div>
+            {children}
         </RollingBox>
     )
 }

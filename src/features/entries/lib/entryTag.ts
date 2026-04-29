@@ -1,21 +1,5 @@
 import type {TagSchema} from '../../../api'
-
-export function normalizeTagRuntimeValue(value: unknown): string | number | boolean | null {
-    if (value == null) return null
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        return value
-    }
-    if (Array.isArray(value)) return null
-
-    if (typeof value === 'object') {
-        const record = value as Record<string, unknown>
-        if (typeof record.value === 'string' || typeof record.value === 'number' || typeof record.value === 'boolean') {
-            return record.value
-        }
-    }
-
-    return null
-}
+import {normalizeTagRuntimeValue} from './entryCommon'
 
 export function normalizeComparableTagValue(value: unknown): string | number | boolean | null {
     const normalized = normalizeTagRuntimeValue(value)

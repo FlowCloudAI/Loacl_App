@@ -143,10 +143,6 @@ pub const HASH_UNIT_MULTIPLIER: u64 = 0x9E37_79B9_7F4A_7C15;
 /// 修改：会改变噪声哈希的偏移特性，影响所有基于哈希的确定性随机输出。
 pub const HASH_UNIT_INCREMENT: u64 = 0xBF58_476D_1CE4_E5B9;
 
-/// ISO UTC 时间计算中每天的秒数。
-/// 仅时间换算常量，通常无需调整。
-pub const SECS_PER_DAY: i64 = 86_400;
-
 /// 预览层默认填充色调色板，与前端 mock 保持一致。
 /// 修改：直接改变地图预览层填充色的视觉表现，需与前端同步。
 pub const SHAPE_FILL_PALETTE: [DeckColor; 4] = [

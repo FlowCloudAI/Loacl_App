@@ -27,6 +27,7 @@ interface EntryEditorMetaPanelProps {
         summary: string
         content: string
         type: string | null
+        categoryId: string | null
         tags: Record<string, string | number | boolean | null>
         images: EntryImage[]
     }
@@ -544,7 +545,28 @@ export default function EntryEditorMetaPanel({
                     )}
                     <div className="entry-editor-entry-meta">
                         <span>路径：{entryPathLabel}</span>
-                        <span>分类：{getCategoryName(categories, entry?.category_id ?? null)}</span>
+                        {isBrowseMode ? (
+                            <span>分类：{getCategoryName(categories, draft.categoryId)}</span>
+                        ) : (
+                            <div className="entry-editor-category-select">
+                                <Select
+                                    className="entry-editor-select"
+                                    options={[
+                                        {value: '', label: '无分类'},
+                                        ...categories.map((c) => ({value: c.id, label: c.name})),
+                                    ]}
+                                    value={draft.categoryId ?? ''}
+                                    onChange={(value) => onDraftChange((current) => {
+                                        const nextCategoryId = typeof value === 'string' && value ? value : null
+                                        return current.categoryId === nextCategoryId
+                                            ? current
+                                            : {...current, categoryId: nextCategoryId}
+                                    })}
+                                    placeholder="选择分类"
+                                    searchable
+                                />
+                            </div>
+                        )}
                         <span>创建于 {entryCreatedAtText}</span>
                         <span>更新于 {entryUpdatedAtText}</span>
                     </div>

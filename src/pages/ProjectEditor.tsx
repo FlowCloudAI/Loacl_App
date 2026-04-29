@@ -419,7 +419,7 @@ function ProjectEditorInner({
         }
     }
 
-    const handleRequestCreateEntry = useCallback(async (categoryId: string) => {
+    const handleRequestCreateEntry = useCallback(async (categoryId: string | null) => {
         try {
             const created = await db_create_entry({
                 projectId,
@@ -673,7 +673,19 @@ function ProjectEditorInner({
                                 await db_delete_project(projectId)
                                 onDeleteProject(projectId)
                             } : undefined}
-                        />
+                        >
+                            <CategoryView
+                                key="__all__"
+                                categoryId={null}
+                                categoryName="全部词条"
+                                projectId={projectId}
+                                entryTypes={entryTypes}
+                                refreshToken={categoryEntryRefreshToken}
+                                noScroll
+                                onRequestCreateEntry={handleRequestCreateEntry}
+                                onOpenEntry={(entry) => onOpenEntry?.(projectId, entry)}
+                            />
+                        </ProjectOverview>
                     ) : (
                         <CategoryView
                             key={selection.id}

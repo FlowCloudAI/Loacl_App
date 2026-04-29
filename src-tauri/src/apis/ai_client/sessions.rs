@@ -141,137 +141,74 @@ pub async fn ai_update_session(
     params: serde_json::Value,
 ) -> Result<(), String> {
     use flowcloudai_client::ThinkingType;
-    use serde_json::{Map, Value};
+    use serde::Deserialize;
 
-    fn as_object(params: Value) -> Result<Map<String, Value>, String> {
-        params
-            .as_object()
-            .cloned()
-            .ok_or_else(|| "params 必须是对象".to_string())
+    #[derive(Debug, Default, Deserialize)]
+    #[serde(default)]
+    struct SessionUpdateParams {
+        model: Option<Option<String>>,
+        #[serde(rename = "temperature")]
+        temperature: Option<Option<f64>>,
+        #[serde(rename = "maxTokens")]
+        max_tokens: Option<Option<i64>>,
+        stream: Option<Option<bool>>,
+        thinking: Option<Option<bool>>,
+        #[serde(rename = "frequencyPenalty")]
+        frequency_penalty: Option<Option<f64>>,
+        #[serde(rename = "presencePenalty")]
+        presence_penalty: Option<Option<f64>>,
+        #[serde(rename = "topP")]
+        top_p: Option<Option<f64>>,
+        stop: Option<Option<Vec<String>>>,
+        #[serde(rename = "responseFormat")]
+        response_format: Option<serde_json::Value>,
+        n: Option<Option<i32>>,
+        #[serde(rename = "toolChoice")]
+        tool_choice: Option<Option<String>>,
+        logprobs: Option<Option<bool>>,
+        #[serde(rename = "topLogprobs")]
+        top_logprobs: Option<Option<i64>>,
     }
 
-    fn parse_f64_field(
-        obj: &Map<String, Value>,
-        key: &str,
-        min: Option<f64>,
-        max: Option<f64>,
-    ) -> Result<Option<Option<f64>>, String> {
-        let Some(value) = obj.get(key) else {
-            return Ok(None);
-        };
-        if value.is_null() {
-            return Ok(Some(None));
+    fn validate_f64(value: f64, name: &str, min: f64, max: f64) -> Result<(), String> {
+        if !value.is_finite() {
+            return Err(format!("参数 '{}' 不能是 NaN 或 Infinity", name));
         }
-        let parsed = value
-            .as_f64()
-            .ok_or_else(|| format!("参数 '{}' 必须是数字", key))?;
-        if !parsed.is_finite() {
-            return Err(format!("参数 '{}' 不能是 NaN 或 Infinity", key));
+        if value < min || value > max {
+            return Err(format!("参数 '{}' 必须在 {}-{} 之间", name, min, max));
         }
-        if let Some(min) = min
-            && parsed < min
-        {
-            return Err(format!("参数 '{}' 不能小于 {}", key, min));
-        }
-        if let Some(max) = max
-            && parsed > max
-        {
-            return Err(format!("参数 '{}' 不能大于 {}", key, max));
-        }
-        Ok(Some(Some(parsed)))
+        Ok(())
     }
 
-    fn parse_i64_field(
-        obj: &Map<String, Value>,
-        key: &str,
-        min: Option<i64>,
-        max: Option<i64>,
-    ) -> Result<Option<Option<i64>>, String> {
-        let Some(value) = obj.get(key) else {
-            return Ok(None);
-        };
-        if value.is_null() {
-            return Ok(Some(None));
-        }
-        let parsed = value
-            .as_i64()
-            .ok_or_else(|| format!("参数 '{}' 必须是整数", key))?;
-        if let Some(min) = min
-            && parsed < min
-        {
-            return Err(format!("参数 '{}' 不能小于 {}", key, min));
-        }
-        if let Some(max) = max
-            && parsed > max
-        {
-            return Err(format!("参数 '{}' 不能大于 {}", key, max));
-        }
-        Ok(Some(Some(parsed)))
-    }
+    let params: SessionUpdateParams = serde_json::from_value(params)
+        .map_err(|e| format!("参数解析失败: {}", e))?;
 
-    fn parse_i32_field(
-        obj: &Map<String, Value>,
-        key: &str,
-        min: Option<i32>,
-        max: Option<i32>,
-    ) -> Result<Option<Option<i32>>, String> {
-        let parsed = parse_i64_field(obj, key, min.map(i64::from), max.map(i64::from))?;
-        Ok(parsed.map(|inner| inner.map(|value| value as i32)))
+    if let Some(Some(t)) = params.temperature {
+        validate_f64(t, "temperature", 0.0, 2.0)?;
     }
-
-    fn parse_bool_field(
-        obj: &Map<String, Value>,
-        key: &str,
-    ) -> Result<Option<Option<bool>>, String> {
-        let Some(value) = obj.get(key) else {
-            return Ok(None);
-        };
-        if value.is_null() {
-            return Ok(Some(None));
-        }
-        let parsed = value
-            .as_bool()
-            .ok_or_else(|| format!("参数 '{}' 必须是布尔值", key))?;
-        Ok(Some(Some(parsed)))
+    if let Some(Some(fp)) = params.frequency_penalty {
+        validate_f64(fp, "frequencyPenalty", -2.0, 2.0)?;
     }
-
-    fn parse_string_field(
-        obj: &Map<String, Value>,
-        key: &str,
-    ) -> Result<Option<Option<String>>, String> {
-        let Some(value) = obj.get(key) else {
-            return Ok(None);
-        };
-        if value.is_null() {
-            return Ok(Some(None));
-        }
-        let parsed = value
-            .as_str()
-            .ok_or_else(|| format!("参数 '{}' 必须是字符串", key))?;
-        Ok(Some(Some(parsed.to_string())))
+    if let Some(Some(pp)) = params.presence_penalty {
+        validate_f64(pp, "presencePenalty", -2.0, 2.0)?;
     }
-
-    fn parse_string_list_field(
-        obj: &Map<String, Value>,
-        key: &str,
-    ) -> Result<Option<Option<Vec<String>>>, String> {
-        let Some(value) = obj.get(key) else {
-            return Ok(None);
-        };
-        if value.is_null() {
-            return Ok(Some(None));
+    if let Some(Some(tp)) = params.top_p {
+        validate_f64(tp, "topP", 0.0, 1.0)?;
+    }
+    if let Some(Some(mt)) = params.max_tokens {
+        if mt < 1 {
+            return Err("参数 'maxTokens' 必须大于 0".to_string());
         }
-        let arr = value
-            .as_array()
-            .ok_or_else(|| format!("参数 '{}' 必须是字符串数组", key))?;
-        let mut result = Vec::with_capacity(arr.len());
-        for item in arr {
-            let text = item
-                .as_str()
-                .ok_or_else(|| format!("参数 '{}' 必须是字符串数组", key))?;
-            result.push(text.to_string());
+    }
+    if let Some(Some(n)) = params.n {
+        if n < 1 {
+            return Err("参数 'n' 必须大于 0".to_string());
         }
-        Ok(Some(Some(result)))
+    }
+    if let Some(Some(tl)) = params.top_logprobs {
+        if tl < 0 {
+            return Err("参数 'topLogprobs' 不能为负数".to_string());
+        }
     }
 
     let handle = {
@@ -281,43 +218,24 @@ pub async fn ai_update_session(
             .map(|entry| entry.handle.clone())
             .ok_or_else(|| format!("Session '{}' 不存在", session_id))?
     };
-    let params = as_object(params)?;
-    let model = parse_string_field(&params, "model")?;
-    let temperature = parse_f64_field(&params, "temperature", Some(0.0), Some(2.0))?;
-    let max_tokens = parse_i64_field(&params, "maxTokens", Some(1), None)?;
-    let stream = parse_bool_field(&params, "stream")?;
-    let thinking = parse_bool_field(&params, "thinking")?;
-    let frequency_penalty = parse_f64_field(&params, "frequencyPenalty", Some(-2.0), Some(2.0))?;
-    let presence_penalty = parse_f64_field(&params, "presencePenalty", Some(-2.0), Some(2.0))?;
-    let top_p = parse_f64_field(&params, "topP", Some(0.0), Some(1.0))?;
-    let stop = parse_string_list_field(&params, "stop")?;
-    let response_format = if params.contains_key("responseFormat") {
-        Some(params.get("responseFormat").cloned())
-    } else {
-        None
-    };
-    let n = parse_i32_field(&params, "n", Some(1), None)?;
-    let tool_choice = parse_string_field(&params, "toolChoice")?;
-    let logprobs = parse_bool_field(&params, "logprobs")?;
-    let top_logprobs = parse_i64_field(&params, "topLogprobs", Some(0), None)?;
 
     handle
         .update(|req| {
-            if let Some(v) = model {
+            if let Some(v) = params.model {
                 if let Some(v) = v {
                     req.model = v;
                 }
             }
-            if let Some(v) = temperature {
+            if let Some(v) = params.temperature {
                 req.temperature = v;
             }
-            if let Some(v) = max_tokens {
+            if let Some(v) = params.max_tokens {
                 req.max_tokens = v;
             }
-            if let Some(v) = stream {
+            if let Some(v) = params.stream {
                 req.stream = v;
             }
-            if let Some(v) = thinking {
+            if let Some(v) = params.thinking {
                 req.thinking = v.map(|flag| {
                     if flag {
                         ThinkingType::enabled()
@@ -326,31 +244,31 @@ pub async fn ai_update_session(
                     }
                 });
             }
-            if let Some(v) = frequency_penalty {
+            if let Some(v) = params.frequency_penalty {
                 req.frequency_penalty = v;
             }
-            if let Some(v) = presence_penalty {
+            if let Some(v) = params.presence_penalty {
                 req.presence_penalty = v;
             }
-            if let Some(v) = top_p {
+            if let Some(v) = params.top_p {
                 req.top_p = v;
             }
-            if let Some(v) = stop {
+            if let Some(v) = params.stop {
                 req.stop = v;
             }
-            if let Some(v) = response_format {
-                req.response_format = v;
+            if let Some(v) = params.response_format {
+                req.response_format = Some(v);
             }
-            if let Some(v) = n {
+            if let Some(v) = params.n {
                 req.n = v;
             }
-            if let Some(v) = tool_choice {
+            if let Some(v) = params.tool_choice {
                 req.tool_choice = v;
             }
-            if let Some(v) = logprobs {
+            if let Some(v) = params.logprobs {
                 req.logprobs = v;
             }
-            if let Some(v) = top_logprobs {
+            if let Some(v) = params.top_logprobs {
                 req.top_logprobs = v;
             }
         })

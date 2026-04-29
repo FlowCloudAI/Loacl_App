@@ -575,10 +575,21 @@
 .entry-editor-entry-meta {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0.6rem 1rem;
     font-size: 0.75rem;
     line-height: 1.5;
     color: var(--fc-color-text-secondary);
+}
+
+.entry-editor-category-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.entry-editor-category-select .fc-select {
+    min-width: 10rem;
 }
 
 [data-color-mode="light"] .entry-editor-markdown,

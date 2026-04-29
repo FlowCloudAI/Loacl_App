@@ -307,7 +307,10 @@ export default function ProjectCoverPickerModal({
                         disabled={applying}
                         aria-label="关闭"
                     >
-                        ×
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.75"
+                                  strokeLinecap="round"/>
+                        </svg>
                     </button>
                 </div>
 
@@ -429,16 +432,19 @@ export default function ProjectCoverPickerModal({
                                     />
                                 </div>
                             </div>
+                            {selectedPluginInfo && selectedPluginInfo.supported_sizes.length === 0 && (
+                                <span className="pe-cover-picker__hint">当前插件未声明可选尺寸，将使用模型默认尺寸。</span>
+                            )}
 
                             <div className="pe-cover-picker__field">
-                                <label className="pe-cover-picker__label">提示词</label>
+                                <label className="pe-cover-picker__label">提示词（Prompt）</label>
                                 <textarea
                                     className="pe-cover-picker__textarea"
                                     value={prompt}
                                     onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setPrompt(event.target.value)}
                                     onKeyDown={handlePromptKeyDown}
-                                    placeholder="描述项目封面想要的画面，比如场景、风格、主体和氛围。"
-                                    rows={4}
+                                    placeholder="描述你想要生成的图像内容…"
+                                    rows={3}
                                     disabled={generateState === 'generating' || applying}
                                 />
                                 <span className="pe-cover-picker__hint">按 Ctrl / Cmd + Enter 可直接生成。</span>
@@ -460,23 +466,16 @@ export default function ProjectCoverPickerModal({
 
                             {results.length > 0 && (
                                 <div className="pe-cover-picker__result-section">
-                                    <div className="pe-cover-picker__toolbar">
-                                        <span className="pe-cover-picker__count">生成结果 {results.length} 张</span>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => void handleAddAiCover()}
-                                            disabled={!results[selectedResultIndex]?.url || applying}
-                                        >
-                                            导入并设为封面
-                                        </Button>
+                                    <div className="pe-cover-picker__results-header">
+                                        <span className="pe-cover-picker__results-title">生成结果</span>
+                                        <span className="pe-cover-picker__results-count">共 {results.length} 张</span>
                                     </div>
-                                    <div className="pe-cover-picker__grid">
+                                    <div className="pe-cover-picker__results-grid">
                                         {results.map((image, index) => (
                                             <button
                                                 key={`${image.url ?? index}`}
                                                 type="button"
-                                                className={`pe-cover-picker__card${selectedResultIndex === index ? ' is-selected' : ''}`}
+                                                className={`pe-cover-picker__result-card${selectedResultIndex === index ? ' is-selected' : ''}`}
                                                 onClick={() => setSelectedResultIndex(index)}
                                                 disabled={!image.url || applying}
                                             >
@@ -484,21 +483,23 @@ export default function ProjectCoverPickerModal({
                                                     <img
                                                         src={image.url}
                                                         alt={`AI 生成结果 ${index + 1}`}
-                                                        className="pe-cover-picker__card-image"
+                                                        className="pe-cover-picker__result-image"
                                                     />
                                                 ) : (
-                                                    <div
-                                                        className="pe-cover-picker__image-placeholder">无法显示图片</div>
+                                                    <div className="pe-cover-picker__result-placeholder">无法显示图片</div>
                                                 )}
-                                                <span className="pe-cover-picker__card-body">
-                                                    <span
-                                                        className="pe-cover-picker__card-title">方案 {index + 1}</span>
-                                                    {selectedResultIndex === index && (
-                                                        <span className="pe-cover-picker__card-badge">已选中</span>
-                                                    )}
-                                                </span>
                                             </button>
                                         ))}
+                                    </div>
+                                    <div className="pe-cover-picker__results-footer">
+                                        <Button
+                                            size="sm"
+                                            variant="primary"
+                                            onClick={() => void handleAddAiCover()}
+                                            disabled={!results[selectedResultIndex]?.url || applying}
+                                        >
+                                            导入并设为封面
+                                        </Button>
                                     </div>
                                 </div>
                             )}

@@ -1,7 +1,7 @@
 use crate::map::coastline::build_natural_coastline_polygon;
 use crate::map::color::{location_color, shape_fill_color, shape_line_color};
 use crate::map::constants::{
-    DUPLICATE_VERTEX_DISTANCE, MIN_SHAPE_VERTEX_COUNT, MIN_VERTEX_DISTANCE, SECS_PER_DAY,
+    DUPLICATE_VERTEX_DISTANCE, MIN_SHAPE_VERTEX_COUNT, MIN_VERTEX_DISTANCE,
 };
 use crate::map::geometry::{
     find_polygon_self_intersections, get_distance_squared, is_point_in_polygon,
@@ -12,8 +12,8 @@ use crate::map::types::{
     MapShapeFieldError, MapShapeKind, MapShapeSaveErrorResponse, MapShapeSaveRequest,
     MapShapeSaveResponse, MapShapeVertex,
 };
+use chrono::Utc;
 use std::collections::{HashMap, HashSet};
-use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 pub fn save_map_shape_scene(
@@ -56,7 +56,7 @@ pub fn save_map_shape_scene(
 
     Ok(MapShapeSaveResponse {
         scene,
-        saved_at: now_as_iso_utc(),
+        saved_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         message: Some("已按海岸线 MVP v1 完成后端计算，并同步 deck 展示场景。".to_string()),
         meta: Some(MapSaveMeta {
             protocol_version: Some(MapProtocolVersion::MapShapeMvpV1),
@@ -467,40 +467,6 @@ fn safe_location_name(location: &MapKeyLocationDraft) -> &str {
     }
 }
 
-fn now_as_iso_utc() -> String {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = now.as_secs() as i64;
-    let nanos = now.subsec_nanos();
-
-    let days = secs.div_euclid(SECS_PER_DAY);
-    let seconds_of_day = secs.rem_euclid(SECS_PER_DAY);
-
-    let (year, month, day) = civil_from_days(days);
-    let hour = seconds_of_day / 3_600;
-    let minute = (seconds_of_day % 3_600) / 60;
-    let second = seconds_of_day % 60;
-
-    format!(
-        "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z",
-        millis = nanos / 1_000_000
-    )
-}
-
-fn civil_from_days(days_since_epoch: i64) -> (i64, i64, i64) {
-    let z = days_since_epoch + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = mp + if mp < 10 { 3 } else { -9 };
-    let year = y + if m <= 2 { 1 } else { 0 };
-    (year, m, d)
-}
 
 #[cfg(test)]
 mod tests {

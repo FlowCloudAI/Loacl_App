@@ -65,12 +65,13 @@ function sortEntries(entries: EntryBrief[], mode: SortMode): EntryBrief[] {
 }
 
 interface CategoryViewProps {
-    categoryId: string
+    categoryId: string | null
     categoryName?: string
     projectId: string
     entryTypes: EntryTypeView[]
     refreshToken?: number
-    onRequestCreateEntry?: (categoryId: string) => void | Promise<void>
+    noScroll?: boolean
+    onRequestCreateEntry?: (categoryId: string | null) => void | Promise<void>
     onOpenEntry?: (entry: { id: string; title: string }) => void
 }
 
@@ -80,6 +81,7 @@ function CategoryView({
                           projectId,
                           entryTypes,
                           refreshToken = 0,
+                          noScroll = false,
                           onRequestCreateEntry,
                           onOpenEntry
                       }: CategoryViewProps) {
@@ -181,7 +183,7 @@ function CategoryView({
     return (
         <div className="pe-category-view">
             <div className="pe-category-toolbar">
-                <div className="pe-category-title">{categoryName}</div>
+                <div className="pe-category-title">{categoryId ? categoryName : (categoryName || '全部词条')}</div>
                 <div className="pe-category-toolbar-right">
                     <Input
                         className="pe-search-input"
@@ -239,6 +241,72 @@ function CategoryView({
 
             {loading ? (
                 <div className="pe-entries-status">加载中…</div>
+            ) : noScroll ? (
+                <div className="pe-entry-grid">
+                    {displayed.map((entry) => {
+                        const entryType = entry.type
+                            ? entryTypes.find((et) => entryTypeKey(et) === entry.type)
+                            : null
+                        const coverSrc = toEntryCoverSrc(entry.cover)
+                        return (
+                            <Card
+                                key={entry.id}
+                                className="pe-entry-card"
+                                imageSlot={(
+                                    coverSrc ? (
+                                        <img src={coverSrc} alt={entry.title} className="pe-entry-cover"/>
+                                    ) : (
+                                        <div
+                                            className="pe-entry-placeholder"
+                                            style={{'--entry-accent-color': entryType?.color ?? 'var(--fc-color-primary)'} as CSSProperties}
+                                        >
+                                            <div className="pe-entry-placeholder__icon">
+                                                {entryType ? (
+                                                    <EntryTypeIcon entryType={entryType}
+                                                                   className="pe-entry-placeholder__type-icon"/>
+                                                ) : (
+                                                    <span
+                                                        className="pe-entry-placeholder__mark">{placeholderMark(entry.title)}</span>
+                                                )}
+                                            </div>
+                                            <div
+                                                className="pe-entry-placeholder__mark pe-entry-placeholder__mark--ghost">
+                                                {placeholderMark(entry.title)}
+                                            </div>
+                                        </div>
+                                    )
+                                )}
+                                title={entry.title}
+                                description={entry.summary || '这个词条还没有摘要，点击后可继续补充设定内容。'}
+                                extraInfo={<div className="pe-entry-date">更新于 {formatDate(entry.updated_at)}</div>}
+                                tag={entryType ? (
+                                    <span className="pe-entry-type-badge"
+                                          style={{'--badge-color': entryType.color} as CSSProperties}>
+                                        <EntryTypeIcon entryType={entryType} className="pe-entry-type-badge-icon"/>
+                                        {entryType.name}
+                                    </span>
+                                ) : undefined}
+                                variant="shadow"
+                                hoverable
+                                expandContentOnHover
+                                imageHeight="100%"
+                                contentAreaRatio={0.5}
+                                hoverContentAreaRatio={0.8}
+                                overlayStartOpacity={1}
+                                overlayEndOpacity={0}
+                                onClick={() => onOpenEntry?.({id: entry.id, title: entry.title})}
+                            />
+                        )
+                    })}
+                    <button
+                        type="button"
+                        className="pe-entry-create-card"
+                        onClick={() => void onRequestCreateEntry?.(categoryId)}
+                    >
+                        <span className="pe-entry-create-card__plus">+</span>
+                        <span className="pe-entry-create-card__label">新建词条</span>
+                    </button>
+                </div>
             ) : (
                 <RollingBox className="pe-entries-scroll" thumbSize="thin">
                     <div className="pe-entry-grid">
@@ -247,18 +315,13 @@ function CategoryView({
                                 ? entryTypes.find((et) => entryTypeKey(et) === entry.type)
                                 : null
                             const coverSrc = toEntryCoverSrc(entry.cover)
-
                             return (
                                 <Card
                                     key={entry.id}
                                     className="pe-entry-card"
                                     imageSlot={(
                                         coverSrc ? (
-                                            <img
-                                                src={coverSrc}
-                                                alt={entry.title}
-                                                className="pe-entry-cover"
-                                            />
+                                            <img src={coverSrc} alt={entry.title} className="pe-entry-cover"/>
                                         ) : (
                                             <div
                                                 className="pe-entry-placeholder"
@@ -282,13 +345,10 @@ function CategoryView({
                                     )}
                                     title={entry.title}
                                     description={entry.summary || '这个词条还没有摘要，点击后可继续补充设定内容。'}
-                                    extraInfo={<div
-                                        className="pe-entry-date">更新于 {formatDate(entry.updated_at)}</div>}
+                                    extraInfo={<div className="pe-entry-date">更新于 {formatDate(entry.updated_at)}</div>}
                                     tag={entryType ? (
-                                        <span
-                                            className="pe-entry-type-badge"
-                                            style={{'--badge-color': entryType.color} as CSSProperties}
-                                        >
+                                        <span className="pe-entry-type-badge"
+                                              style={{'--badge-color': entryType.color} as CSSProperties}>
                                             <EntryTypeIcon entryType={entryType} className="pe-entry-type-badge-icon"/>
                                             {entryType.name}
                                         </span>

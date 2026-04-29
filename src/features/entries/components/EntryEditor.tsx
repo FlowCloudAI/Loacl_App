@@ -114,6 +114,7 @@ interface EntryDraft {
     summary: string
     content: string
     type: string | null
+    categoryId: string | null
     tags: Record<string, string | number | boolean | null>
     images: EntryImage[]
 }
@@ -133,6 +134,7 @@ function buildDraft(entry: Entry): EntryDraft {
         summary: entry.summary ?? '',
         content: normalizeEntryContent(entry),
         type: entry.type ?? null,
+        categoryId: entry.category_id ?? null,
         tags: buildTagValueMap(entry),
         images: normalizeEntryImages(entry.images),
     }
@@ -863,7 +865,7 @@ export default function EntryEditor({
         }
 
         try {
-            const duplicatedEntry = await findCategoryDuplicatedEntry(projectId, entry.category_id ?? null, trimmedTitle, entry.id)
+            const duplicatedEntry = await findCategoryDuplicatedEntry(projectId, draft.categoryId, trimmedTitle, entry.id)
             if (duplicatedEntry) {
                 const message = '当前分类下已存在同名词条，请更换标题。'
                 setError(message)
@@ -877,7 +879,7 @@ export default function EntryEditor({
 
             await db_update_entry({
                 id: entry.id,
-                categoryId: entry.category_id ?? null,
+                categoryId: draft.categoryId,
                 title: trimmedTitle,
                 summary: trimmedSummary || null,
                 content: normalizedContent === '' ? null : normalizedContent,

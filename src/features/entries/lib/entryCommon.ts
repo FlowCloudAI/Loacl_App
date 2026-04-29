@@ -24,7 +24,7 @@ export function buildTagValueMap(entry: Entry): Record<string, string | number |
     return Object.fromEntries((entry.tags ?? []).map((tag) => [tag.schema_id ?? tag.name ?? '', normalizeTagRuntimeValue(tag.value)]))
 }
 
-function normalizeTagRuntimeValue(value: unknown): string | number | boolean | null {
+export function normalizeTagRuntimeValue(value: unknown): string | number | boolean | null {
     if (value == null) return null
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
         return value

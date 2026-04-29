@@ -11,7 +11,6 @@ export interface Project {
     created_at?: string | null
     updated_at?: string | null
 
-    [key: string]: unknown
 }
 
 export interface Category {
@@ -23,7 +22,6 @@ export interface Category {
     created_at: string
     updated_at: string
 
-    [key: string]: unknown
 }
 
 export interface EntryTag {
@@ -31,7 +29,6 @@ export interface EntryTag {
     name?: string
     value: string | number | boolean | null
 
-    [key: string]: unknown
 }
 
 export interface FCImage {
@@ -41,7 +38,6 @@ export interface FCImage {
     caption?: string | null
     is_cover?: boolean
 
-    [key: string]: unknown
 }
 
 export interface Entry {
@@ -55,7 +51,6 @@ export interface Entry {
     tags?: EntryTag[] | null
     images?: FCImage[] | null
 
-    [key: string]: unknown
 }
 
 export interface EntryBrief {
@@ -68,7 +63,6 @@ export interface EntryBrief {
     cover?: string | null
     updated_at: string
 
-    [key: string]: unknown
 }
 
 export interface ProjectTimelineEvent {
@@ -81,7 +75,6 @@ export interface ProjectTimelineEvent {
     entryType?: string | null
     categoryId?: string | null
 
-    [key: string]: unknown
 }
 
 export interface ProjectStats {
@@ -96,7 +89,6 @@ export interface ProjectTimelineData {
     scannedEntryCount: number
     matchedEntryCount: number
 
-    [key: string]: unknown
 }
 
 export interface TagSchema {
@@ -111,7 +103,6 @@ export interface TagSchema {
     range_max?: number | null
     sort_order?: number | null
 
-    [key: string]: unknown
 }
 
 export type RelationDirection = 'one_way' | 'two_way'
@@ -122,7 +113,6 @@ export interface EntryLink {
     a_id: string
     b_id: string
 
-    [key: string]: unknown
 }
 
 export interface EntryRelation {
@@ -135,7 +125,6 @@ export interface EntryRelation {
     created_at: string
     updated_at: string
 
-    [key: string]: unknown
 }
 
 export interface CreateProjectInput {
