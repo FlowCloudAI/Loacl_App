@@ -233,6 +233,7 @@ pub async fn ai_start_contradiction_session(
         first_turn_tx,
     );
 
+    let resolved_model = request.model.clone().unwrap_or_else(|| "default".to_string());
     ai_state.sessions.lock().await.insert(
         request.session_id.clone(),
         crate::SessionEntry {
@@ -240,6 +241,8 @@ pub async fn ai_start_contradiction_session(
             input_tx: input_tx.clone(),
             handle,
             kind: AiSessionKind::Contradiction,
+            model: resolved_model,
+            plugin_id: request.plugin_id.clone(),
         },
     );
 
@@ -488,7 +491,7 @@ fn spawn_contradiction_event_loop<S>(
                         )
                         .ok();
                 }
-                SessionEvent::TurnEnd { status, node_id } => {
+                SessionEvent::TurnEnd { status, node_id, .. } => {
                     app_clone
                         .emit(
                             "ai:turn_end",
@@ -544,6 +547,7 @@ fn spawn_contradiction_event_loop<S>(
                     }
                     break;
                 }
+                SessionEvent::BranchChanged { .. } => {}
             }
         }
 

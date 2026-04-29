@@ -7,7 +7,7 @@ pub(super) use flowcloudai_client::llm::config::SessionConfig;
 pub(super) use flowcloudai_client::{
     image::ImageRequest, AudioDecoder, AudioSource, ConversationMeta, DefaultOrchestrator,
     ImageSession,
-    PluginKind, SessionEvent, StoredConversation, TaskContext, TurnStatus,
+    PluginKind, SessionEvent, StoredConversation, TaskContext, TurnStatus, Usage,
 };
 pub(super) use futures::StreamExt;
 pub(super) use serde::{Deserialize, Serialize};
@@ -140,6 +140,34 @@ pub(crate) async fn cleanup_session_state(app: &AppHandle, session_id: &str, run
     }
 }
 
+async fn save_api_usage(app: &AppHandle, session_id: &str, usage: &Usage) {
+    let model;
+    let plugin_id;
+    {
+        let ai_state = app.state::<AiState>();
+        let sessions = ai_state.sessions.lock().await;
+        let Some(entry) = sessions.get(session_id) else {
+            return;
+        };
+        model = entry.model.clone();
+        plugin_id = entry.plugin_id.clone();
+    }
+
+    let app_state = app.state::<crate::AppState>();
+    let db = app_state.sqlite_db.lock().await;
+    let input = worldflow_core::models::CreateApiUsageLog {
+        id: Uuid::new_v4().to_string(),
+        session_id: session_id.to_string(),
+        model,
+        provider: plugin_id,
+        modality: "llm".to_string(),
+        prompt_tokens: usage.prompt_tokens,
+        completion_tokens: usage.completion_tokens,
+        total_tokens: usage.total_tokens,
+    };
+    let _ = worldflow_core::insert_api_usage(&db.pool, &input).await;
+}
+
 pub(crate) fn spawn_session_event_loop<S>(
     app: AppHandle,
     session_id: String,
@@ -248,7 +276,7 @@ pub(crate) fn spawn_session_event_loop<S>(
                         )
                         .ok();
                 }
-                SessionEvent::TurnEnd { status, node_id } => {
+                SessionEvent::TurnEnd { status, node_id, usage } => {
                     log::info!(
                         "[ai:turn_end] session_id={} run_id={} status={} node_id={}",
                         sid,
@@ -256,6 +284,9 @@ pub(crate) fn spawn_session_event_loop<S>(
                         turn_status_str(&status),
                         node_id
                     );
+                    if let Some(ref u) = usage {
+                        save_api_usage(&app_clone, &sid, u).await;
+                    }
                     app_clone
                         .emit(
                             "ai:turn_end",
@@ -282,6 +313,7 @@ pub(crate) fn spawn_session_event_loop<S>(
                         .ok();
                     break;
                 }
+                SessionEvent::BranchChanged { .. } => {}
             }
         }
 

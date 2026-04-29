@@ -78,6 +78,7 @@ pub async fn ai_create_character_session(
 
     spawn_session_event_loop(app, input.session_id.clone(), run_id.clone(), event_stream);
 
+    let resolved_model = input.model.clone().unwrap_or_else(|| "default".to_string());
     ai_state.sessions.lock().await.insert(
         input.session_id.clone(),
         crate::SessionEntry {
@@ -85,6 +86,8 @@ pub async fn ai_create_character_session(
             input_tx,
             handle,
             kind: AiSessionKind::Character,
+            model: resolved_model,
+            plugin_id: input.plugin_id.clone(),
         },
     );
 

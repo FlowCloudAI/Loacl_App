@@ -76,6 +76,8 @@ pub(crate) struct SessionEntry {
     pub(crate) handle: SessionHandle,
     #[allow(dead_code)]
     pub(crate) kind: AiSessionKind,
+    pub(crate) model: String,
+    pub(crate) plugin_id: String,
 }
 
 /// AI 客户端全局状态（插件注册中心 + 活跃 LLM 会话）

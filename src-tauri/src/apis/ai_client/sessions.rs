@@ -45,6 +45,7 @@ pub async fn ai_create_llm_session(
     drop(client);
     session.set_orchestrator(Box::new(DefaultOrchestrator::new(registry)));
 
+    let resolved_model = model.clone().unwrap_or_else(|| "default".to_string());
     if let Some(m) = model {
         session.set_model(&m).await;
     }
@@ -79,6 +80,8 @@ pub async fn ai_create_llm_session(
             input_tx,
             handle,
             kind: AiSessionKind::General,
+            model: resolved_model,
+            plugin_id: plugin_id.clone(),
         },
     );
 
