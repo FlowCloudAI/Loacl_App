@@ -18,6 +18,7 @@ use apis::ai_client::media::*;
 use apis::ai_client::plugins::*;
 use apis::ai_client::sessions::*;
 use apis::ai_client::task_context::*;
+use apis::ai_client::usage::*;
 use apis::ai_client::tools::*;
 use apis::ai_contradiction::*;
 use apis::ai_summary::*;
@@ -317,6 +318,8 @@ pub fn run() {
             ai_save_character_conversation_meta,
             confirm_entry_edit,
             ai_set_task_context,
+            ai_get_usage_summary,
+            ai_get_usage_by_model,
             // App Settings
             setting_get_settings,
             setting_update_settings,

@@ -6,6 +6,7 @@ pub(crate) mod media;
 pub(crate) mod conversations;
 pub(crate) mod confirmations;
 pub(crate) mod task_context;
+pub(crate) mod usage;
 
 pub(crate) use common::{
     cleanup_session_state, spawn_session_event_loop, turn_status_str, CreateLlmSessionResult,

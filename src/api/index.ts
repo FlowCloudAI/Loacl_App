@@ -1,4 +1,5 @@
 export * from './ai_client'
+export * from './api_usage'
 export * from './app_settings'
 export * from './contradiction'
 export * from './idea_note'

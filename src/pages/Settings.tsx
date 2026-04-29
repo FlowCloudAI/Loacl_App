@@ -25,7 +25,11 @@ import {
     setting_get_settings,
     setting_has_api_key,
     setting_set_api_key,
-    setting_update_settings
+    setting_update_settings,
+    ai_get_usage_summary,
+    ai_get_usage_by_model,
+    type ApiUsageSummary,
+    type ApiUsageByModel,
 } from '../api'
 import {LocalPluginCard, MarketPluginCard} from '../features/plugins/PluginCard'
 import {buildTtsVoiceOptions, normalizeVoiceIdWithPlugin} from '../features/plugins/ttsVoice'
@@ -33,7 +37,7 @@ import UploadPlugin from '../features/plugins/UploadPlugin'
 import '../shared/ui/layout/WorkspaceScaffold.css'
 import './Settings.css'
 
-type SettingsTab = 'system' | 'ai'
+type SettingsTab = 'system' | 'ai' | 'usage'
 
 interface SettingsProps {
     onBack?: () => void
@@ -76,6 +80,36 @@ export default function Settings({onBack}: SettingsProps) {
     const [kindFilter, setKindFilter] = useState<'all' | 'llm' | 'image' | 'tts'>('all')
 
     const {setTheme} = useTheme();
+
+    // ── 用量统计状态 ──
+    const [usageSummary, setUsageSummary] = useState<ApiUsageSummary | null>(null)
+    const [usageByModel, setUsageByModel] = useState<ApiUsageByModel[]>([])
+    const [usageLoading, setUsageLoading] = useState(false)
+    const [usageError, setUsageError] = useState<string | null>(null)
+
+    const loadUsageStats = useCallback(async () => {
+        setUsageLoading(true)
+        setUsageError(null)
+        try {
+            const [summary, byModel] = await Promise.all([
+                ai_get_usage_summary(),
+                ai_get_usage_by_model(),
+            ])
+            setUsageSummary(summary)
+            setUsageByModel(byModel)
+        } catch (e) {
+            setUsageError(String(e))
+        } finally {
+            setUsageLoading(false)
+        }
+    }, [])
+
+    // 切换到用量统计 tab 时自动加载
+    useEffect(() => {
+        if (activeTab === 'usage') {
+            void loadUsageStats()
+        }
+    }, [activeTab, loadUsageStats])
 
     const closeIdleAiSessions = useCallback(async () => {
         try {
@@ -518,6 +552,12 @@ export default function Settings({onBack}: SettingsProps) {
                         >
                             AI配置
                         </button>
+                        <button
+                            className={`settings-sidebar-item ${activeTab === 'usage' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('usage')}
+                        >
+                            用量统计
+                        </button>
                     </aside>
                     <div className="settings-content" style={{padding: '20px'}}>加载中...</div>
                 </div>
@@ -593,6 +633,12 @@ export default function Settings({onBack}: SettingsProps) {
                         onClick={() => setActiveTab('ai')}
                     >
                         AI配置
+                    </button>
+                    <button
+                        className={`settings-sidebar-item ${activeTab === 'usage' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('usage')}
+                    >
+                        用量统计
                     </button>
                 </aside>
                 <RollingBox className="settings-scroll-area" thumbSize={'thin'}>
@@ -1114,6 +1160,111 @@ export default function Settings({onBack}: SettingsProps) {
                                     )}
                                 </div>
                             </section>
+                        </div>
+                    ) : activeTab === 'usage' ? (
+                        <div className="settings-container fc-page-shell fc-page-shell--narrow">
+                            <div className="settings-title fc-page-header">
+                                <div className="fc-page-title-block">
+                                    <h1 className="fc-page-title">用量统计</h1>
+                                    <p className="fc-page-subtitle">查看各个模型的 API 调用次数与 Token 消耗。</p>
+                                </div>
+                            </div>
+
+                            {usageLoading ? (
+                                <div className="settings-empty-state">加载中...</div>
+                            ) : usageError ? (
+                                <div className="settings-empty-state" style={{color: 'var(--fc-color-danger)'}}>
+                                    加载失败：{usageError}
+                                    <div style={{marginTop: 8}}>
+                                        <Button size="sm" variant="outline" onClick={loadUsageStats}>重试</Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* 总览卡片 */}
+                                    {usageSummary && (
+                                        <section className="settings-section fc-section-card">
+                                            <h2 className="settings-section-title fc-section-title">总览</h2>
+                                            <div className="usage-stats-grid">
+                                                <div className="usage-stat-card">
+                                                    <div className="usage-stat-value">
+                                                        {usageSummary.call_count.toLocaleString()}</div>
+                                                    <div className="usage-stat-label">API 调用次数</div>
+                                                </div>
+                                                <div className="usage-stat-card">
+                                                    <div className="usage-stat-value">
+                                                        {usageSummary.total_tokens.toLocaleString()}</div>
+                                                    <div className="usage-stat-label">总 Token 消耗</div>
+                                                </div>
+                                                <div className="usage-stat-card">
+                                                    <div className="usage-stat-value">
+                                                        {usageSummary.total_prompt_tokens.toLocaleString()}</div>
+                                                    <div className="usage-stat-label">Prompt Tokens</div>
+                                                </div>
+                                                <div className="usage-stat-card">
+                                                    <div className="usage-stat-value">
+                                                        {usageSummary.total_completion_tokens.toLocaleString()}</div>
+                                                    <div className="usage-stat-label">Completion Tokens</div>
+                                                </div>
+                                            </div>
+                                        </section>
+                                    )}
+
+                                    {/* 模型明细 */}
+                                    <section className="settings-section fc-section-card">
+                                        <h2 className="settings-section-title fc-section-title">按模型统计</h2>
+                                        {usageByModel.length === 0 ? (
+                                            <div className="settings-empty-state">
+                                                暂无记录。使用 AI 对话后将自动统计。
+                                            </div>
+                                        ) : (
+                                            <div className="usage-table-wrapper">
+                                                <table className="usage-table">
+                                                    <thead>
+                                                    <tr>
+                                                        <th>模型</th>
+                                                        <th>供应商</th>
+                                                        <th>类型</th>
+                                                        <th>调用次数</th>
+                                                        <th>Prompt Tokens</th>
+                                                        <th>Completion Tokens</th>
+                                                        <th>总 Tokens</th>
+                                                    </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                    {usageByModel.map((row, i) => (
+                                                        <tr key={i}>
+                                                            <td className="usage-model-name">{row.model}</td>
+                                                            <td>{row.provider}</td>
+                                                            <td>
+                                                                <span className={`usage-badge usage-badge--${row.modality}`}>
+                                                                    {row.modality === 'llm' ? '对话' :
+                                                                        row.modality === 'image' ? '图片' : '语音'}
+                                                                </span>
+                                                            </td>
+                                                            <td>{row.call_count.toLocaleString()}</td>
+                                                            <td>{row.prompt_tokens.toLocaleString()}</td>
+                                                            <td>{row.completion_tokens.toLocaleString()}</td>
+                                                            <td className="usage-total-col">
+                                                                {row.total_tokens.toLocaleString()}</td>
+                                                        </tr>
+                                                    ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </section>
+                                </>
+                            )}
+
+                            {/* 刷新按钮 */}
+                            {!usageLoading && !usageError && (
+                                <div className="settings-row" style={{marginTop: 8}}>
+                                    <Button size="sm" variant="outline" onClick={loadUsageStats}>
+                                        刷新数据
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     )}
                     </div>
