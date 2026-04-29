@@ -3,17 +3,15 @@ use super::common::*;
 /// 启用指定工具
 #[tauri::command]
 pub async fn ai_enable_tool(ai_state: State<'_, AiState>, name: String) -> Result<bool, String> {
-    let mut client = ai_state.client.lock().await;
-    let registry = client.tool_registry_mut().map_err(|e| e.to_string())?;
-    Ok(registry.enable_tool(&name))
+    let client = ai_state.client.lock().await;
+    Ok(client.tool_registry().enable_tool(&name))
 }
 
 /// 禁用指定工具
 #[tauri::command]
 pub async fn ai_disable_tool(ai_state: State<'_, AiState>, name: String) -> Result<bool, String> {
-    let mut client = ai_state.client.lock().await;
-    let registry = client.tool_registry_mut().map_err(|e| e.to_string())?;
-    Ok(registry.disable_tool(&name))
+    let client = ai_state.client.lock().await;
+    Ok(client.tool_registry().disable_tool(&name))
 }
 
 /// 查询工具是否启用
