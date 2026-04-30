@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {forwardRef, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Button, Timeline, type TimelineEvent} from 'flowcloudai-ui'
 import {
     db_list_timeline_events,
@@ -131,11 +131,126 @@ function BackArrow() {
     )
 }
 
+interface HorizontalEventStripProps extends React.HTMLAttributes<HTMLDivElement> {
+    children: React.ReactNode
+}
+
+const HorizontalEventStrip = forwardRef<HTMLDivElement, HorizontalEventStripProps>(function HorizontalEventStrip(
+    {children, className, ...props},
+    ref,
+) {
+    const containerRef = useRef<HTMLDivElement | null>(null)
+    const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const animationFrameRef = useRef<number | null>(null)
+    const targetScrollLeftRef = useRef<number | null>(null)
+    const [isScrolling, setIsScrolling] = useState(false)
+
+    const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+        containerRef.current = node
+        if (!ref) return
+        if (typeof ref === 'function') {
+            ref(node)
+            return
+        }
+        ref.current = node
+    }, [ref])
+
+    useEffect(() => {
+        const container = containerRef.current
+        if (!container) return
+
+        const handleScroll = () => {
+            setIsScrolling(true)
+            if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current)
+            }
+            scrollTimeoutRef.current = setTimeout(() => {
+                setIsScrolling(false)
+            }, 1000)
+        }
+
+        const clampTarget = (value: number) => {
+            const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
+            return Math.min(Math.max(0, value), maxScrollLeft)
+        }
+
+        const animate = () => {
+            const target = targetScrollLeftRef.current
+            if (target === null) {
+                animationFrameRef.current = null
+                return
+            }
+
+            const current = container.scrollLeft
+            const diff = target - current
+            if (Math.abs(diff) < 0.5) {
+                container.scrollLeft = target
+                targetScrollLeftRef.current = null
+                animationFrameRef.current = null
+                return
+            }
+
+            container.scrollLeft = current + diff * 0.18
+            animationFrameRef.current = requestAnimationFrame(animate)
+        }
+
+        const handleWheel = (event: WheelEvent) => {
+            const rawDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+            if (rawDelta === 0) return
+            event.preventDefault()
+
+            const delta = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+                ? rawDelta * 16
+                : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+                    ? rawDelta * container.clientWidth
+                    : rawDelta
+
+            const currentTarget = targetScrollLeftRef.current ?? container.scrollLeft
+            targetScrollLeftRef.current = clampTarget(currentTarget + delta)
+
+            if (animationFrameRef.current === null) {
+                animationFrameRef.current = requestAnimationFrame(animate)
+            }
+        }
+
+        container.addEventListener('wheel', handleWheel, {passive: false})
+        container.addEventListener('scroll', handleScroll, {passive: true})
+        return () => {
+            container.removeEventListener('wheel', handleWheel)
+            container.removeEventListener('scroll', handleScroll)
+            if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current)
+                scrollTimeoutRef.current = null
+            }
+            if (animationFrameRef.current !== null) {
+                cancelAnimationFrame(animationFrameRef.current)
+                animationFrameRef.current = null
+            }
+            targetScrollLeftRef.current = null
+        }
+    }, [])
+
+    return (
+        <div
+            ref={setContainerRef}
+            className={['project-timeline__event-strip', isScrolling && 'is-scrolling', className].filter(Boolean).join(' ')}
+            {...props}
+        >
+            <div className="project-timeline__event-strip-content">
+                {children}
+            </div>
+        </div>
+    )
+})
+
 export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEntry}: ProjectTimelineProps) {
     const [data, setData] = useState<ProjectTimelineData | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<Error | null>(null)
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+    const eventStripRef = useRef<HTMLDivElement | null>(null)
+    const eventItemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+    const shouldSyncEventStripRef = useRef(false)
 
     const matchedSchemaNames = useMemo(() => {
         const groups: Record<TimelineTagRole, string[]> = {
@@ -205,6 +320,7 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
                 : Math.min(events.length - 1, currentIndex + 1)
 
             if (nextIndex !== currentIndex) {
+                shouldSyncEventStripRef.current = false
                 setSelectedEventId(events[nextIndex].id)
             }
         }
@@ -212,6 +328,47 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [events, selectedEventId])
+
+    useEffect(() => {
+        if (!selectedEventId) return
+        if (!shouldSyncEventStripRef.current) return
+        const container = eventStripRef.current
+        const target = eventItemRefs.current[selectedEventId]
+        shouldSyncEventStripRef.current = false
+        if (!container || !target) return
+        const frameId = requestAnimationFrame(() => {
+            const targetLeft = target.offsetLeft
+            const targetRight = targetLeft + target.offsetWidth
+            const visibleLeft = container.scrollLeft
+            const visibleRight = visibleLeft + container.clientWidth
+
+            if (targetLeft >= visibleLeft && targetRight <= visibleRight) {
+                return
+            }
+
+            const containerWidth = container.clientWidth
+            const maxScrollLeft = Math.max(0, container.scrollWidth - containerWidth)
+            const targetCenter = targetLeft + target.offsetWidth / 2
+            const nextScrollLeft = Math.min(
+                maxScrollLeft,
+                Math.max(0, targetCenter - containerWidth / 2),
+            )
+
+            if (Math.abs(container.scrollLeft - nextScrollLeft) < 1) return
+
+            container.scrollTo({
+                left: nextScrollLeft,
+                behavior: 'smooth',
+            })
+        })
+        return () => cancelAnimationFrame(frameId)
+    }, [selectedEventId, events])
+
+    const handleTimelineSelect = useCallback((eventId: string) => {
+        if (eventId === selectedEventId) return
+        shouldSyncEventStripRef.current = true
+        setSelectedEventId(eventId)
+    }, [selectedEventId])
 
     const timelineEvents = useMemo<TimelineEvent[]>(
         () => events.map((event) => ({
@@ -302,27 +459,40 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
                     </div>
                 </div>
             ) : (
-                <div className="fc-op-body">
-                    {/* ── Sidebar: Event List ── */}
-                    <div className="fc-op-sidebar">
-                        <div className="fc-op-sidebar__header">
-                            <span className="fc-op-sidebar__title">事件列表</span>
+                <div className="project-timeline__layout">
+                    <section className="project-timeline__event-panel">
+                        <div className="project-timeline__section-header">
+                            <div className="project-timeline__section-heading">
+                                <span className="project-timeline__section-title">事件列表</span>
+                                <span className="project-timeline__section-copy">按时间顺序浏览事件，点击后下方时间线会同步聚焦。</span>
+                            </div>
                             <span className="fc-op-count">
                                 {selectedEvent
                                     ? `${events.findIndex((event) => event.id === selectedEvent.id) + 1} / ${events.length}`
                                     : `0 / ${events.length}`}
                             </span>
                         </div>
-                        <div className="fc-op-sidebar__body">
-                            {events.map((event) => {
+                        <HorizontalEventStrip
+                            ref={eventStripRef}
+                            role="list"
+                            aria-label="时间线事件列表"
+                        >
+                            {events.map((event, index) => {
                                 const isSelected = event.id === selectedEventId
                                 return (
                                     <button
                                         key={event.id}
                                         type="button"
+                                        ref={(node) => {
+                                            eventItemRefs.current[event.id] = node
+                                        }}
                                         className={`project-timeline__event-item fc-op-item${isSelected ? ' is-active' : ''}`}
-                                        onClick={() => setSelectedEventId(event.id)}
+                                        onClick={() => {
+                                            shouldSyncEventStripRef.current = false
+                                            setSelectedEventId(event.id)
+                                        }}
                                     >
+                                        <span className="project-timeline__event-order">{index + 1}</span>
                                         <div className="fc-op-item__content">
                                             <span className="fc-op-item__title">{event.title}</span>
                                             <span className="fc-op-item__meta">{formatRange(event)}</span>
@@ -339,21 +509,31 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
                                     </button>
                                 )
                             })}
-                        </div>
-                    </div>
+                        </HorizontalEventStrip>
+                    </section>
 
-                    {/* ── Viewport: Timeline ── */}
-                    <div className="fc-op-viewport">
+                    <section className="project-timeline__timeline-panel">
+                        <div className="project-timeline__section-header project-timeline__section-header--timeline">
+                            <div className="project-timeline__section-heading">
+                                <span className="project-timeline__section-title">时间线视图</span>
+                                <span className="project-timeline__section-copy">支持使用左右方向键切换当前聚焦事件。</span>
+                            </div>
+                            {selectedEvent && (
+                                <span className="project-timeline__selected-meta">
+                                    当前：{selectedEvent.title} · {formatRange(selectedEvent)}
+                                </span>
+                            )}
+                        </div>
                         <div className="project-timeline__timeline-shell">
                             <Timeline
                                 events={timelineEvents}
                                 yearStart={data?.yearStart ?? Math.min(...timelineEvents.map((event) => event.startTime))}
                                 yearEnd={data?.yearEnd ?? Math.max(...timelineEvents.map((event) => event.endTime ?? event.startTime))}
                                 selectedEventId={selectedEventId}
-                                onEventSelect={setSelectedEventId}
+                                onEventSelect={handleTimelineSelect}
                             />
                         </div>
-                    </div>
+                    </section>
                 </div>
             )}
         </div>
