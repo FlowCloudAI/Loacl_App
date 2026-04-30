@@ -13,10 +13,10 @@ pub struct AppSettings {
     /// None = 使用默认 Documents/FlowCloudAI
     pub media_dir: Option<String>,
     /// 数据库文件目录
-    /// None = Windows 使用程序运行目录，其他平台使用 app_data_dir()
+    /// None = Windows 使用 Documents/FlowCloudAI，其他平台使用 app_data_dir()
     pub db_path: Option<String>,
     /// 插件目录
-    /// None = Windows 使用程序运行目录/plugins，其他平台使用 app_data_dir()/plugins
+    /// None = Windows 使用 Documents/FlowCloudAI/plugins，其他平台使用 app_data_dir()/plugins
     pub plugins_path: Option<String>,
 
     // ── 外观 ──────────────────────────────

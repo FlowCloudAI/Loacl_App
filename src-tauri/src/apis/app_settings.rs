@@ -4,16 +4,28 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 
 /// 返回平台默认的数据根目录。
-/// - Windows：可执行文件所在目录
+/// - Windows：Documents/FlowCloudAI（若 exe 目录已有旧数据则沿用，保证迁移不丢数据）
 /// - 其他平台：app_data_dir()
 pub(crate) fn default_data_root(app: &AppHandle) -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        let _ = app;
-        std::env::current_exe()
+        let legacy_root = std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            .unwrap_or_else(|| std::env::current_dir().unwrap())
+            .unwrap_or_else(|| std::env::current_dir().unwrap());
+
+        // 如果 exe 目录下已有旧数据，沿用旧目录，避免迁移丢数据
+        if legacy_root.join("db").join("main.db").exists()
+            || legacy_root.join("plugins").exists()
+        {
+            return legacy_root;
+        }
+
+        // 新安装：使用 Documents/FlowCloudAI
+        app.path()
+            .document_dir()
+            .map(|p| p.join("FlowCloudAI"))
+            .unwrap_or(legacy_root)
     }
     #[cfg(not(target_os = "windows"))]
     {
