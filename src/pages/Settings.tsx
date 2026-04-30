@@ -289,6 +289,7 @@ export default function Settings({onBack}: SettingsProps) {
 
         const timer = setTimeout(async () => {
             try {
+                // 新 API 返回迁移摘要字符串（路径变更时自动复制文件），非空则弹窗提示
                 const migrationMsg = await setting_update_settings(settings)
                 const newMediaDir = await setting_get_media_dir()
                 setMediaDir(newMediaDir)
