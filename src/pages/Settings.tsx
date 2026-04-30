@@ -289,9 +289,12 @@ export default function Settings({onBack}: SettingsProps) {
 
         const timer = setTimeout(async () => {
             try {
-                await setting_update_settings(settings)
+                const migrationMsg = await setting_update_settings(settings)
                 const newMediaDir = await setting_get_media_dir()
                 setMediaDir(newMediaDir)
+                if (migrationMsg) {
+                    await showAlert(migrationMsg, 'info', 'toast', 3500)
+                }
             } catch (error) {
                 console.error('自动保存失败:', error)
             }

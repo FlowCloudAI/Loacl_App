@@ -44,7 +44,7 @@ export interface DefaultPaths {
 export const setting_get_settings = () => command<AppSettings>('setting_get_settings')
 
 export const setting_update_settings = (newSettings: AppSettings) =>
-  command<void>('setting_update_settings', { newSettings })
+  command<string>('setting_update_settings', { newSettings })
 
 export const setting_get_media_dir = () => command<string>('setting_get_media_dir')
 

@@ -74,21 +74,90 @@ pub async fn setting_get_settings(
     Ok(settings.clone())
 }
 
-/// 覆盖全部设置并持久化到 settings.json
+/// 覆盖全部设置并持久化到 settings.json。
+/// 若 db_path / plugins_path 发生变更，自动将旧目录下的文件复制到新目录。
+/// 返回迁移摘要（无变更时为空字符串）。
 #[tauri::command]
 pub async fn setting_update_settings(
     app: AppHandle,
     state: State<'_, SettingsState>,
     new_settings: AppSettings,
-) -> Result<(), String> {
+) -> Result<String, String> {
     // 同步搜索引擎状态（供 AI 工具实时读取）
     if let Some(se_state) = app.try_state::<SearchEngineState>() {
         *se_state.engine.lock().await = new_settings.search_engine.clone();
     }
 
     let mut s = state.settings.lock().await;
-    *s = new_settings;
-    s.save(&state.path).map_err(|e| e.to_string())
+    let old_db = s.db_path.clone();
+    let old_plugins = s.plugins_path.clone();
+
+    *s = new_settings.clone();
+    s.save(&state.path).map_err(|e| e.to_string())?;
+
+    // 路径变更后自动迁移文件
+    let mut messages: Vec<String> = Vec::new();
+
+    // 数据库目录迁移
+    if let (Some(old_path), Some(new_path)) = (&old_db, &new_settings.db_path) {
+        let old_p = PathBuf::from(old_path);
+        let new_p = PathBuf::from(new_path);
+        if old_p != new_p && old_p.exists() {
+            match copy_dir_if_empty(&old_p, &new_p) {
+                Ok(n) if n > 0 => {
+                    messages.push(format!("数据库文件已复制到新位置（{} 个文件）", n));
+                }
+                Err(e) => {
+                    log::warn!("数据库目录迁移失败: {}", e);
+                    messages.push(format!("数据库迁移失败：{}，原文件仍在旧目录", e));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // 插件目录迁移
+    if let (Some(old_path), Some(new_path)) = (&old_plugins, &new_settings.plugins_path) {
+        let old_p = PathBuf::from(old_path);
+        let new_p = PathBuf::from(new_path);
+        if old_p != new_p && old_p.exists() {
+            match copy_dir_if_empty(&old_p, &new_p) {
+                Ok(n) if n > 0 => {
+                    messages.push(format!("插件文件已复制到新位置（{} 个文件）", n));
+                }
+                Err(e) => {
+                    log::warn!("插件目录迁移失败: {}", e);
+                    messages.push(format!("插件迁移失败：{}，原文件仍在旧目录", e));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(messages.join("；"))
+}
+
+/// 递归复制 src 到 dst，如果 dst 已有文件则跳过。
+/// 返回实际复制的文件数。
+fn copy_dir_if_empty(src: &PathBuf, dst: &PathBuf) -> std::io::Result<u64> {
+    if !src.exists() {
+        return Ok(0);
+    }
+    std::fs::create_dir_all(dst)?;
+    let mut count = 0u64;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let src_path = entry.path();
+        let dst_path = dst.join(&name);
+        if src_path.is_dir() {
+            count += copy_dir_if_empty(&src_path, &dst_path)?;
+        } else if !dst_path.exists() {
+            std::fs::copy(&src_path, &dst_path)?;
+            count += 1;
+        }
+    }
+    Ok(count)
 }
 
 /// 返回当前生效的媒体根目录（有自定义路径则用它，否则 fallback 到 Documents/FlowCloudAI）
@@ -103,7 +172,7 @@ pub async fn setting_get_media_dir(
         return Ok(dir.clone());
     }
 
-    // fallback：Documents/FlowCloudAI
+    // 后备：Documents/FlowCloudAI
     let dir = app
         .path()
         .document_dir()
