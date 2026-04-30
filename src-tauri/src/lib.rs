@@ -149,6 +149,7 @@ pub fn run() {
             // HTTP 客户端（连接池在进程生命周期内共享）
             app.manage(NetworkState::new());
             app.manage(LayoutCacheState::new());
+            app.manage(BackendReadyState::new());
 
             // 加载设置
             let settings_path = app_handle
@@ -244,6 +245,9 @@ pub fn run() {
                                     app.manage(ai_state);
                                 }
                                 Err(e) => log::warn!("AI 客户端初始化失败（无插件）: {}", e),
+                            }
+                            if let Some(ready_state) = app.try_state::<BackendReadyState>() {
+                                ready_state.mark_ready();
                             }
                             app.emit("backend-ready", ()).ok();
                         }) {
@@ -362,6 +366,7 @@ pub fn run() {
             setting_update_settings,
             setting_get_media_dir,
             setting_get_default_paths,
+            setting_is_backend_ready,
             setting_set_api_key,
             setting_has_api_key,
             setting_delete_api_key,

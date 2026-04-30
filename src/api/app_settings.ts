@@ -51,6 +51,9 @@ export const setting_get_media_dir = () => command<string>('setting_get_media_di
 export const setting_get_default_paths = () =>
   command<DefaultPaths>('setting_get_default_paths')
 
+export const setting_is_backend_ready = () =>
+    command<boolean>('setting_is_backend_ready')
+
 export const setting_set_api_key = (pluginId: string, apiKey: string) =>
   command<void>('setting_set_api_key', { pluginId, apiKey })
 

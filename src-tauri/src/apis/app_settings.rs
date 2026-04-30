@@ -1,4 +1,4 @@
-use crate::state::SearchEngineState;
+use crate::state::{BackendReadyState, SearchEngineState};
 use crate::{ApiKeyStore, AppSettings, SettingsState};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
@@ -196,6 +196,15 @@ pub fn setting_get_default_paths(app: AppHandle) -> Result<DefaultPaths, String>
         db_path: data_root.join("db").to_string_lossy().to_string(),
         plugins_path: data_root.join("plugins").to_string_lossy().to_string(),
     })
+}
+
+/// 返回后端核心状态是否已经就绪。
+/// 前端启动时会先监听 `backend-ready`，再主动查询一次，避免错过早发事件后永久卡在启动页。
+#[tauri::command]
+pub fn setting_is_backend_ready(app: AppHandle) -> bool {
+    app.try_state::<BackendReadyState>()
+        .map(|state| state.is_ready())
+        .unwrap_or(false)
 }
 
 // ── API Key 管理 ──────────────────────────────────────────────────────────────

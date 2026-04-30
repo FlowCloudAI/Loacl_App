@@ -3,6 +3,7 @@ use anyhow::Result;
 use flowcloudai_client::{FlowCloudAIClient, SessionHandle};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, Mutex};
 use worldflow_core::SqliteDb;
@@ -26,6 +27,30 @@ impl NetworkState {
         Self {
             client: reqwest::Client::new(),
         }
+    }
+}
+
+// ── 启动就绪状态 ───────────────────────────────────────────────────────────────
+
+/// 标记后端是否已经完成主线程状态注入。
+/// 仅在 AppState / PathsState / PendingEditsState / AiState 初始化流程完成后置为 true。
+pub struct BackendReadyState {
+    ready: AtomicBool,
+}
+
+impl BackendReadyState {
+    pub fn new() -> Self {
+        Self {
+            ready: AtomicBool::new(false),
+        }
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.ready.load(Ordering::SeqCst)
+    }
+
+    pub fn mark_ready(&self) {
+        self.ready.store(true, Ordering::SeqCst)
     }
 }
 

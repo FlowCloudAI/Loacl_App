@@ -14,7 +14,7 @@ import {
     ai_save_character_conversation_meta,
     ai_set_task_context,
     ai_update_session,
-    setting_get_settings,
+    type AppSettings,
     type Category,
     type CharacterChatCategorySnapshot,
     type CharacterChatEntrySnapshot,
@@ -34,6 +34,7 @@ import {
     type EntryTag,
     type EntryUpdatedEvent,
     type PluginInfo,
+    setting_get_settings,
     type StoredMessage,
     type TagSchema,
     type TaskContextPayload,
@@ -478,6 +479,14 @@ export function useAiController(focus: AiFocus): AiContextValue {
     const [plugins, setPlugins] = useState<PluginInfo[]>([])
     const [selectedPlugin, setSelectedPlugin] = useState('')
     const [selectedModel, setSelectedModel] = useState('')
+    const selectedPluginRef = useRef(selectedPlugin)
+    const selectedModelRef = useRef(selectedModel)
+    useEffect(() => {
+        selectedPluginRef.current = selectedPlugin
+    }, [selectedPlugin])
+    useEffect(() => {
+        selectedModelRef.current = selectedModel
+    }, [selectedModel])
 
     const [conversations, setConversations] = useState<Conversation[]>([])
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
@@ -514,6 +523,54 @@ export function useAiController(focus: AiFocus): AiContextValue {
     useEffect(() => {
         activeConversationRef.current = activeConversation
     }, [activeConversation])
+
+    const syncPluginSelection = useCallback((pluginList: PluginInfo[], settings: AppSettings | null) => {
+        setPlugins(pluginList)
+
+        const preferredPluginId = activeConversationRef.current?.pluginId
+            || selectedPluginRef.current
+            || settings?.llm?.plugin_id
+            || ''
+        const nextPlugin = pluginList.find((plugin) => plugin.id === preferredPluginId)
+            ?? pluginList[0]
+            ?? null
+        const nextPluginId = nextPlugin?.id ?? ''
+
+        setSelectedPlugin(nextPluginId)
+
+        if (!nextPlugin) {
+            setSelectedModel('')
+            return
+        }
+
+        const preferredModel = activeConversationRef.current?.model
+            || selectedModelRef.current
+            || settings?.llm?.default_model
+            || ''
+        const nextModel = preferredModel && nextPlugin.models.includes(preferredModel)
+            ? preferredModel
+            : (nextPlugin.default_model ?? nextPlugin.models[0] ?? '')
+
+        setSelectedModel(nextModel)
+    }, [])
+
+    const refreshAiSidebarState = useCallback(async (includeTools = false) => {
+        const [pluginList, settings, fetchedTools] = await Promise.all([
+            ai_list_plugins('llm'),
+            setting_get_settings().catch(() => null),
+            includeTools ? ai_list_tools() : Promise.resolve(null),
+        ])
+
+        syncPluginSelection(pluginList, settings)
+
+        if (fetchedTools) {
+            const enableOps = fetchedTools.map((tool) => ai_enable_tool(tool.name))
+            void Promise.all(enableOps)
+            setTools(fetchedTools.map((tool) => ({...tool, enabled: true})))
+            setWebSearchEnabled(true)
+            setEditModeEnabled(true)
+        }
+    }, [syncPluginSelection])
 
     const activeConversationIdRef = useRef(activeConversationId)
     useEffect(() => {
@@ -694,47 +751,35 @@ export function useAiController(focus: AiFocus): AiContextValue {
 
     useEffect(() => {
         let mounted = true
-        Promise.all([
-            ai_list_plugins('llm'),
-            setting_get_settings().catch(() => null),
-            ai_list_tools(),
-        ]).then(([pluginList, settings, fetched]) => {
+        refreshAiSidebarState(true).catch((error) => {
             if (!mounted) return
-            setPlugins(pluginList)
-
-            const defaultPluginId = settings?.llm?.plugin_id
-            const validPlugin = defaultPluginId
-                ? pluginList.find((p) => p.id === defaultPluginId)
-                : null
-            const initialPlugin = validPlugin ?? pluginList[0] ?? null
-
-            if (initialPlugin) {
-                setSelectedPlugin(initialPlugin.id)
-                const defaultModel = settings?.llm?.default_model
-                const validModel = defaultModel && initialPlugin.models.includes(defaultModel)
-                    ? defaultModel
-                    : (initialPlugin.default_model ?? initialPlugin.models[0] ?? '')
-                if (validModel) setSelectedModel(validModel)
-            }
-
-            const enableOps = fetched.map((tool) => ai_enable_tool(tool.name))
-            void Promise.all(enableOps)
-            setTools(fetched.map((tool) => ({...tool, enabled: true})))
-            setWebSearchEnabled(true)
-            setEditModeEnabled(true)
-        }).catch(console.error)
+            console.error('初始化 AI 侧栏状态失败', error)
+        })
         return () => {
             mounted = false
         }
-    }, [])
+    }, [refreshAiSidebarState])
 
     useEffect(() => {
         const handler = () => {
-            ai_list_plugins('llm').then(setPlugins).catch(console.error)
+            refreshAiSidebarState(false).catch((error) => {
+                console.error('插件变更后刷新 AI 插件列表失败', error)
+            })
         }
         window.addEventListener('fc:plugins-changed', handler)
         return () => window.removeEventListener('fc:plugins-changed', handler)
-    }, [])
+    }, [refreshAiSidebarState])
+
+    useEffect(() => {
+        const unlisten = listen('backend-ready', () => {
+            refreshAiSidebarState(true).catch((error) => {
+                console.error('后端就绪后刷新 AI 侧栏状态失败', error)
+            })
+        })
+        return () => {
+            unlisten.then((fn) => fn())
+        }
+    }, [refreshAiSidebarState])
 
     useEffect(() => {
         let mounted = true

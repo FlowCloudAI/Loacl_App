@@ -181,7 +181,7 @@ export default function SnapshotPanel({
                 ? await dbSnapshotWithMessage(trimmedMessage)
                 : await dbSnapshot()
             setMessage('')
-            void showAlert(created ? '快照已创建' : '没有新变更，无需快照', created ? 'success' : 'info', 'nonInvasive')
+            void showAlert(created ? '快照已创建' : '没有新变更，无需快照', created ? 'success' : 'info', 'nonInvasive', 2200)
             if (created) await load()
         } catch (error) {
             console.error('创建快照失败', error)
@@ -201,7 +201,7 @@ export default function SnapshotPanel({
         try {
             await dbCreateBranch(trimmedName)
             setNewBranchName('')
-            void showAlert('分支已创建', 'success', 'nonInvasive')
+            void showAlert('分支已创建', 'success', 'nonInvasive', 2200)
             await load()
         } catch (error) {
             console.error('创建分支失败', error)
@@ -222,7 +222,7 @@ export default function SnapshotPanel({
         setBranchSwitching(true)
         try {
             await dbSwitchBranch(branchName)
-            void showAlert(`已切换到分支「${branchName}」`, 'success', 'nonInvasive')
+            void showAlert(`已切换到分支「${branchName}」`, 'success', 'nonInvasive', 2200)
             await load()
         } catch (error) {
             console.error('切换分支失败', error)
@@ -243,7 +243,7 @@ export default function SnapshotPanel({
         setActionId(snapshot.id)
         try {
             await dbRollbackTo(snapshot.id)
-            void showAlert('回退成功', 'success', 'nonInvasive')
+            void showAlert('回退成功', 'success', 'nonInvasive', 2200)
             await load()
         } catch (error) {
             console.error('回退失败', error)
@@ -274,7 +274,7 @@ export default function SnapshotPanel({
                 result.entryTypes && `类型 ${result.entryTypes}`,
                 result.ideaNotes && `便签 ${result.ideaNotes}`,
             ].filter(Boolean)
-            void showAlert(parts.length > 0 ? `已恢复: ${parts.join(', ')}` : '无新增记录', 'success', 'nonInvasive')
+            void showAlert(parts.length > 0 ? `已恢复: ${parts.join(', ')}` : '无新增记录', 'success', 'nonInvasive', 2200)
             await load()
         } catch (error) {
             console.error('追加恢复失败', error)

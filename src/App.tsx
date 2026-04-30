@@ -1,6 +1,7 @@
 import './App.css'
 import "./api"
 import {Button, SideBar, type SideBarItem, TabBar, type TabItem, useAlert} from 'flowcloudai-ui'
+import {type Project, setting_is_backend_ready} from "./api";
 import type {AiFocus} from './features/ai-chat/hooks/useAiController'
 import {useAiController} from './features/ai-chat/hooks/useAiController'
 import {getCurrentWindow} from "@tauri-apps/api/window";
@@ -10,7 +11,6 @@ import ProjectList from "./pages/ProjectList.tsx";
 import ProjectEditor from "./pages/ProjectEditor";
 import Settings from "./pages/Settings";
 import Idea from "./pages/Idea";
-import type {Project} from "./api";
 import AIChatContent from "./features/ai-chat/components/AIChatContent";
 import DockableSidePanel from "./shared/ui/layout/DockableSidePanel";
 import SnapshotPanel from "./features/snapshots/components/SnapshotPanel";
@@ -38,6 +38,7 @@ function App() {
     const win = getCurrentWindow();
     const {showAlert} = useAlert()
     const initializedTabsRef = useRef(false)
+    const windowClosingRef = useRef(false)
 
     const [isMaximized, setIsMaximized] = useState(false);
     useEffect(() => {
@@ -76,8 +77,26 @@ function App() {
     const [backendReady, setBackendReady] = useState(false)
 
     useEffect(() => {
-        const p = listen('backend-ready', () => setBackendReady(true))
-        return () => { p.then(fn => fn()) }
+        let disposed = false
+
+        const markBackendReady = () => {
+            if (!disposed) setBackendReady(true)
+        }
+
+        const p = listen('backend-ready', markBackendReady)
+
+        setting_is_backend_ready()
+            .then((ready) => {
+                if (ready) markBackendReady()
+            })
+            .catch((error) => {
+                console.warn('检查后端启动状态失败', error)
+            })
+
+        return () => {
+            disposed = true
+            p.then(fn => fn())
+        }
     }, [])
 
     useEffect(() => {
@@ -373,6 +392,8 @@ function App() {
 
     // 窗口关闭（右上角 X / Alt+F4 / 任务栏关闭均会触发 close-requested）
     const handleWindowClose = useCallback(async () => {
+        if (windowClosingRef.current) return
+
         const dirtyEntryKeys = Object.keys(entryDirtyMap).filter(k => entryDirtyMap[k])
         if (dirtyEntryKeys.length > 0) {
             const message = dirtyEntryKeys.length === 1
@@ -381,11 +402,19 @@ function App() {
             const res = await showAlert(message, 'warning', 'confirm')
             if (res !== 'yes') return
         }
-        await win.close()
+
+        windowClosingRef.current = true
+        try {
+            await win.close()
+        } catch (error) {
+            windowClosingRef.current = false
+            throw error
+        }
     }, [entryDirtyMap, showAlert, win])
 
     useEffect(() => {
         const p = win.onCloseRequested(async (event) => {
+            if (windowClosingRef.current) return
             event.preventDefault()
             await handleWindowClose()
         })
