@@ -371,6 +371,27 @@ function App() {
         }
     }, [activeKey, entryDirtyMap, entryTabMap, projectTabMap, showAlert, showHomeWorkspace, tabs, toolTabMap, touchRecentPage]);
 
+    // 窗口关闭（右上角 X / Alt+F4 / 任务栏关闭均会触发 close-requested）
+    const handleWindowClose = useCallback(async () => {
+        const dirtyEntryKeys = Object.keys(entryDirtyMap).filter(k => entryDirtyMap[k])
+        if (dirtyEntryKeys.length > 0) {
+            const message = dirtyEntryKeys.length === 1
+                ? '当前词条有未保存更改，关闭窗口会丢失这些修改。是否继续关闭？'
+                : `有 ${dirtyEntryKeys.length} 个词条存在未保存更改，关闭窗口后会丢失这些修改。是否继续关闭？`
+            const res = await showAlert(message, 'warning', 'confirm')
+            if (res !== 'yes') return
+        }
+        await win.close()
+    }, [entryDirtyMap, showAlert, win])
+
+    useEffect(() => {
+        const p = win.onCloseRequested(async (event) => {
+            event.preventDefault()
+            await handleWindowClose()
+        })
+        return () => { p.then(fn => fn()) }
+    }, [handleWindowClose, win])
+
     const handleSideBarSelect = useCallback((key: string) => {
         if (key === 'idea' || key === 'ai-chat' || key === 'snapshot') {
             if (!aiPanelCollapsed && sidePanelContentKey === key) {
@@ -622,7 +643,7 @@ function App() {
                     <Button
                         className="window-control-btn window-control-btn--danger"
                         variant="ghost"
-                        onClick={() => win.close()}
+                        onClick={handleWindowClose}
                         hoverBackground={"#aa1111"}
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
