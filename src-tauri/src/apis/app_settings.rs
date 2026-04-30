@@ -4,28 +4,35 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 
 /// 返回平台默认的数据根目录。
-/// - Windows：Documents/FlowCloudAI（若 exe 目录已有旧数据则沿用，保证迁移不丢数据）
+/// - Windows：若 exe 在 C 盘（系统盘，可能不可写）则用 Documents/FlowCloudAI；
+///   若 exe 在其他盘（便携安装）则沿用 exe 目录。
 /// - 其他平台：app_data_dir()
 pub(crate) fn default_data_root(app: &AppHandle) -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        let legacy_root = std::env::current_exe()
+        let exe_dir = std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|p| p.to_path_buf()))
             .unwrap_or_else(|| std::env::current_dir().unwrap());
 
-        // 如果 exe 目录下已有旧数据，沿用旧目录，避免迁移丢数据
-        if legacy_root.join("db").join("main.db").exists()
-            || legacy_root.join("plugins").exists()
-        {
-            return legacy_root;
-        }
+        let on_c_drive = exe_dir
+            .to_str()
+            .map(|s| {
+                let lower = s.to_lowercase();
+                lower.starts_with("c:") || lower.starts_with("\\\\?\\c:")
+            })
+            .unwrap_or(true); // 路径无效时假定在 C 盘，保守使用 Documents
 
-        // 新安装：使用 Documents/FlowCloudAI
-        app.path()
-            .document_dir()
-            .map(|p| p.join("FlowCloudAI"))
-            .unwrap_or(legacy_root)
+        if on_c_drive {
+            // 可能在 Program Files 等受保护目录 → 用 Documents
+            app.path()
+                .document_dir()
+                .map(|p| p.join("FlowCloudAI"))
+                .unwrap_or(exe_dir)
+        } else {
+            // 非系统盘 → 便携安装，直接用 exe 目录
+            exe_dir
+        }
     }
     #[cfg(not(target_os = "windows"))]
     {
