@@ -5,7 +5,7 @@ use {
     std::sync::mpsc,
     webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2_3,
     webview2_com::TrySuspendCompletedHandler,
-    windows::core::{Interface, IUnknown},
+    windows::core::{IUnknown, Interface},
 };
 
 /// 尝试挂起 WebView2，释放其内存占用。
@@ -20,9 +20,7 @@ pub async fn suspend_webview(app: tauri::AppHandle) -> Result<bool, String> {
 
     #[cfg(windows)]
     {
-        let window = app
-            .get_webview_window("main")
-            .ok_or("主窗口不存在")?;
+        let window = app.get_webview_window("main").ok_or("主窗口不存在")?;
         let (tx, rx) = mpsc::channel::<Result<bool, String>>();
 
         window
@@ -50,7 +48,9 @@ pub async fn suspend_webview(app: tauri::AppHandle) -> Result<bool, String> {
                         let core_v38 = controller.CoreWebView2().map_err(|e| e.to_string())?;
                         let md = std::mem::ManuallyDrop::new(core_v38);
                         let raw = std::mem::transmute_copy::<_, *mut std::ffi::c_void>(&*md);
-                        <IUnknown as Interface>::from_raw(raw).cast().map_err(|e| e.to_string())?
+                        <IUnknown as Interface>::from_raw(raw)
+                            .cast()
+                            .map_err(|e| e.to_string())?
                     };
                     unsafe { core3.TrySuspend(&handler) }.map_err(|e| e.to_string())?;
                     Ok(())
@@ -77,9 +77,7 @@ pub async fn resume_webview(app: tauri::AppHandle) -> Result<(), String> {
 
     #[cfg(windows)]
     {
-        let window = app
-            .get_webview_window("main")
-            .ok_or("主窗口不存在")?;
+        let window = app.get_webview_window("main").ok_or("主窗口不存在")?;
         let (tx, rx) = mpsc::channel::<Result<(), String>>();
 
         window
@@ -90,7 +88,9 @@ pub async fn resume_webview(app: tauri::AppHandle) -> Result<(), String> {
                         let core_v38 = controller.CoreWebView2().map_err(|e| e.to_string())?;
                         let md = std::mem::ManuallyDrop::new(core_v38);
                         let raw = std::mem::transmute_copy::<_, *mut std::ffi::c_void>(&*md);
-                        <IUnknown as Interface>::from_raw(raw).cast().map_err(|e| e.to_string())?
+                        <IUnknown as Interface>::from_raw(raw)
+                            .cast()
+                            .map_err(|e| e.to_string())?
                     };
                     unsafe { core3.Resume() }.map_err(|e| e.to_string())?;
                     Ok(())

@@ -266,7 +266,8 @@ fn layout_component(
             .copied()
             .fold(Vec2::default(), |acc, p| acc + p)
             * (1.0 / node_count as f64);
-        let gravity_scale = r.gravity_strength * (node_count as f64).sqrt() / config.params.fr_scale;
+        let gravity_scale =
+            r.gravity_strength * (node_count as f64).sqrt() / config.params.fr_scale;
         for (slot, position) in positions.iter().enumerate() {
             let to_centroid = centroid - *position;
             if to_centroid.length() > r.min_distance {
@@ -308,9 +309,7 @@ fn layout_component(
         }
 
         let progress = current_iter as f64 / iteration_limit as f64;
-        let adaptive_decay = (config.params.temperature_decay
-            * (1.0 - 0.12 * progress))
-            .min(0.998);
+        let adaptive_decay = (config.params.temperature_decay * (1.0 - 0.12 * progress)).min(0.998);
         temperature = (temperature * adaptive_decay).max(config.params.minimum_temperature);
     }
 

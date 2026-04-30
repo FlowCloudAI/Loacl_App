@@ -10,7 +10,11 @@ pub(super) use tauri::{AppHandle, State, Window};
 pub(super) use tauri_plugin_opener::OpenerExt;
 pub(super) use tokio::sync::Mutex;
 pub(super) use uuid::Uuid;
-pub(super) use worldflow_core::{models::*, AppendResult, CategoryOps, EntryLinkOps, EntryOps, EntryRelationOps, EntryTypeOps, IdeaNoteOps, ProjectOps, SnapshotBranchInfo, SnapshotInfo, SqliteDb, TagSchemaOps, WorldflowError};
+pub(super) use worldflow_core::{
+    AppendResult, CategoryOps, EntryLinkOps, EntryOps, EntryRelationOps, EntryTypeOps, IdeaNoteOps,
+    ProjectOps, SnapshotBranchInfo, SnapshotInfo, SqliteDb, TagSchemaOps, WorldflowError,
+    models::*,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TimelineTagRole {
@@ -111,16 +115,16 @@ pub(super) fn normalize_timeline_tag_name(name: &str) -> String {
 
 pub(super) fn timeline_tag_role_from_name(name: &str) -> Option<TimelineTagRole> {
     match normalize_timeline_tag_name(name).as_str() {
-        "start" | "startyear" | "starttime" | "year" | "年份" | "开始" | "开始年"
-        | "开始年份" | "开始时间" | "起始" | "起始年" | "起始年份" | "起始时间" => {
+        "start" | "startyear" | "starttime" | "year" | "年份" | "开始" | "开始年" | "开始年份"
+        | "开始时间" | "起始" | "起始年" | "起始年份" | "起始时间" => {
             Some(TimelineTagRole::Start)
         }
-        "end" | "endyear" | "endtime" | "结束" | "结束年" | "结束年份" | "结束时间"
-        | "终止" | "终止年" | "终止年份" | "终止时间" => Some(TimelineTagRole::End),
-        "parent" | "parentid" | "父事件" | "父级事件" | "父事件id" | "父级事件id"
-        | "上级事件" | "上级事件id" => Some(TimelineTagRole::Parent),
-        "timeline" | "ontimeline" | "showtimeline" | "时间线" | "纳入时间线"
-        | "显示在时间线" | "显示时间线" => Some(TimelineTagRole::Show),
+        "end" | "endyear" | "endtime" | "结束" | "结束年" | "结束年份" | "结束时间" | "终止"
+        | "终止年" | "终止年份" | "终止时间" => Some(TimelineTagRole::End),
+        "parent" | "parentid" | "父事件" | "父级事件" | "父事件id" | "父级事件id" | "上级事件"
+        | "上级事件id" => Some(TimelineTagRole::Parent),
+        "timeline" | "ontimeline" | "showtimeline" | "时间线" | "纳入时间线" | "显示在时间线"
+        | "显示时间线" => Some(TimelineTagRole::Show),
         _ => None,
     }
 }
@@ -194,8 +198,14 @@ pub(super) fn parse_timeline_parent(value: &Value) -> Option<String> {
     }
 }
 
-pub(crate) async fn initialize_default_timeline_tags(db: &SqliteDb, project_id: &Uuid) -> Result<(), String> {
-    log::info!("[worldflow] 开始初始化项目默认时间线标签: project_id={}", project_id);
+pub(crate) async fn initialize_default_timeline_tags(
+    db: &SqliteDb,
+    project_id: &Uuid,
+) -> Result<(), String> {
+    log::info!(
+        "[worldflow] 开始初始化项目默认时间线标签: project_id={}",
+        project_id
+    );
 
     let targets = DEFAULT_TIMELINE_TAG_TARGETS
         .iter()
@@ -203,27 +213,48 @@ pub(crate) async fn initialize_default_timeline_tags(db: &SqliteDb, project_id: 
         .collect::<Vec<_>>();
 
     for definition in DEFAULT_TIMELINE_TAG_DEFINITIONS {
-        log::info!("[worldflow] 创建时间线标签: name={} type={}", definition.name, definition.value_type);
-        match db.create_tag_schema(CreateTagSchema {
-            project_id: *project_id,
-            name: definition.name.to_string(),
-            description: Some(definition.description.to_string()),
-            r#type: definition.value_type.to_string(),
-            target: targets.clone(),
-            default_val: definition.default_value.map(|value| value.to_string()),
-            range_min: definition.range_min,
-            range_max: definition.range_max,
-            sort_order: Some(definition.sort_order),
-        }).await {
-            Ok(schema) => log::info!("[worldflow] 标签创建成功: id={} name={}", schema.id, schema.name),
+        log::info!(
+            "[worldflow] 创建时间线标签: name={} type={}",
+            definition.name,
+            definition.value_type
+        );
+        match db
+            .create_tag_schema(CreateTagSchema {
+                project_id: *project_id,
+                name: definition.name.to_string(),
+                description: Some(definition.description.to_string()),
+                r#type: definition.value_type.to_string(),
+                target: targets.clone(),
+                default_val: definition.default_value.map(|value| value.to_string()),
+                range_min: definition.range_min,
+                range_max: definition.range_max,
+                sort_order: Some(definition.sort_order),
+            })
+            .await
+        {
+            Ok(schema) => log::info!(
+                "[worldflow] 标签创建成功: id={} name={}",
+                schema.id,
+                schema.name
+            ),
             Err(error) => {
-                log::error!("[worldflow] 标签创建失败: name={} error={}", definition.name, error);
-                return Err(format!("初始化默认时间线标签 '{}' 失败: {}", definition.name, error));
+                log::error!(
+                    "[worldflow] 标签创建失败: name={} error={}",
+                    definition.name,
+                    error
+                );
+                return Err(format!(
+                    "初始化默认时间线标签 '{}' 失败: {}",
+                    definition.name, error
+                ));
             }
         }
     }
 
-    log::info!("[worldflow] 项目默认时间线标签初始化完成: project_id={}", project_id);
+    log::info!(
+        "[worldflow] 项目默认时间线标签初始化完成: project_id={}",
+        project_id
+    );
     Ok(())
 }
 
@@ -231,7 +262,10 @@ pub(crate) async fn initialize_default_timeline_tags(db: &SqliteDb, project_id: 
 
 /// 前端日志桥接，将日志写入后端日志系统
 
-pub(super) async fn touch_project_updated_at(db: &SqliteDb, project_id: &Uuid) -> Result<(), String> {
+pub(super) async fn touch_project_updated_at(
+    db: &SqliteDb,
+    project_id: &Uuid,
+) -> Result<(), String> {
     db.update_project(
         project_id,
         UpdateProject {
@@ -240,7 +274,7 @@ pub(super) async fn touch_project_updated_at(db: &SqliteDb, project_id: &Uuid) -
             cover_image: None,
         },
     )
-        .await
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    .await
+    .map(|_| ())
+    .map_err(|e| e.to_string())
 }

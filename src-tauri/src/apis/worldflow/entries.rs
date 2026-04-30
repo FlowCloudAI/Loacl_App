@@ -126,7 +126,9 @@ pub async fn db_list_timeline_events(
 
     let schema_role_map = tag_schemas
         .iter()
-        .filter_map(|schema| timeline_tag_role_from_name(&schema.name).map(|role| (schema.id, role)))
+        .filter_map(|schema| {
+            timeline_tag_role_from_name(&schema.name).map(|role| (schema.id, role))
+        })
         .collect::<std::collections::HashMap<_, _>>();
 
     let mut entry_briefs = Vec::new();
@@ -239,7 +241,9 @@ pub async fn db_list_timeline_events(
             if valid_ids.contains(parent) {
                 Some(parent.clone())
             } else {
-                title_to_id.get(&normalize_timeline_tag_name(parent)).cloned()
+                title_to_id
+                    .get(&normalize_timeline_tag_name(parent))
+                    .cloned()
             }
         });
 
@@ -252,7 +256,11 @@ pub async fn db_list_timeline_events(
     events.sort_by(|left, right| {
         left.start_time
             .cmp(&right.start_time)
-            .then_with(|| left.end_time.unwrap_or(left.start_time).cmp(&right.end_time.unwrap_or(right.start_time)))
+            .then_with(|| {
+                left.end_time
+                    .unwrap_or(left.start_time)
+                    .cmp(&right.end_time.unwrap_or(right.start_time))
+            })
             .then_with(|| left.title.cmp(&right.title))
     });
 
@@ -290,7 +298,10 @@ pub async fn db_get_project_stats(
         let batch = db
             .list_entries(
                 &project_id,
-                EntryFilter { category_id: None, entry_type: None },
+                EntryFilter {
+                    category_id: None,
+                    entry_type: None,
+                },
                 PAGE_SIZE,
                 offset,
             )
@@ -314,7 +325,10 @@ pub async fn db_get_project_stats(
         }
     }
 
-    Ok(ProjectStats { image_count, word_count })
+    Ok(ProjectStats {
+        image_count,
+        word_count,
+    })
 }
 
 /// 全文搜索词条（FTS）；可按分类和词条类型过滤
@@ -397,8 +411,8 @@ pub async fn db_count_entries(
             entry_type: entry_type.as_deref(),
         },
     )
-        .await
-        .map_err(|e| e.to_string())
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// 更新词条；仅传入需要修改的字段，None 表示不变
@@ -415,7 +429,11 @@ pub async fn db_update_entry(
     tags: Option<Vec<EntryTag>>,
     images: Option<Vec<FCImage>>,
 ) -> Result<Entry, String> {
-    log::info!("[db_update_entry] 开始保存 entry_id={}, images_count={:?}", id, images.as_ref().map(|v| v.len()));
+    log::info!(
+        "[db_update_entry] 开始保存 entry_id={}, images_count={:?}",
+        id,
+        images.as_ref().map(|v| v.len())
+    );
     let id = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
@@ -441,7 +459,11 @@ pub async fn db_update_entry(
         .map_err(|e| e.to_string())?;
 
     touch_project_updated_at(&db, &entry.project_id).await?;
-    log::info!("[db_update_entry] 保存完成 entry_id={}, images_count={}", entry.id, entry.images.0.len());
+    log::info!(
+        "[db_update_entry] 保存完成 entry_id={}, images_count={}",
+        entry.id,
+        entry.images.0.len()
+    );
     Ok(entry)
 }
 

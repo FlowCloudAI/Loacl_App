@@ -52,4 +52,3 @@ pub async fn plugin_check_updates(
 
     Ok(result)
 }
-

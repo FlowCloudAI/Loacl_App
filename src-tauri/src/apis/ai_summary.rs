@@ -9,7 +9,7 @@ use futures::StreamExt;
 use serde::Deserialize;
 use std::sync::Arc;
 use tauri::State;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,8 +44,12 @@ pub async fn ai_generate_entry_summary(
         return Err("entryIds 不能为空".to_string());
     }
 
-    let api_key = ApiKeyStore::get(&request.plugin_id)
-        .ok_or_else(|| format!("插件 '{}' 未配置 API Key，请在设置中配置", request.plugin_id))?;
+    let api_key = ApiKeyStore::get(&request.plugin_id).ok_or_else(|| {
+        format!(
+            "插件 '{}' 未配置 API Key，请在设置中配置",
+            request.plugin_id
+        )
+    })?;
 
     let (project_name, entry_blocks) = {
         let app_state = app_state.inner().lock().await;
@@ -61,7 +65,10 @@ pub async fn ai_generate_entry_summary(
                 let title = draft_entry.title.as_deref().unwrap_or(&entry.title);
                 let summary = draft_entry.summary.as_deref().or(entry.summary.as_deref());
                 let content = draft_entry.content.as_deref().unwrap_or(&entry.content);
-                let entry_type = draft_entry.entry_type.as_deref().or(entry.r#type.as_deref());
+                let entry_type = draft_entry
+                    .entry_type
+                    .as_deref()
+                    .or(entry.r#type.as_deref());
                 let tags = entry
                     .tags
                     .0
@@ -115,9 +122,11 @@ pub async fn ai_generate_entry_summary(
     let (mut event_stream, handle) = session.run(input_rx);
 
     if is_entry_field_mode {
-        handle.update(|req| {
-            req.response_format = Some(serde_json::json!({ "type": "json_object" }));
-        }).await;
+        handle
+            .update(|req| {
+                req.response_format = Some(serde_json::json!({ "type": "json_object" }));
+            })
+            .await;
     }
 
     let result: Result<String, String> = async {
@@ -141,7 +150,8 @@ pub async fn ai_generate_entry_summary(
             }
         }
         Ok(output)
-    }.await;
+    }
+    .await;
 
     if let Some(conv_id) = temp_conv_id {
         let client = ai_state.client.lock().await;

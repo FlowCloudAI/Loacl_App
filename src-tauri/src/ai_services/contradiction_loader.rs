@@ -1,6 +1,6 @@
+use crate::AppState;
 use crate::ai_services::context_builders::build_entry_markdown;
 use crate::tools;
-use crate::AppState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -33,7 +33,10 @@ pub async fn load_contradiction_corpus(
 ) -> Result<ContradictionCorpus, String> {
     let max_entries = request.max_entries.unwrap_or(12).clamp(1, 30);
     let max_chars_per_entry = request.max_chars_per_entry.unwrap_or(2200).clamp(400, 6000);
-    let max_total_chars = request.max_total_chars.unwrap_or(18_000).clamp(2_000, 40_000);
+    let max_total_chars = request
+        .max_total_chars
+        .unwrap_or(18_000)
+        .clamp(2_000, 40_000);
 
     let (project, _) = tools::get_project_summary(app_state, &request.project_id).await?;
 
@@ -48,10 +51,10 @@ pub async fn load_contradiction_corpus(
             request.category_id.as_deref(),
             max_entries,
         )
-            .await?
-            .into_iter()
-            .map(|brief| brief.id.to_string())
-            .collect()
+        .await?
+        .into_iter()
+        .map(|brief| brief.id.to_string())
+        .collect()
     } else {
         tools::list_all_entries(
             app_state,
@@ -60,10 +63,10 @@ pub async fn load_contradiction_corpus(
             max_entries,
             0,
         )
-            .await?
-            .into_iter()
-            .map(|brief| brief.id.to_string())
-            .collect()
+        .await?
+        .into_iter()
+        .map(|brief| brief.id.to_string())
+        .collect()
     };
 
     let mut dedup = HashSet::new();

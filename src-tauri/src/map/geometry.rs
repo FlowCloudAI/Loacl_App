@@ -45,7 +45,7 @@ pub fn segments_intersect(
     if ((d1 > GEOMETRY_EPSILON && d2 < -GEOMETRY_EPSILON)
         || (d1 < -GEOMETRY_EPSILON && d2 > GEOMETRY_EPSILON))
         && ((d3 > GEOMETRY_EPSILON && d4 < -GEOMETRY_EPSILON)
-        || (d3 < -GEOMETRY_EPSILON && d4 > GEOMETRY_EPSILON))
+            || (d3 < -GEOMETRY_EPSILON && d4 > GEOMETRY_EPSILON))
     {
         return true;
     }
@@ -53,9 +53,9 @@ pub fn segments_intersect(
     (d1.abs() <= GEOMETRY_EPSILON && is_point_on_segment(second_start, first_start, first_end))
         || (d2.abs() <= GEOMETRY_EPSILON && is_point_on_segment(second_end, first_start, first_end))
         || (d3.abs() <= GEOMETRY_EPSILON
-        && is_point_on_segment(first_start, second_start, second_end))
+            && is_point_on_segment(first_start, second_start, second_end))
         || (d4.abs() <= GEOMETRY_EPSILON
-        && is_point_on_segment(first_end, second_start, second_end))
+            && is_point_on_segment(first_end, second_start, second_end))
 }
 
 pub fn find_polygon_self_intersections(vertices: &[MapShapeVertex]) -> Vec<PolygonIntersection> {
@@ -108,9 +108,9 @@ pub fn is_point_in_polygon(point: &MapShapeVertex, vertices: &[MapShapeVertex]) 
 
         let intersects = (current_vertex.y > point.y) != (previous_vertex.y > point.y)
             && point.x
-            < (previous_vertex.x - current_vertex.x) * (point.y - current_vertex.y)
-            / (previous_vertex.y - current_vertex.y)
-            + current_vertex.x;
+                < (previous_vertex.x - current_vertex.x) * (point.y - current_vertex.y)
+                    / (previous_vertex.y - current_vertex.y)
+                    + current_vertex.x;
         if intersects {
             inside = !inside;
         }

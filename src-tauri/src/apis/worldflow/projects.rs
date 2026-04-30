@@ -9,11 +9,12 @@ pub async fn db_create_project(
 ) -> Result<Project, String> {
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
-    let project = db.create_project(CreateProject {
-        name,
-        description,
-        cover_image,
-    })
+    let project = db
+        .create_project(CreateProject {
+            name,
+            description,
+            cover_image,
+        })
         .await
         .map_err(|e| e.to_string())?;
 
@@ -79,8 +80,8 @@ pub async fn db_update_project(
             cover_image,
         },
     )
-        .await
-        .map_err(|e| e.to_string())
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// 删除项目（级联删除所有分类、词条、标签定义、关系）

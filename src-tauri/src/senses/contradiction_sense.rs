@@ -1,5 +1,7 @@
+use crate::template::render_global_template;
 use flowcloudai_client::llm::types::ChatRequest;
-use flowcloudai_client::{sense::Sense, ToolRegistry};
+use flowcloudai_client::{ToolRegistry, sense::Sense};
+use serde::Serialize;
 
 pub struct ContradictionSense;
 
@@ -25,14 +27,24 @@ impl ContradictionSense {
             "open_url",
             "report_progress",
         ]
-            .into_iter()
-            .map(str::to_string)
-            .collect()
+        .into_iter()
+        .map(str::to_string)
+        .collect()
     }
 }
 
+#[derive(Serialize)]
+struct ContradictionSenseTemplateContext;
+
 impl Sense for ContradictionSense {
     fn prompts(&self) -> Vec<String> {
+        if let Some(rendered) = render_global_template(
+            "sense/contradiction_system",
+            &ContradictionSenseTemplateContext,
+        ) {
+            return vec![rendered];
+        }
+
         vec![
             "你是 FlowCloudAI 的设定矛盾检测助手。你的任务不是续写，而是基于给定资料找出互相冲突、时间顺序不一致、身份设定不一致、关系链不一致、术语定义冲突等问题。".to_string(),
             "必须优先给出基于原文证据的结论；没有足够证据时，不要硬判定为矛盾，而应放入 unresolvedQuestions。".to_string(),

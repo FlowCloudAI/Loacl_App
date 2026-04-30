@@ -1,5 +1,5 @@
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn deserialize_overview_string<'de, D>(deserializer: D) -> Result<String, D::Error>
 where

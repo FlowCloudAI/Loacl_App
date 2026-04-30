@@ -6,7 +6,7 @@
 
 ### 1.1 核心层 (flowcloudai_client_core)
 - **职责**：WASM 插件的扫描、编译、实例化及生命周期管理。
-- **位置**：`E:/Projects/flowcloudai_client_core`
+- **位置**：`client_core/`（工作区根目录）
 - **关键组件**：
   - `PluginScanner`: 扫描 `.fcplug` 文件并解析 `manifest.json`。
   - `PluginRegistry`: 维护插件元数据与 WASM 实例池。
@@ -14,13 +14,13 @@
 
 ### 1.2 应用层 (Tauri Backend)
 - **职责**：远程市场交互、版本对比、文件下载及前端 API 暴露。
-- **位置**：`src-tauri/src/apis/plugins.rs`
+- **位置**：`src-tauri/src/apis/plugins/`（`mod.rs` + `local.rs` + `market.rs` + `remote.rs` + `common.rs`）
 - **关键接口**：
   - `plugin_list_local`: 获取本地已安装插件列表。
   - `plugin_fetch_remote`: 从指定 URL 获取远程插件市场信息。
   - `plugin_check_updates`: 对比本地与远程版本，返回更新建议。
-  - `plugin_install_from_file`: 安装本地 `.fcplug` 文件（当前为占位实现）。
-  - `plugin_uninstall`: 卸载指定插件（当前为占位实现）。
+  - `plugin_install_from_file`: 安装本地 `.fcplug` 文件。
+  - `plugin_uninstall`: 卸载指定插件。
 
 ---
 
@@ -134,7 +134,7 @@ try {
 
 ### 5.1 调试新插件
 1. 将编译好的 `.fcplug` 放入 `src-tauri/plugins` 目录。
-2. 重启 Tauri 应用（目前动态安装/卸载受限于 Rust 所有权模型，需重启生效）。
+2. 通过 `plugin_install_from_file` API 安装（推荐），或将 `.fcplug` 放入 `src-tauri/plugins` 目录后重启应用。
 3. 在前端调用 `plugin_list_local` 验证插件是否被识别。
 
 ### 5.2 模拟远程市场
@@ -156,6 +156,7 @@ try {
 
 ## 6. 已知限制与后续计划
 
-- **动态热插拔**：目前 `install` 和 `uninstall` 接口返回占位错误。原因是 `FlowCloudAIClient` 被包裹在 `Arc<Mutex>` 中，无法安全地获取 `&mut self` 执行文件系统操作。
-- **解决方案**：计划在核心库中引入 `RwLock` 或内部可变性设计，以支持运行时的插件增删。
+- **动态热插拔**：`install` 和 `uninstall` 接口已完整实现（参见 `src-tauri/src/apis/plugins/local.rs`），支持运行时的插件安装与卸载。
+  **前置条件**：安装/卸载操作需要当前无活跃 AI 会话（`require_no_active_sessions` 检查）。若存在活跃会话，将返回错误提示。
+  **引用计数保护**：卸载时还会检查插件引用计数。若有 AI 会话正在使用该插件（`ref_count > 0`），卸载将被拒绝。
 - **依赖管理**：当前暂不支持插件间的依赖声明，后续将在 `manifest.json` 中增加 `dependencies` 字段。

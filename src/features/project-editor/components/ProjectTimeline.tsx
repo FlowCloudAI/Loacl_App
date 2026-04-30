@@ -257,8 +257,8 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
         return () => cancelAnimationFrame(frameId)
     }, [selectedEventId, events])
 
-    const handleTimelineSelect = useCallback((eventId: string) => {
-        if (eventId === selectedEventIdRef.current) return
+    const handleTimelineSelect = useCallback((eventId: string | null) => {
+        if (!eventId || eventId === selectedEventIdRef.current) return
         shouldSyncEventStripRef.current = true
         setSelectedEventId(eventId)
     }, [])

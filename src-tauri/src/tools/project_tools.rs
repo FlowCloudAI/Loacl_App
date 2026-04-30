@@ -1,7 +1,7 @@
 use crate::tools;
 use anyhow::Result;
 use flowcloudai_client::llm::types::ToolFunctionArg;
-use flowcloudai_client::tool::{arg_str, ToolRegistry};
+use flowcloudai_client::tool::{ToolRegistry, arg_str};
 
 /// 注册项目管理工具
 pub fn register_project_tools(registry: &mut ToolRegistry) -> Result<()> {

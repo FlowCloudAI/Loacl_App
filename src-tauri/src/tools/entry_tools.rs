@@ -2,7 +2,7 @@ use crate::tools;
 use crate::tools::format;
 use anyhow::Result;
 use flowcloudai_client::llm::types::ToolFunctionArg;
-use flowcloudai_client::tool::{arg_str, ToolRegistry};
+use flowcloudai_client::tool::{ToolRegistry, arg_str};
 use std::sync::Arc;
 use tauri::Emitter;
 use tokio::sync::Mutex;
@@ -10,26 +10,95 @@ use tokio::sync::Mutex;
 // ── 词条操作分派枚举 ─────────────────────────────────────────────────────────
 
 enum EntryOp {
-    SearchEntries { project_id: String, query: String, entry_type: Option<String>, category_id: Option<String>, limit: usize },
-    GetEntry { entry_id: String },
-    GetEntryContentByLine { entry_id: String, start_line: usize, end_line: Option<u64> },
-    ListAllEntries { project_id: String, category_id: Option<String>, limit: usize, offset: usize },
-    ListCategories { project_id: String },
-    ListEntriesByType { project_id: String, entry_type: String, category_id: Option<String>, limit: usize, offset: usize },
-    ListTagSchemas { project_id: String },
-    GetEntryRelations { entry_id: String },
-    GetProjectSummary { project_id: String },
+    SearchEntries {
+        project_id: String,
+        query: String,
+        entry_type: Option<String>,
+        category_id: Option<String>,
+        limit: usize,
+    },
+    GetEntry {
+        entry_id: String,
+    },
+    GetEntryContentByLine {
+        entry_id: String,
+        start_line: usize,
+        end_line: Option<u64>,
+    },
+    ListAllEntries {
+        project_id: String,
+        category_id: Option<String>,
+        limit: usize,
+        offset: usize,
+    },
+    ListCategories {
+        project_id: String,
+    },
+    ListEntriesByType {
+        project_id: String,
+        entry_type: String,
+        category_id: Option<String>,
+        limit: usize,
+        offset: usize,
+    },
+    ListTagSchemas {
+        project_id: String,
+    },
+    GetEntryRelations {
+        entry_id: String,
+    },
+    GetProjectSummary {
+        project_id: String,
+    },
     ListProjects,
-    ListEntryTypes { project_id: String },
-    CreateEntry { project_id: String, category_id: String, title: String, entry_type: Option<String>, summary: Option<String>, content: Option<String> },
-    UpdateEntry { entry_id: String, title: Option<String>, summary: Option<Option<String>>, entry_type: Option<Option<String>> },
-    UpdateEntryTags { entry_id: String, tags: serde_json::Value },
-    AddEntryTag { entry_id: String, schema_id: String, value: String },
-    RemoveEntryTag { entry_id: String, schema_id: String },
-    CreateRelation { a_id: String, b_id: String, relation: worldflow_core::models::RelationDirection, content: String },
-    UpdateRelation { relation_id: String, relation: Option<worldflow_core::models::RelationDirection>, content: Option<String> },
-    DeleteRelation { relation_id: String },
-    MoveEntry { entry_id: String, category_id: Option<String> },
+    ListEntryTypes {
+        project_id: String,
+    },
+    CreateEntry {
+        project_id: String,
+        category_id: String,
+        title: String,
+        entry_type: Option<String>,
+        summary: Option<String>,
+        content: Option<String>,
+    },
+    UpdateEntry {
+        entry_id: String,
+        title: Option<String>,
+        summary: Option<Option<String>>,
+        entry_type: Option<Option<String>>,
+    },
+    UpdateEntryTags {
+        entry_id: String,
+        tags: serde_json::Value,
+    },
+    AddEntryTag {
+        entry_id: String,
+        schema_id: String,
+        value: String,
+    },
+    RemoveEntryTag {
+        entry_id: String,
+        schema_id: String,
+    },
+    CreateRelation {
+        a_id: String,
+        b_id: String,
+        relation: worldflow_core::models::RelationDirection,
+        content: String,
+    },
+    UpdateRelation {
+        relation_id: String,
+        relation: Option<worldflow_core::models::RelationDirection>,
+        content: Option<String>,
+    },
+    DeleteRelation {
+        relation_id: String,
+    },
+    MoveEntry {
+        entry_id: String,
+        category_id: Option<String>,
+    },
 }
 
 async fn dispatch_entry_op(
@@ -39,107 +108,220 @@ async fn dispatch_entry_op(
 ) -> anyhow::Result<String> {
     use EntryOp::*;
     match op {
-        SearchEntries { project_id, query, entry_type, category_id, limit } => {
+        SearchEntries {
+            project_id,
+            query,
+            entry_type,
+            category_id,
+            limit,
+        } => {
             let guard = state.lock().await;
-            let result = tools::search_entries(&*guard, &project_id, &query, entry_type.as_deref(), category_id.as_deref(), limit)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let result = tools::search_entries(
+                &*guard,
+                &project_id,
+                &query,
+                entry_type.as_deref(),
+                category_id.as_deref(),
+                limit,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
             Ok(format::format_entry_briefs(&result))
         }
         GetEntry { entry_id } => {
             let guard = state.lock().await;
-            let entry = tools::get_entry(&*guard, &entry_id).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let entry = tools::get_entry(&*guard, &entry_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
             Ok(format::format_entry(&entry))
         }
-        GetEntryContentByLine { entry_id, start_line, end_line } => {
-            if start_line == 0 { anyhow::bail!("start_line 必须从 1 开始"); }
+        GetEntryContentByLine {
+            entry_id,
+            start_line,
+            end_line,
+        } => {
+            if start_line == 0 {
+                anyhow::bail!("start_line 必须从 1 开始");
+            }
             let guard = state.lock().await;
-            let entry = tools::get_entry(&*guard, &entry_id).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let entry = tools::get_entry(&*guard, &entry_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
             let lines: Vec<&str> = entry.content.lines().collect();
             let total_lines = lines.len();
-            if total_lines == 0 { return Ok("该词条正文为空".to_string()); }
+            if total_lines == 0 {
+                return Ok("该词条正文为空".to_string());
+            }
             let start = if start_line > total_lines {
-                return Ok(format!("起始行号 {} 超出总行数 {}", start_line, total_lines));
-            } else { start_line - 1 };
+                return Ok(format!(
+                    "起始行号 {} 超出总行数 {}",
+                    start_line, total_lines
+                ));
+            } else {
+                start_line - 1
+            };
             let end = match end_line {
                 Some(e) => {
-                    if e == 0 { anyhow::bail!("end_line 必须从 1 开始"); }
+                    if e == 0 {
+                        anyhow::bail!("end_line 必须从 1 开始");
+                    }
                     (e as usize).min(total_lines) - 1
                 }
                 None => total_lines - 1,
             };
-            if end < start { anyhow::bail!("end_line ({}) 不能小于 start_line ({})", end + 1, start + 1); }
+            if end < start {
+                anyhow::bail!("end_line ({}) 不能小于 start_line ({})", end + 1, start + 1);
+            }
             let mut result = format!("词条: {} (共 {} 行)\n\n", entry.title, total_lines);
             for (i, line) in lines[start..=end].iter().enumerate() {
                 result.push_str(&format!("{:>4}: {}\n", start + i + 1, line));
             }
             Ok(result)
         }
-        ListAllEntries { project_id, category_id, limit, offset } => {
+        ListAllEntries {
+            project_id,
+            category_id,
+            limit,
+            offset,
+        } => {
             let guard = state.lock().await;
-            let result = tools::list_all_entries(&*guard, &project_id, category_id.as_deref(), limit, offset)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let result = tools::list_all_entries(
+                &*guard,
+                &project_id,
+                category_id.as_deref(),
+                limit,
+                offset,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
             Ok(format::format_entry_briefs(&result))
         }
         ListCategories { project_id } => {
             let guard = state.lock().await;
-            let categories = tools::list_categories(&*guard, &project_id).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let categories = tools::list_categories(&*guard, &project_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
             Ok(format::format_categories(&categories))
         }
-        ListEntriesByType { project_id, entry_type, category_id, limit, offset } => {
+        ListEntriesByType {
+            project_id,
+            entry_type,
+            category_id,
+            limit,
+            offset,
+        } => {
             let guard = state.lock().await;
-            let result = tools::list_entries_by_type(&*guard, &project_id, &entry_type, category_id.as_deref(), limit, offset)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let result = tools::list_entries_by_type(
+                &*guard,
+                &project_id,
+                &entry_type,
+                category_id.as_deref(),
+                limit,
+                offset,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
             Ok(format::format_entry_briefs(&result))
         }
         ListTagSchemas { project_id } => {
             let guard = state.lock().await;
-            let schemas = tools::list_tag_schemas(&*guard, &project_id).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let schemas = tools::list_tag_schemas(&*guard, &project_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
             Ok(format::format_tag_schemas(&schemas))
         }
         GetEntryRelations { entry_id } => {
             let guard = state.lock().await;
             let (relations, entry_names) = tools::get_entry_relations(&*guard, &entry_id)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
-            Ok(format::format_relations(&relations, &entry_id, &entry_names))
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+            Ok(format::format_relations(
+                &relations,
+                &entry_id,
+                &entry_names,
+            ))
         }
         GetProjectSummary { project_id } => {
             let guard = state.lock().await;
             let (project, counts) = tools::get_project_summary(&*guard, &project_id)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
             Ok(format::format_project_summary(&project, &counts))
         }
         ListProjects => {
             let guard = state.lock().await;
-            let projects = tools::list_projects(&*guard).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let projects = tools::list_projects(&*guard)
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
             Ok(format::format_projects(&projects))
         }
         ListEntryTypes { project_id } => {
             let guard = state.lock().await;
-            let types = tools::list_entry_types(&*guard, &project_id).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let types = tools::list_entry_types(&*guard, &project_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
             Ok(format::format_entry_types(&types))
         }
-        CreateEntry { project_id, category_id, title, entry_type, summary, content } => {
+        CreateEntry {
+            project_id,
+            category_id,
+            title,
+            entry_type,
+            summary,
+            content,
+        } => {
             let guard = state.lock().await;
-            let entry = tools::create_entry(&*guard, &project_id, &category_id, title, entry_type, summary, content)
-                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+            let entry = tools::create_entry(
+                &*guard,
+                &project_id,
+                &category_id,
+                title,
+                entry_type,
+                summary,
+                content,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
-                struct Evt { entry_id: String, project_id: String }
-                let _ = h.emit("entry:created", Evt { entry_id: entry.id.to_string(), project_id: entry.project_id.to_string() });
+                struct Evt {
+                    entry_id: String,
+                    project_id: String,
+                }
+                let _ = h.emit(
+                    "entry:created",
+                    Evt {
+                        entry_id: entry.id.to_string(),
+                        project_id: entry.project_id.to_string(),
+                    },
+                );
             }
             Ok("修改已完成".to_string())
         }
-        UpdateEntry { entry_id, title, summary, entry_type } => {
+        UpdateEntry {
+            entry_id,
+            title,
+            summary,
+            entry_type,
+        } => {
             if title.is_none() && summary.is_none() && entry_type.is_none() {
                 anyhow::bail!("修改未完成：title、summary、entry_type 至少需要提供一个");
             }
             let guard = state.lock().await;
             let entry = tools::update_entry_fields(&*guard, &entry_id, title, summary, entry_type)
-                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+                .await
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
-                struct Evt { entry_id: String }
-                let _ = h.emit("entry:updated", Evt { entry_id: entry.id.to_string() });
+                struct Evt {
+                    entry_id: String,
+                }
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: entry.id.to_string(),
+                    },
+                );
             }
             Ok("修改已完成".to_string())
         }
@@ -148,66 +330,133 @@ async fn dispatch_entry_op(
                 .map_err(|e| anyhow::anyhow!("修改未完成：tags 格式错误: {}", e))?;
             let guard = state.lock().await;
             let entry = tools::update_entry_tags(&*guard, &entry_id, tags)
-                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+                .await
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
-                struct Evt { entry_id: String }
-                let _ = h.emit("entry:updated", Evt { entry_id: entry.id.to_string() });
+                struct Evt {
+                    entry_id: String,
+                }
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: entry.id.to_string(),
+                    },
+                );
             }
             Ok("修改已完成".to_string())
         }
-        AddEntryTag { entry_id, schema_id, value } => {
+        AddEntryTag {
+            entry_id,
+            schema_id,
+            value,
+        } => {
             let guard = state.lock().await;
             let entry = tools::add_entry_tag(&*guard, &entry_id, &schema_id, value)
-                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+                .await
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
-                struct Evt { entry_id: String }
-                let _ = h.emit("entry:updated", Evt { entry_id: entry.id.to_string() });
+                struct Evt {
+                    entry_id: String,
+                }
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: entry.id.to_string(),
+                    },
+                );
             }
             Ok("修改已完成".to_string())
         }
-        RemoveEntryTag { entry_id, schema_id } => {
+        RemoveEntryTag {
+            entry_id,
+            schema_id,
+        } => {
             let guard = state.lock().await;
             let entry = tools::remove_entry_tag(&*guard, &entry_id, &schema_id)
-                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+                .await
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
-                struct Evt { entry_id: String }
-                let _ = h.emit("entry:updated", Evt { entry_id: entry.id.to_string() });
+                struct Evt {
+                    entry_id: String,
+                }
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: entry.id.to_string(),
+                    },
+                );
             }
             Ok("修改已完成".to_string())
         }
-        CreateRelation { a_id, b_id, relation, content } => {
+        CreateRelation {
+            a_id,
+            b_id,
+            relation,
+            content,
+        } => {
             let guard = state.lock().await;
             let _rel = tools::create_relation(&*guard, &a_id, &b_id, relation, content)
-                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+                .await
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
-                struct Evt { entry_id: String }
-                let _ = h.emit("entry:updated", Evt { entry_id: a_id.clone() });
-                let _ = h.emit("entry:updated", Evt { entry_id: b_id.clone() });
+                struct Evt {
+                    entry_id: String,
+                }
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: a_id.clone(),
+                    },
+                );
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: b_id.clone(),
+                    },
+                );
             }
             Ok("修改已完成".to_string())
         }
-        UpdateRelation { relation_id, relation, content } => {
+        UpdateRelation {
+            relation_id,
+            relation,
+            content,
+        } => {
             if relation.is_none() && content.is_none() {
                 anyhow::bail!("修改未完成：relation 和 content 至少需要提供一个");
             }
             let (a_id, b_id) = {
                 let guard = state.lock().await;
                 let rel = tools::get_relation(&*guard, &relation_id)
-                    .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+                    .await
+                    .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
                 (rel.a_id, rel.b_id)
             };
             let guard = state.lock().await;
             let _rel = tools::update_relation(&*guard, &relation_id, relation, content)
-                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+                .await
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
-                struct Evt { entry_id: String }
-                let _ = h.emit("entry:updated", Evt { entry_id: a_id.to_string() });
-                let _ = h.emit("entry:updated", Evt { entry_id: b_id.to_string() });
+                struct Evt {
+                    entry_id: String,
+                }
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: a_id.to_string(),
+                    },
+                );
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: b_id.to_string(),
+                    },
+                );
             }
             Ok("修改已完成".to_string())
         }
@@ -215,27 +464,53 @@ async fn dispatch_entry_op(
             let (a_id, b_id) = {
                 let guard = state.lock().await;
                 let rel = tools::get_relation(&*guard, &relation_id)
-                    .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+                    .await
+                    .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
                 (rel.a_id, rel.b_id)
             };
             let guard = state.lock().await;
-            tools::delete_relation(&*guard, &relation_id).await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+            tools::delete_relation(&*guard, &relation_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
-                struct Evt { entry_id: String }
-                let _ = h.emit("entry:updated", Evt { entry_id: a_id.to_string() });
-                let _ = h.emit("entry:updated", Evt { entry_id: b_id.to_string() });
+                struct Evt {
+                    entry_id: String,
+                }
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: a_id.to_string(),
+                    },
+                );
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: b_id.to_string(),
+                    },
+                );
             }
             Ok("修改已完成".to_string())
         }
-        MoveEntry { entry_id, category_id } => {
+        MoveEntry {
+            entry_id,
+            category_id,
+        } => {
             let guard = state.lock().await;
             let entry = tools::move_entry(&*guard, &entry_id, category_id.as_deref())
-                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
+                .await
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
-                struct Evt { entry_id: String }
-                let _ = h.emit("entry:updated", Evt { entry_id: entry.id.to_string() });
+                struct Evt {
+                    entry_id: String,
+                }
+                let _ = h.emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: entry.id.to_string(),
+                    },
+                );
             }
             Ok("修改已完成".to_string())
         }
@@ -250,11 +525,21 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "search_entries",
         "在项目中全文搜索词条，返回匹配的词条简报列表",
         vec![
-            ToolFunctionArg::new("project_id", "string").required(true).desc("项目ID"),
-            ToolFunctionArg::new("query", "string").required(true).desc("搜索关键词"),
-            ToolFunctionArg::new("entry_type", "string").desc("可选：词条类型过滤（如 character, item, location）"),
-            ToolFunctionArg::new("category_id", "string").desc("可选：只搜索该分类下的词条（从 list_categories 获取分类ID）"),
-            ToolFunctionArg::new("limit", "integer").desc("返回数量限制，默认10").min(1).max(100).default(10),
+            ToolFunctionArg::new("project_id", "string")
+                .required(true)
+                .desc("项目ID"),
+            ToolFunctionArg::new("query", "string")
+                .required(true)
+                .desc("搜索关键词"),
+            ToolFunctionArg::new("entry_type", "string")
+                .desc("可选：词条类型过滤（如 character, item, location）"),
+            ToolFunctionArg::new("category_id", "string")
+                .desc("可选：只搜索该分类下的词条（从 list_categories 获取分类ID）"),
+            ToolFunctionArg::new("limit", "integer")
+                .desc("返回数量限制，默认10")
+                .min(1)
+                .max(100)
+                .default(10),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
@@ -262,14 +547,26 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             let result = (|| -> anyhow::Result<EntryOp> {
                 let project_id = arg_str(args, "project_id")?.to_string();
                 let query = arg_str(args, "query")?.to_string();
-                let entry_type = args.get("entry_type").and_then(|v| v.as_str()).map(|s| s.to_string());
-                let category_id = args.get("category_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let entry_type = args
+                    .get("entry_type")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let category_id = args
+                    .get("category_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
                 let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
-                Ok(EntryOp::SearchEntries { project_id, query, entry_type, category_id, limit })
+                Ok(EntryOp::SearchEntries {
+                    project_id,
+                    query,
+                    entry_type,
+                    category_id,
+                    limit,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -278,7 +575,11 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
     registry.register_async::<WorldflowToolState, _>(
         "get_entry",
         "根据词条ID获取完整的词条内容，包括正文、标签和图像信息",
-        vec![ToolFunctionArg::new("entry_id", "string").required(true).desc("词条ID")],
+        vec![
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+        ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
@@ -288,7 +589,7 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -298,22 +599,33 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "get_entry_content_by_line",
         "按行范围获取词条正文内容，用于精确编辑前的内容预览；返回带行号的文本",
         vec![
-            ToolFunctionArg::new("entry_id", "string").required(true).desc("词条ID"),
-            ToolFunctionArg::new("start_line", "integer").desc("起始行号（从1开始），默认为1").min(1),
-            ToolFunctionArg::new("end_line", "integer").desc("结束行号（含），默认为最后一行").min(1),
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("start_line", "integer")
+                .desc("起始行号（从1开始），默认为1")
+                .min(1),
+            ToolFunctionArg::new("end_line", "integer")
+                .desc("结束行号（含），默认为最后一行")
+                .min(1),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
             let result = (|| -> anyhow::Result<EntryOp> {
                 let entry_id = arg_str(args, "entry_id")?.to_string();
-                let start_line = args.get("start_line").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+                let start_line =
+                    args.get("start_line").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
                 let end_line = args.get("end_line").and_then(|v| v.as_u64());
-                Ok(EntryOp::GetEntryContentByLine { entry_id, start_line, end_line })
+                Ok(EntryOp::GetEntryContentByLine {
+                    entry_id,
+                    start_line,
+                    end_line,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -323,24 +635,42 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "list_all_entries",
         "列出项目内所有词条的简报（不限类型），支持按分类过滤和分页",
         vec![
-            ToolFunctionArg::new("project_id", "string").required(true).desc("项目ID"),
-            ToolFunctionArg::new("category_id", "string").desc("可选：只列出该分类下的词条（从 list_categories 获取分类ID）"),
-            ToolFunctionArg::new("limit", "integer").desc("返回数量限制，默认50").min(1).max(200).default(50),
-            ToolFunctionArg::new("offset", "integer").desc("跳过条数，用于分页，默认0").min(0).default(0),
+            ToolFunctionArg::new("project_id", "string")
+                .required(true)
+                .desc("项目ID"),
+            ToolFunctionArg::new("category_id", "string")
+                .desc("可选：只列出该分类下的词条（从 list_categories 获取分类ID）"),
+            ToolFunctionArg::new("limit", "integer")
+                .desc("返回数量限制，默认50")
+                .min(1)
+                .max(200)
+                .default(50),
+            ToolFunctionArg::new("offset", "integer")
+                .desc("跳过条数，用于分页，默认0")
+                .min(0)
+                .default(0),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
             let result = (|| -> anyhow::Result<EntryOp> {
                 let project_id = arg_str(args, "project_id")?.to_string();
-                let category_id = args.get("category_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let category_id = args
+                    .get("category_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
                 let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
                 let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                Ok(EntryOp::ListAllEntries { project_id, category_id, limit, offset })
+                Ok(EntryOp::ListAllEntries {
+                    project_id,
+                    category_id,
+                    limit,
+                    offset,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -349,7 +679,11 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
     registry.register_async::<WorldflowToolState, _>(
         "list_categories",
         "列出项目的所有分类（含层级结构），用于获取分类ID以过滤词条列表",
-        vec![ToolFunctionArg::new("project_id", "string").required(true).desc("项目ID")],
+        vec![
+            ToolFunctionArg::new("project_id", "string")
+                .required(true)
+                .desc("项目ID"),
+        ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
@@ -359,7 +693,7 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -369,11 +703,23 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "list_entries_by_type",
         "列出项目中指定类型的词条简报，支持按分类过滤和分页",
         vec![
-            ToolFunctionArg::new("project_id", "string").required(true).desc("项目ID"),
-            ToolFunctionArg::new("entry_type", "string").required(true).desc("词条类型（如 character, item, location, event, faction）"),
-            ToolFunctionArg::new("category_id", "string").desc("可选：只列出该分类下的词条（从 list_categories 获取分类ID）"),
-            ToolFunctionArg::new("limit", "integer").desc("返回数量限制，默认50").min(1).max(100).default(50),
-            ToolFunctionArg::new("offset", "integer").desc("跳过条数，用于分页，默认0").min(0).default(0),
+            ToolFunctionArg::new("project_id", "string")
+                .required(true)
+                .desc("项目ID"),
+            ToolFunctionArg::new("entry_type", "string")
+                .required(true)
+                .desc("词条类型（如 character, item, location, event, faction）"),
+            ToolFunctionArg::new("category_id", "string")
+                .desc("可选：只列出该分类下的词条（从 list_categories 获取分类ID）"),
+            ToolFunctionArg::new("limit", "integer")
+                .desc("返回数量限制，默认50")
+                .min(1)
+                .max(100)
+                .default(50),
+            ToolFunctionArg::new("offset", "integer")
+                .desc("跳过条数，用于分页，默认0")
+                .min(0)
+                .default(0),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
@@ -381,14 +727,23 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             let result = (|| -> anyhow::Result<EntryOp> {
                 let project_id = arg_str(args, "project_id")?.to_string();
                 let entry_type = arg_str(args, "entry_type")?.to_string();
-                let category_id = args.get("category_id").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let category_id = args
+                    .get("category_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
                 let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
                 let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                Ok(EntryOp::ListEntriesByType { project_id, entry_type, category_id, limit, offset })
+                Ok(EntryOp::ListEntriesByType {
+                    project_id,
+                    entry_type,
+                    category_id,
+                    limit,
+                    offset,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -397,7 +752,11 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
     registry.register_async::<WorldflowToolState, _>(
         "list_tag_schemas",
         "获取项目的标签定义列表，了解可用的标签名称、类型和目标",
-        vec![ToolFunctionArg::new("project_id", "string").required(true).desc("项目ID")],
+        vec![
+            ToolFunctionArg::new("project_id", "string")
+                .required(true)
+                .desc("项目ID"),
+        ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
@@ -407,7 +766,7 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -416,7 +775,11 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
     registry.register_async::<WorldflowToolState, _>(
         "get_entry_relations",
         "获取指定词条的所有关联关系（单向/双向），用于检测关系链中的矛盾",
-        vec![ToolFunctionArg::new("entry_id", "string").required(true).desc("词条ID")],
+        vec![
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+        ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
@@ -426,7 +789,7 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -435,7 +798,11 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
     registry.register_async::<WorldflowToolState, _>(
         "get_project_summary",
         "获取项目的基本信息和各类型词条的统计数据",
-        vec![ToolFunctionArg::new("project_id", "string").required(true).desc("项目ID")],
+        vec![
+            ToolFunctionArg::new("project_id", "string")
+                .required(true)
+                .desc("项目ID"),
+        ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
@@ -445,7 +812,7 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -458,7 +825,11 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         |_state, _args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
-            Box::pin(dispatch_entry_op(app_state, app_handle, EntryOp::ListProjects))
+            Box::pin(dispatch_entry_op(
+                app_state,
+                app_handle,
+                EntryOp::ListProjects,
+            ))
         },
     );
 
@@ -466,10 +837,17 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "create_entry",
         "在指定项目的指定分类下新建一个词条，返回新词条的完整信息",
         vec![
-            ToolFunctionArg::new("project_id", "string").required(true).desc("项目ID"),
-            ToolFunctionArg::new("category_id", "string").required(true).desc("分类ID（必填，从 list_categories 或 query_categories 获取）"),
-            ToolFunctionArg::new("title", "string").required(true).desc("词条标题"),
-            ToolFunctionArg::new("entry_type", "string").desc("词条类型（如 character, item, location, event, faction）"),
+            ToolFunctionArg::new("project_id", "string")
+                .required(true)
+                .desc("项目ID"),
+            ToolFunctionArg::new("category_id", "string")
+                .required(true)
+                .desc("分类ID（必填，从 list_categories 或 query_categories 获取）"),
+            ToolFunctionArg::new("title", "string")
+                .required(true)
+                .desc("词条标题"),
+            ToolFunctionArg::new("entry_type", "string")
+                .desc("词条类型（如 character, item, location, event, faction）"),
             ToolFunctionArg::new("summary", "string").desc("词条摘要"),
             ToolFunctionArg::new("content", "string").desc("词条正文，支持 Markdown"),
         ],
@@ -480,14 +858,30 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
                 let project_id = arg_str(args, "project_id")?.to_string();
                 let category_id = arg_str(args, "category_id")?.to_string();
                 let title = arg_str(args, "title")?.to_string();
-                let entry_type = args.get("entry_type").and_then(|v| v.as_str()).map(|s| s.to_string());
-                let summary = args.get("summary").and_then(|v| v.as_str()).map(|s| s.to_string());
-                let content = args.get("content").and_then(|v| v.as_str()).map(|s| s.to_string());
-                Ok(EntryOp::CreateEntry { project_id, category_id, title, entry_type, summary, content })
+                let entry_type = args
+                    .get("entry_type")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let summary = args
+                    .get("summary")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let content = args
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                Ok(EntryOp::CreateEntry {
+                    project_id,
+                    category_id,
+                    title,
+                    entry_type,
+                    summary,
+                    content,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -528,20 +922,27 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "update_entry_tags",
         "全量替换指定词条的标签列表；调用前建议先用 list_tag_schemas 确认可用标签",
         vec![
-            ToolFunctionArg::new("entry_id", "string").required(true).desc("词条ID"),
-            ToolFunctionArg::new("tags", "array").required(true).desc("标签对象数组，每个对象包含 schema_id（或 name）和 value"),
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("tags", "array")
+                .required(true)
+                .desc("标签对象数组，每个对象包含 schema_id（或 name）和 value"),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
             let result = (|| -> anyhow::Result<EntryOp> {
                 let entry_id = arg_str(args, "entry_id")?.to_string();
-                let tags = args.get("tags").cloned().ok_or_else(|| anyhow::anyhow!("缺少 tags 参数"))?;
+                let tags = args
+                    .get("tags")
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("缺少 tags 参数"))?;
                 Ok(EntryOp::UpdateEntryTags { entry_id, tags })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -551,9 +952,15 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "add_entry_tag",
         "向词条添加一个标签；若该 schema_id 的标签已存在则覆盖其值",
         vec![
-            ToolFunctionArg::new("entry_id", "string").required(true).desc("词条ID"),
-            ToolFunctionArg::new("schema_id", "string").required(true).desc("标签定义ID（从 list_tag_schemas 获取）"),
-            ToolFunctionArg::new("value", "string").required(true).desc("标签值"),
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("schema_id", "string")
+                .required(true)
+                .desc("标签定义ID（从 list_tag_schemas 获取）"),
+            ToolFunctionArg::new("value", "string")
+                .required(true)
+                .desc("标签值"),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
@@ -562,11 +969,15 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
                 let entry_id = arg_str(args, "entry_id")?.to_string();
                 let schema_id = arg_str(args, "schema_id")?.to_string();
                 let value = arg_str(args, "value")?.to_string();
-                Ok(EntryOp::AddEntryTag { entry_id, schema_id, value })
+                Ok(EntryOp::AddEntryTag {
+                    entry_id,
+                    schema_id,
+                    value,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -576,8 +987,12 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "remove_entry_tag",
         "从词条移除指定 schema_id 的标签",
         vec![
-            ToolFunctionArg::new("entry_id", "string").required(true).desc("词条ID"),
-            ToolFunctionArg::new("schema_id", "string").required(true).desc("要移除的标签定义ID"),
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("schema_id", "string")
+                .required(true)
+                .desc("要移除的标签定义ID"),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
@@ -585,11 +1000,14 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             let result = (|| -> anyhow::Result<EntryOp> {
                 let entry_id = arg_str(args, "entry_id")?.to_string();
                 let schema_id = arg_str(args, "schema_id")?.to_string();
-                Ok(EntryOp::RemoveEntryTag { entry_id, schema_id })
+                Ok(EntryOp::RemoveEntryTag {
+                    entry_id,
+                    schema_id,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -599,10 +1017,18 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "create_relation",
         "在两个词条之间创建关系；one_way 表示 a → b 单向，two_way 表示双向",
         vec![
-            ToolFunctionArg::new("a_id", "string").required(true).desc("关系起点词条ID"),
-            ToolFunctionArg::new("b_id", "string").required(true).desc("关系终点词条ID"),
-            ToolFunctionArg::new("relation", "string").required(true).desc("关系方向：one_way（a→b 单向）或 two_way（双向）"),
-            ToolFunctionArg::new("content", "string").required(true).desc("关系描述内容"),
+            ToolFunctionArg::new("a_id", "string")
+                .required(true)
+                .desc("关系起点词条ID"),
+            ToolFunctionArg::new("b_id", "string")
+                .required(true)
+                .desc("关系终点词条ID"),
+            ToolFunctionArg::new("relation", "string")
+                .required(true)
+                .desc("关系方向：one_way（a→b 单向）或 two_way（双向）"),
+            ToolFunctionArg::new("content", "string")
+                .required(true)
+                .desc("关系描述内容"),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
@@ -612,11 +1038,16 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
                 let b_id = arg_str(args, "b_id")?.to_string();
                 let relation = parse_relation_direction(arg_str(args, "relation")?)?;
                 let content = arg_str(args, "content")?.to_string();
-                Ok(EntryOp::CreateRelation { a_id, b_id, relation, content })
+                Ok(EntryOp::CreateRelation {
+                    a_id,
+                    b_id,
+                    relation,
+                    content,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -626,7 +1057,9 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "update_relation",
         "更新词条关系的方向或描述内容；两个参数均可选，但至少需传一个",
         vec![
-            ToolFunctionArg::new("relation_id", "string").required(true).desc("关系ID"),
+            ToolFunctionArg::new("relation_id", "string")
+                .required(true)
+                .desc("关系ID"),
             ToolFunctionArg::new("relation", "string").desc("新的关系方向：one_way 或 two_way"),
             ToolFunctionArg::new("content", "string").desc("新的关系描述内容"),
         ],
@@ -635,14 +1068,24 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             let app_handle = _state.app_handle.clone();
             let result = (|| -> anyhow::Result<EntryOp> {
                 let relation_id = arg_str(args, "relation_id")?.to_string();
-                let relation = args.get("relation").and_then(|v| v.as_str())
-                    .map(parse_relation_direction).transpose()?;
-                let content = args.get("content").and_then(|v| v.as_str()).map(|s| s.to_string());
-                Ok(EntryOp::UpdateRelation { relation_id, relation, content })
+                let relation = args
+                    .get("relation")
+                    .and_then(|v| v.as_str())
+                    .map(parse_relation_direction)
+                    .transpose()?;
+                let content = args
+                    .get("content")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                Ok(EntryOp::UpdateRelation {
+                    relation_id,
+                    relation,
+                    content,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -651,7 +1094,11 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
     registry.register_async::<WorldflowToolState, _>(
         "delete_relation",
         "删除指定的词条关系",
-        vec![ToolFunctionArg::new("relation_id", "string").required(true).desc("关系ID")],
+        vec![
+            ToolFunctionArg::new("relation_id", "string")
+                .required(true)
+                .desc("关系ID"),
+        ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
@@ -661,7 +1108,7 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -670,7 +1117,11 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
     registry.register_async::<WorldflowToolState, _>(
         "list_entry_types",
         "列出项目中所有可用的词条类型（内置类型 + 自定义类型），包含 key/id 和名称",
-        vec![ToolFunctionArg::new("project_id", "string").required(true).desc("项目ID")],
+        vec![
+            ToolFunctionArg::new("project_id", "string")
+                .required(true)
+                .desc("项目ID"),
+        ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
             let app_handle = _state.app_handle.clone();
@@ -680,7 +1131,7 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },
@@ -690,7 +1141,9 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
         "move_entry",
         "将词条移动到指定分类；不填 category_id 则将词条移出所有分类（置为无分类状态）",
         vec![
-            ToolFunctionArg::new("entry_id", "string").required(true).desc("词条ID"),
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
             ToolFunctionArg::new("category_id", "string").desc("目标分类ID；不填则移出分类"),
         ],
         |_state, args| {
@@ -698,12 +1151,18 @@ pub fn register_entry_tools(registry: &mut ToolRegistry) -> Result<()> {
             let app_handle = _state.app_handle.clone();
             let result = (|| -> anyhow::Result<EntryOp> {
                 let entry_id = arg_str(args, "entry_id")?.to_string();
-                let category_id = args.get("category_id").and_then(|v| v.as_str()).map(|s| s.to_string());
-                Ok(EntryOp::MoveEntry { entry_id, category_id })
+                let category_id = args
+                    .get("category_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                Ok(EntryOp::MoveEntry {
+                    entry_id,
+                    category_id,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
-                Err(e) => return Box::pin(async move { Err(e) })
+                Err(e) => return Box::pin(async move { Err(e) }),
             };
             Box::pin(dispatch_entry_op(app_state, app_handle, op))
         },

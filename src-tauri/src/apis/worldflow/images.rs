@@ -59,7 +59,11 @@ pub(super) fn copy_entry_images(
         return Ok(None);
     };
 
-    log::info!("[copy_entry_images] 开始复制 {} 张图片, project_id={}", images.len(), project_id);
+    log::info!(
+        "[copy_entry_images] 开始复制 {} 张图片, project_id={}",
+        images.len(),
+        project_id
+    );
 
     let target_dir = build_entry_images_dir(paths, project_id)?;
     std::fs::create_dir_all(&target_dir)
@@ -70,7 +74,13 @@ pub(super) fn copy_entry_images(
         .into_iter()
         .enumerate()
         .map(|(i, mut image)| {
-            log::info!("[copy_entry_images] 图片 [{}/{}] path={:?} is_cover={}", i + 1, total, image.path, image.is_cover);
+            log::info!(
+                "[copy_entry_images] 图片 [{}/{}] path={:?} is_cover={}",
+                i + 1,
+                total,
+                image.path,
+                image.is_cover
+            );
             if image.path.as_os_str().is_empty() {
                 log::info!("[copy_entry_images] 图片 [{}] path为空，跳过", i);
                 return Ok(image);
@@ -82,7 +92,11 @@ pub(super) fn copy_entry_images(
                 return Ok(image);
             }
             if !source_path.exists() {
-                log::error!("[copy_entry_images] 图片 [{}] 文件不存在: {:?}", i, source_path);
+                log::error!(
+                    "[copy_entry_images] 图片 [{}] 文件不存在: {:?}",
+                    i,
+                    source_path
+                );
                 return Err(format!("图片文件不存在: {:?}", source_path));
             }
 
@@ -96,9 +110,18 @@ pub(super) fn copy_entry_images(
             };
             let target_path = target_dir.join(&file_name);
 
-            log::info!("[copy_entry_images] 复制 {:?} -> {:?}", source_path, target_path);
+            log::info!(
+                "[copy_entry_images] 复制 {:?} -> {:?}",
+                source_path,
+                target_path
+            );
             std::fs::copy(&source_path, &target_path).map_err(|e| {
-                log::error!("[copy_entry_images] 复制失败: {:?} -> {:?}, {}", source_path, target_path, e);
+                log::error!(
+                    "[copy_entry_images] 复制失败: {:?} -> {:?}, {}",
+                    source_path,
+                    target_path,
+                    e
+                );
                 format!(
                     "复制图片失败: {:?} -> {:?}, {}",
                     source_path, target_path, e
@@ -106,12 +129,19 @@ pub(super) fn copy_entry_images(
             })?;
 
             image.path = target_path;
-            log::info!("[copy_entry_images] 图片 [{}] 复制完成, 新path={:?}", i, image.path);
+            log::info!(
+                "[copy_entry_images] 图片 [{}] 复制完成, 新path={:?}",
+                i,
+                image.path
+            );
             Ok(image)
         })
         .collect::<Result<Vec<_>, String>>()?;
 
-    log::info!("[copy_entry_images] 全部复制完成, 共 {} 张", copied_images.len());
+    log::info!(
+        "[copy_entry_images] 全部复制完成, 共 {} 张",
+        copied_images.len()
+    );
     Ok(Some(copied_images))
 }
 
@@ -157,19 +187,14 @@ pub async fn import_remote_images(
     for (i, url) in urls.into_iter().enumerate() {
         // 清洗 URL：移除查询参数，提取纯净扩展名
         let clean_url = url.split('?').next().unwrap_or(&url);
-        let ext = clean_url
-            .split('.')
-            .last()
-            .unwrap_or("png");
+        let ext = clean_url.split('.').last().unwrap_or("png");
 
         // 清洗文件名：移除 Windows 非法字符
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis())
             .unwrap_or(0);
-        let filename = format!("remote_{}_{}.{}",
-                               timestamp,
-                               i, ext);
+        let filename = format!("remote_{}_{}.{}", timestamp, i, ext);
         let local_path = images_root.join(&filename);
 
         let bytes = network

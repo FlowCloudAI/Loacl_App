@@ -1,8 +1,8 @@
-use crate::apis::ai_client::{spawn_session_event_loop, CreateLlmSessionResult};
+use crate::apis::ai_client::{CreateLlmSessionResult, spawn_session_event_loop};
 use crate::senses::character_sense::{CharacterProjectSnapshot, CharacterSense};
 use crate::{AiSessionKind, AiState, ApiKeyStore};
 use flowcloudai_client::llm::config::SessionConfig;
-use flowcloudai_client::{sense::Sense, DefaultOrchestrator};
+use flowcloudai_client::{DefaultOrchestrator, sense::Sense};
 use serde::Deserialize;
 use tauri::{AppHandle, State};
 use tokio::sync::mpsc;
@@ -32,26 +32,18 @@ pub async fn ai_create_character_session(
 
     let client = ai_state.client.lock().await;
     let registry = client.tool_registry().clone();
-    let sense = CharacterSense::new(
-        input.character_name.clone(),
-        input.project_snapshot.clone(),
-    );
+    let sense = CharacterSense::new(input.character_name.clone(), input.project_snapshot.clone());
     let whitelist = sense.tool_whitelist();
-    let config = input.max_tool_rounds.map(|rounds| {
-        SessionConfig {
-            max_tool_rounds: rounds as usize,
-            ..Default::default()
-        }
+    let config = input.max_tool_rounds.map(|rounds| SessionConfig {
+        max_tool_rounds: rounds as usize,
+        ..Default::default()
     });
     let mut session = client
         .create_llm_session(&input.plugin_id, &api_key, config)
         .map_err(|e| e.to_string())?;
     drop(client);
 
-    session
-        .load_sense(sense)
-        .await
-        .map_err(|e| e.to_string())?;
+    session.load_sense(sense).await.map_err(|e| e.to_string())?;
     session.set_orchestrator(Box::new(
         DefaultOrchestrator::new(registry).with_whitelist(whitelist),
     ));

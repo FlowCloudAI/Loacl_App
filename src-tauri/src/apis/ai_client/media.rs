@@ -27,7 +27,11 @@ pub async fn ai_text_to_image(
 ) -> Result<Vec<ImageData>, String> {
     let session = make_image_session(&ai_state, &plugin_id).await?;
     let mut request = ImageRequest::text_to_image(&model, &prompt);
-    if let Some(size) = size.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(size) = size
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         request = request.size(size);
     }
     let result = session.generate(&request).await.map_err(|e| {

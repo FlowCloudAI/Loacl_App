@@ -1,5 +1,5 @@
-use crate::apis::worldflow::common::initialize_default_timeline_tags;
 use crate::AppState;
+use crate::apis::worldflow::common::initialize_default_timeline_tags;
 use uuid::Uuid;
 use worldflow_core::{
     CategoryOps, EntryOps, EntryRelationOps, EntryTypeOps, ProjectOps, TagSchemaOps, models::*,
@@ -18,6 +18,48 @@ pub use registry::register_worldflow_tools;
 /// 工具返回结果格式化辅助
 pub mod format {
     use super::*;
+    use crate::template::render_global_template;
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    struct ListItemsTemplateContext {
+        items: Vec<String>,
+    }
+
+    #[derive(Serialize)]
+    struct EntryTemplateContext {
+        title: String,
+        summary: Option<String>,
+        entry_type: Option<String>,
+        content: Option<String>,
+        tags: Vec<String>,
+    }
+
+    #[derive(Serialize)]
+    struct RelationsTemplateContext {
+        current_name: String,
+        items: Vec<String>,
+    }
+
+    #[derive(Serialize)]
+    struct ProjectSummaryTemplateContext {
+        name: String,
+        description: Option<String>,
+        count_lines: Vec<String>,
+        created_at: String,
+        updated_at: String,
+    }
+
+    #[derive(Serialize)]
+    struct LinesTemplateContext {
+        lines: Vec<String>,
+    }
+
+    #[derive(Serialize)]
+    struct CategoriesSubtreeTemplateContext {
+        header: String,
+        lines: Vec<String>,
+    }
 
     /// 格式化词条简报列表（用于 search_entries 返回）
     pub fn format_entry_briefs(briefs: &[EntryBrief]) -> String {
@@ -25,19 +67,37 @@ pub mod format {
             return "未找到相关词条".to_string();
         }
 
+        let items = briefs
+            .iter()
+            .enumerate()
+            .map(|(i, brief)| {
+                let type_str = brief.r#type.as_deref().unwrap_or("未分类");
+                let mut item = format!(
+                    "{}. **{}** [{}] (ID: {})\n",
+                    i + 1,
+                    brief.title,
+                    type_str,
+                    brief.id
+                );
+                if let Some(summary) = &brief.summary {
+                    item.push_str(&format!("   摘要：{}\n", summary));
+                }
+                item
+            })
+            .collect::<Vec<_>>();
+
+        if let Some(rendered) = render_global_template(
+            "formats/entry_briefs",
+            &ListItemsTemplateContext {
+                items: items.clone(),
+            },
+        ) {
+            return rendered;
+        }
+
         let mut result = String::from("找到以下词条：\n\n");
-        for (i, brief) in briefs.iter().enumerate() {
-            let type_str = brief.r#type.as_deref().unwrap_or("未分类");
-            result.push_str(&format!(
-                "{}. **{}** [{}] (ID: {})\n",
-                i + 1,
-                brief.title,
-                type_str,
-                brief.id
-            ));
-            if let Some(summary) = &brief.summary {
-                result.push_str(&format!("   摘要：{}\n", summary));
-            }
+        for item in items {
+            result.push_str(&item);
             result.push('\n');
         }
         result
@@ -45,6 +105,24 @@ pub mod format {
 
     /// 格式化完整词条（用于 get_entry 返回）
     pub fn format_entry(entry: &Entry) -> String {
+        if let Some(rendered) = render_global_template(
+            "formats/entry_full",
+            &EntryTemplateContext {
+                title: entry.title.clone(),
+                summary: entry.summary.clone(),
+                entry_type: entry.r#type.clone(),
+                content: (!entry.content.is_empty()).then(|| entry.content.clone()),
+                tags: entry
+                    .tags
+                    .0
+                    .iter()
+                    .map(|tag| format!("{} : {}", tag.schema_id, tag.value))
+                    .collect(),
+            },
+        ) {
+            return rendered;
+        }
+
         let mut result = String::new();
         result.push_str(&format!("# {}\n\n", entry.title));
 
@@ -60,7 +138,6 @@ pub mod format {
             result.push_str(&format!("## 内容\n\n{}\n\n", entry.content));
         }
 
-        // 格式化标签
         if !entry.tags.0.is_empty() {
             result.push_str("## 标签\n\n");
             for tag in &entry.tags.0 {
@@ -78,24 +155,40 @@ pub mod format {
             return "该项目未定义任何标签".to_string();
         }
 
+        let items = schemas
+            .iter()
+            .map(|schema| {
+                let mut item = format!(
+                    "- **{}** (schema_id: `{}`, 类型: {}, 目标: {})\n",
+                    schema.name, schema.id, schema.r#type, schema.target
+                );
+                if let Some(desc) = &schema.description {
+                    item.push_str(&format!("  描述：{}\n", desc));
+                }
+                if let Some(default) = &schema.default_val {
+                    item.push_str(&format!("  默认值：{}\n", default));
+                }
+                item
+            })
+            .collect::<Vec<_>>();
+
+        if let Some(rendered) = render_global_template(
+            "formats/tag_schemas",
+            &ListItemsTemplateContext {
+                items: items.clone(),
+            },
+        ) {
+            return rendered;
+        }
+
         let mut result = String::from("项目标签定义：\n\n");
-        for schema in schemas {
-            result.push_str(&format!(
-                "- **{}** (schema_id: `{}`, 类型: {}, 目标: {})\n",
-                schema.name, schema.id, schema.r#type, schema.target
-            ));
-            if let Some(desc) = &schema.description {
-                result.push_str(&format!("  描述：{}\n", desc));
-            }
-            if let Some(default) = &schema.default_val {
-                result.push_str(&format!("  默认值：{}\n", default));
-            }
+        for item in items {
+            result.push_str(&item);
         }
         result
     }
 
     /// 格式化词条关系列表（用于 get_entry_relations 返回）
-    /// entry_names: 关系中出现的所有词条 id → title 映射（含当前词条自身）
     pub fn format_relations(
         relations: &[EntryRelation],
         current_entry_id: &str,
@@ -118,29 +211,40 @@ pub mod format {
         };
 
         let current_name = name(&current_id);
+        let items = relations
+            .iter()
+            .map(|rel| match rel.relation {
+                RelationDirection::TwoWay => format!(
+                    "- **{}** ↔ **{}**（双向）\n  描述：{}\n  关系ID：{}",
+                    name(&rel.a_id),
+                    name(&rel.b_id),
+                    rel.content,
+                    rel.id,
+                ),
+                RelationDirection::OneWay => format!(
+                    "- **{}** → **{}**（单向）\n  描述：{}\n  关系ID：{}",
+                    name(&rel.a_id),
+                    name(&rel.b_id),
+                    rel.content,
+                    rel.id,
+                ),
+            })
+            .collect::<Vec<_>>();
+
+        if let Some(rendered) = render_global_template(
+            "formats/relations",
+            &RelationsTemplateContext {
+                current_name: current_name.clone(),
+                items: items.clone(),
+            },
+        ) {
+            return rendered;
+        }
+
         let mut result = format!("「{}」的关系网络：\n\n", current_name);
-        for rel in relations {
-            match rel.relation {
-                RelationDirection::TwoWay => {
-                    result.push_str(&format!(
-                        "- **{}** ↔ **{}**（双向）\n  描述：{}\n  关系ID：{}\n\n",
-                        name(&rel.a_id),
-                        name(&rel.b_id),
-                        rel.content,
-                        rel.id,
-                    ));
-                }
-                RelationDirection::OneWay => {
-                    // a_id → b_id 单向
-                    result.push_str(&format!(
-                        "- **{}** → **{}**（单向）\n  描述：{}\n  关系ID：{}\n\n",
-                        name(&rel.a_id),
-                        name(&rel.b_id),
-                        rel.content,
-                        rel.id,
-                    ));
-                }
-            }
+        for item in items {
+            result.push_str(&item);
+            result.push_str("\n\n");
         }
         result
     }
@@ -150,6 +254,24 @@ pub mod format {
         project: &Project,
         entry_counts: &std::collections::HashMap<String, i64>,
     ) -> String {
+        let count_lines = entry_counts
+            .iter()
+            .map(|(entry_type, count)| format!("- {} : {} 个", entry_type, count))
+            .collect::<Vec<_>>();
+
+        if let Some(rendered) = render_global_template(
+            "formats/project_summary",
+            &ProjectSummaryTemplateContext {
+                name: project.name.clone(),
+                description: project.description.clone(),
+                count_lines: count_lines.clone(),
+                created_at: project.created_at.to_string(),
+                updated_at: project.updated_at.to_string(),
+            },
+        ) {
+            return rendered;
+        }
+
         let mut result = String::new();
         result.push_str(&format!("# 项目：{}\n\n", project.name));
 
@@ -158,11 +280,12 @@ pub mod format {
         }
 
         result.push_str("## 词条统计\n\n");
-        if entry_counts.is_empty() {
+        if count_lines.is_empty() {
             result.push_str("暂无词条\n");
         } else {
-            for (entry_type, count) in entry_counts {
-                result.push_str(&format!("- {} : {} 个\n", entry_type, count));
+            for line in count_lines {
+                result.push_str(&line);
+                result.push('\n');
             }
         }
 
@@ -178,54 +301,80 @@ pub mod format {
             return "暂无任何项目".to_string();
         }
 
+        let items = projects
+            .iter()
+            .enumerate()
+            .map(|(i, project)| {
+                let mut item = format!("{}. **{}** (ID: {})\n", i + 1, project.name, project.id);
+                if let Some(desc) = &project.description {
+                    item.push_str(&format!("   描述：{}\n", desc));
+                }
+                item
+            })
+            .collect::<Vec<_>>();
+
+        if let Some(rendered) = render_global_template(
+            "formats/projects",
+            &ListItemsTemplateContext {
+                items: items.clone(),
+            },
+        ) {
+            return rendered;
+        }
+
         let mut result = String::from("项目列表：\n\n");
-        for (i, project) in projects.iter().enumerate() {
-            result.push_str(&format!(
-                "{}. **{}** (ID: {})\n",
-                i + 1,
-                project.name,
-                project.id
-            ));
-            if let Some(desc) = &project.description {
-                result.push_str(&format!("   描述：{}\n", desc));
-            }
+        for item in items {
+            result.push_str(&item);
             result.push('\n');
         }
         result
     }
+
     /// 格式化分类列表（用于 list_categories 返回）
-    /// 按 parent_id 构建真实的缩进树
     pub fn format_categories(categories: &[Category]) -> String {
         if categories.is_empty() {
             return "该项目暂无分类".to_string();
         }
 
-        // 建立 parent_id → children 的映射
         let mut children_map: std::collections::HashMap<Option<Uuid>, Vec<&Category>> =
             std::collections::HashMap::new();
         for cat in categories {
             children_map.entry(cat.parent_id).or_default().push(cat);
         }
 
-        let mut result = String::from("分类列表：\n\n");
-
         fn render(
             parent: Option<Uuid>,
             depth: usize,
             map: &std::collections::HashMap<Option<Uuid>, Vec<&Category>>,
-            out: &mut String,
+            out: &mut Vec<String>,
         ) {
             let Some(children) = map.get(&parent) else {
                 return;
             };
             for cat in children {
                 let indent = "  ".repeat(depth);
-                out.push_str(&format!("{}- **{}** (ID: {})\n", indent, cat.name, cat.id));
+                out.push(format!("{}- **{}** (ID: {})", indent, cat.name, cat.id));
                 render(Some(cat.id), depth + 1, map, out);
             }
         }
 
-        render(None, 0, &children_map, &mut result);
+        let mut lines = Vec::new();
+        render(None, 0, &children_map, &mut lines);
+
+        if let Some(rendered) = render_global_template(
+            "formats/categories",
+            &LinesTemplateContext {
+                lines: lines.clone(),
+            },
+        ) {
+            return rendered;
+        }
+
+        let mut result = String::from("分类列表：\n\n");
+        for line in lines {
+            result.push_str(&line);
+            result.push('\n');
+        }
         result
     }
 
@@ -234,48 +383,67 @@ pub mod format {
         if types.is_empty() {
             return "该项目未定义任何词条类型".to_string();
         }
-        let mut result = String::from("可用词条类型：\n\n");
-        for et in types {
-            match et {
-                EntryTypeView::Builtin { key, name, description, .. } => {
-                    result.push_str(&format!("- **{}** (key: `{}`, 内置)\n", name, key));
+
+        let lines = types
+            .iter()
+            .map(|et| match et {
+                EntryTypeView::Builtin {
+                    key,
+                    name,
+                    description,
+                    ..
+                } => {
+                    let mut line = format!("- **{}** (key: `{}`, 内置)", name, key);
                     if !description.is_empty() {
-                        result.push_str(&format!("  {}\n", description));
+                        line.push_str(&format!("\n  {}", description));
                     }
+                    line
                 }
                 EntryTypeView::Custom(c) => {
-                    result.push_str(&format!("- **{}** (id: `{}`, 自定义)\n", c.name, c.id));
+                    let mut line = format!("- **{}** (id: `{}`, 自定义)", c.name, c.id);
                     if let Some(d) = &c.description {
-                        result.push_str(&format!("  {}\n", d));
+                        line.push_str(&format!("\n  {}", d));
                     }
+                    line
                 }
-            }
+            })
+            .collect::<Vec<_>>();
+
+        if let Some(rendered) = render_global_template(
+            "formats/entry_types",
+            &LinesTemplateContext {
+                lines: lines.clone(),
+            },
+        ) {
+            return rendered;
+        }
+
+        let mut result = String::from("可用词条类型：\n\n");
+        for line in lines {
+            result.push_str(&line);
+            result.push('\n');
         }
         result
     }
 
     /// 格式化分类子树（用于 query_categories 返回）
-    ///
-    /// * `parent_id`  — 起始父节点；`None` 表示从根开始
-    /// * `max_depth`  — 最大层级数；`None` 表示不限制（1 = 只返回直接子分类）
     pub fn format_categories_subtree(
         categories: &[Category],
         parent_id: Option<Uuid>,
         max_depth: Option<usize>,
     ) -> String {
-        // 建立 parent_id → children 的映射
         let mut children_map: std::collections::HashMap<Option<Uuid>, Vec<&Category>> =
             std::collections::HashMap::new();
         for cat in categories {
             children_map.entry(cat.parent_id).or_default().push(cat);
         }
 
-        // 检查起始节点下是否有子分类
         if !children_map.contains_key(&parent_id) {
             return match parent_id {
                 None => "该项目暂无分类".to_string(),
                 Some(pid) => {
-                    let name = categories.iter()
+                    let name = categories
+                        .iter()
                         .find(|c| c.id == pid)
                         .map(|c| c.name.as_str())
                         .unwrap_or("未知分类");
@@ -287,36 +455,55 @@ pub mod format {
         let header = match parent_id {
             None => String::from("根目录下的分类：\n\n"),
             Some(pid) => {
-                let name = categories.iter()
+                let name = categories
+                    .iter()
                     .find(|c| c.id == pid)
                     .map(|c| c.name.as_str())
                     .unwrap_or("未知分类");
                 format!("分类「{}」（ID: {}）的子分类：\n\n", name, pid)
             }
         };
-        let mut result = header;
 
         fn render(
             parent: Option<Uuid>,
             depth: usize,
             max_depth: Option<usize>,
             map: &std::collections::HashMap<Option<Uuid>, Vec<&Category>>,
-            out: &mut String,
+            out: &mut Vec<String>,
         ) {
             if let Some(max) = max_depth {
                 if depth >= max {
                     return;
                 }
             }
-            let Some(children) = map.get(&parent) else { return };
+            let Some(children) = map.get(&parent) else {
+                return;
+            };
             for cat in children {
                 let indent = "  ".repeat(depth);
-                out.push_str(&format!("{}- **{}** (ID: {})\n", indent, cat.name, cat.id));
+                out.push(format!("{}- **{}** (ID: {})", indent, cat.name, cat.id));
                 render(Some(cat.id), depth + 1, max_depth, map, out);
             }
         }
 
-        render(parent_id, 0, max_depth, &children_map, &mut result);
+        let mut lines = Vec::new();
+        render(parent_id, 0, max_depth, &children_map, &mut lines);
+
+        if let Some(rendered) = render_global_template(
+            "formats/categories_subtree",
+            &CategoriesSubtreeTemplateContext {
+                header: header.clone(),
+                lines: lines.clone(),
+            },
+        ) {
+            return rendered;
+        }
+
+        let mut result = header;
+        for line in lines {
+            result.push_str(&line);
+            result.push('\n');
+        }
         result
     }
 
@@ -786,15 +973,17 @@ pub async fn create_category(
         name,
         sort_order: None,
     })
-        .await
-        .map_err(|e| e.to_string())
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// 获取分类（含 project_id / parent_id 信息）
 pub async fn get_category(state: &AppState, category_id: &str) -> Result<Category, String> {
     let category_id = Uuid::parse_str(category_id).map_err(|e| e.to_string())?;
     let db = state.sqlite_db.lock().await;
-    db.get_category(&category_id).await.map_err(|e| e.to_string())
+    db.get_category(&category_id)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 收集以 root_id 为根的分类子树（包含根节点本身），广度优先。
@@ -934,8 +1123,8 @@ pub async fn delete_category_move_to_parent(
                 sort_order: None,
             },
         )
-            .await
-            .map_err(|e| e.to_string())?;
+        .await
+        .map_err(|e| e.to_string())?;
     }
 
     // 将该分类下词条移到父分类
@@ -969,8 +1158,8 @@ pub async fn delete_category_move_to_parent(
                     images: None,
                 },
             )
-                .await
-                .map_err(|e| e.to_string())?;
+            .await
+            .map_err(|e| e.to_string())?;
         }
         if batch.len() < 200 {
             break;
@@ -1016,8 +1205,8 @@ pub async fn move_entry(
             images: None,
         },
     )
-        .await
-        .map_err(|e| e.to_string())
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// 创建项目（含默认时间线标签初始化）
@@ -1027,16 +1216,21 @@ pub async fn create_project(
     description: Option<String>,
 ) -> Result<Project, String> {
     let db = state.sqlite_db.lock().await;
-    let project = db.create_project(CreateProject {
-        name,
-        description,
-        cover_image: None,
-    })
+    let project = db
+        .create_project(CreateProject {
+            name,
+            description,
+            cover_image: None,
+        })
         .await
         .map_err(|e| e.to_string())?;
 
     if let Err(error) = initialize_default_timeline_tags(&db, &project.id).await {
-        log::error!("[tools] AI 创建项目后初始化时间线标签失败: project_id={} error={}", project.id, error);
+        log::error!(
+            "[tools] AI 创建项目后初始化时间线标签失败: project_id={} error={}",
+            project.id,
+            error
+        );
         // 不回滚项目，避免 AI 工具链因标签初始化失败而中断
     }
 

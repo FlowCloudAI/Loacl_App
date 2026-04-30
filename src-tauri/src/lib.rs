@@ -1,11 +1,12 @@
-mod apis;
 mod ai_services;
+mod apis;
 mod layout;
 mod map;
 mod reports;
 mod senses;
 mod settings;
 mod state;
+mod template;
 mod tools;
 
 pub use settings::*;
@@ -18,8 +19,8 @@ use apis::ai_client::media::*;
 use apis::ai_client::plugins::*;
 use apis::ai_client::sessions::*;
 use apis::ai_client::task_context::*;
-use apis::ai_client::usage::*;
 use apis::ai_client::tools::*;
+use apis::ai_client::usage::*;
 use apis::ai_contradiction::*;
 use apis::ai_summary::*;
 use apis::app_settings::*;
@@ -42,13 +43,15 @@ use apis::worldflow::snapshots::*;
 use apis::worldflow::system::*;
 use apis::worldflow::tags::*;
 use layout::cache::LayoutCacheState;
+use template::{TemplateEngine, install_global_template_engine};
 
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::sync::Arc;
 use tauri::{
-    http::{header::CONTENT_TYPE, Response, StatusCode}, AppHandle, Emitter, Manager, Runtime, UriSchemeContext,
+    AppHandle, Emitter, Manager, Runtime, UriSchemeContext,
+    http::{Response, StatusCode, header::CONTENT_TYPE},
 };
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_log;
@@ -59,6 +62,25 @@ use worldflow_core::{SnapshotConfig, SqliteDb};
 pub struct SettingsState {
     pub settings: Mutex<AppSettings>,
     pub path: PathBuf,
+}
+
+fn resolve_template_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
+    #[cfg(debug_assertions)]
+    {
+        let _ = app;
+        Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join("templates"))
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        let resource_dir = app
+            .path()
+            .resource_dir()
+            .map_err(|e| anyhow::anyhow!("解析模板资源目录失败: {}", e))?;
+        Ok(resource_dir.join("templates"))
+    }
 }
 
 // ── 入口 ──────────────────────────────────────────────────────────────────────
@@ -80,25 +102,26 @@ pub fn run() {
             // debug 模式：仅 stdout，保留 Debug 级别。
             {
                 #[cfg(not(debug_assertions))]
-                let log_config_dir = app.handle()
+                let log_config_dir = app
+                    .handle()
                     .path()
                     .app_config_dir()
                     .unwrap_or_else(|_| std::env::current_dir().unwrap());
 
                 let log_builder = tauri_plugin_log::Builder::new()
                     .level(log::LevelFilter::Info)
-                    .target(tauri_plugin_log::Target::new(
-                        tauri_plugin_log::TargetKind::Stdout,
-                    )
-                        .filter(|meta| {
-                            // 过滤 sqlx 和 hyper 的 debug 日志，避免刷屏
-                            let target = meta.target();
-                            !target.starts_with("sqlx::")
-                                && !target.starts_with("hyper")
-                                && !target.starts_with("hyper_util")
-                                && !target.starts_with("h2::")
-                                && !target.starts_with("reqwest::")
-                        }),
+                    .target(
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout).filter(
+                            |meta| {
+                                // 过滤 sqlx 和 hyper 的 debug 日志，避免刷屏
+                                let target = meta.target();
+                                !target.starts_with("sqlx::")
+                                    && !target.starts_with("hyper")
+                                    && !target.starts_with("hyper_util")
+                                    && !target.starts_with("h2::")
+                                    && !target.starts_with("reqwest::")
+                            },
+                        ),
                     );
 
                 #[cfg(not(debug_assertions))]
@@ -107,7 +130,7 @@ pub fn run() {
                         path: log_config_dir,
                         file_name: Some("app".to_string()),
                     })
-                        .filter(|meta| meta.level() <= log::Level::Info),
+                    .filter(|meta| meta.level() <= log::Level::Info),
                 );
 
                 app.handle().plugin(log_builder.build())?;
@@ -116,7 +139,9 @@ pub fn run() {
             // 禁用 release 模式下的 WebView 右键菜单
             #[cfg(not(debug_assertions))]
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.eval("document.addEventListener('contextmenu', e => e.preventDefault(), true);");
+                let _ = window.eval(
+                    "document.addEventListener('contextmenu', e => e.preventDefault(), true);",
+                );
             }
 
             let app_handle = app.handle().clone();
@@ -158,6 +183,19 @@ pub fn run() {
                 path: settings_path,
             });
 
+            match resolve_template_dir(&app_handle).and_then(|dir| TemplateEngine::new(&dir)) {
+                Ok(engine) => {
+                    if let Err(error) = install_global_template_engine(Arc::new(engine)) {
+                        log::warn!("模板引擎注册失败，将继续使用硬编码回退：{}", error);
+                    } else {
+                        log::info!("模板引擎初始化完成");
+                    }
+                }
+                Err(error) => {
+                    log::warn!("模板引擎初始化失败，将继续使用硬编码回退：{}", error);
+                }
+            }
+
             // 异步初始化数据库
             let db_path = prepare_db_path(&app_handle, &resolved_db_path)
                 .unwrap_or_else(|e| fatal(&app_handle, &e.to_string()));
@@ -182,12 +220,11 @@ pub fn run() {
                             });
 
                             // 创建待确认编辑请求状态（AI 工具和 confirm command 共享同一个 Arc）
-                            let pending_edits = Arc::new(Mutex::new(
-                                std::collections::HashMap::<
-                                    String,
-                                    tokio::sync::oneshot::Sender<bool>,
-                                >::new(),
-                            ));
+                            let pending_edits = Arc::new(Mutex::new(std::collections::HashMap::<
+                                String,
+                                tokio::sync::oneshot::Sender<bool>,
+                            >::new(
+                            )));
                             app.manage(PendingEditsState {
                                 pending: pending_edits.clone(),
                             });
@@ -385,7 +422,9 @@ async fn init_db(db_path: &Path, snapshot_dir: Option<&Path>) -> Result<SqliteDb
             author_name: "FlowCloudAI".to_string(),
             author_email: "app@flowcloud.ai".to_string(),
         };
-        SqliteDb::new_with_snapshot(&path_str, config).await.map_err(Into::into)
+        SqliteDb::new_with_snapshot(&path_str, config)
+            .await
+            .map_err(Into::into)
     } else {
         SqliteDb::new(&path_str).await.map_err(Into::into)
     }
@@ -432,7 +471,10 @@ fn handle_fcimg_request<R: Runtime>(
     log::debug!("[fcimg] request uri: {}", raw_uri);
 
     let Some(paths) = ctx.app_handle().try_state::<PathsState>() else {
-        log::warn!("[fcimg] PathsState not ready — db may still be initializing. uri={}", raw_uri);
+        log::warn!(
+            "[fcimg] PathsState not ready — db may still be initializing. uri={}",
+            raw_uri
+        );
         return build_fcimg_response(
             StatusCode::SERVICE_UNAVAILABLE,
             b"paths state unavailable".to_vec(),
@@ -467,7 +509,11 @@ fn handle_fcimg_request<R: Runtime>(
     let canonical_requested = match std::fs::canonicalize(&requested_path) {
         Ok(path) => path,
         Err(e) => {
-            log::warn!("[fcimg] canonicalize requested failed: {} | decoded={}", e, decoded_path);
+            log::warn!(
+                "[fcimg] canonicalize requested failed: {} | decoded={}",
+                e,
+                decoded_path
+            );
             return build_fcimg_response(
                 StatusCode::NOT_FOUND,
                 b"image not found".to_vec(),
@@ -491,7 +537,11 @@ fn handle_fcimg_request<R: Runtime>(
     let canonical_images_root = match std::fs::canonicalize(&images_root) {
         Ok(path) => path,
         Err(e) => {
-            log::warn!("[fcimg] canonicalize images_root failed: {} | path={:?}", e, images_root);
+            log::warn!(
+                "[fcimg] canonicalize images_root failed: {} | path={:?}",
+                e,
+                images_root
+            );
             return build_fcimg_response(
                 StatusCode::NOT_FOUND,
                 b"images root not found".to_vec(),
@@ -516,11 +566,19 @@ fn handle_fcimg_request<R: Runtime>(
 
     let bytes = match std::fs::read(&canonical_requested) {
         Ok(bytes) => {
-            log::debug!("[fcimg] OK {} bytes for {:?}", bytes.len(), canonical_requested);
+            log::debug!(
+                "[fcimg] OK {} bytes for {:?}",
+                bytes.len(),
+                canonical_requested
+            );
             bytes
         }
         Err(e) => {
-            log::error!("[fcimg] read failed: {} | path={:?}", e, canonical_requested);
+            log::error!(
+                "[fcimg] read failed: {} | path={:?}",
+                e,
+                canonical_requested
+            );
             return build_fcimg_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 b"failed to read image".to_vec(),

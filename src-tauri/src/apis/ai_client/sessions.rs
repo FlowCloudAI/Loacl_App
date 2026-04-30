@@ -28,11 +28,9 @@ pub async fn ai_create_llm_session(
 
     let client = ai_state.client.lock().await;
     let registry = client.tool_registry().clone();
-    let config = max_tool_rounds.map(|rounds| {
-        SessionConfig {
-            max_tool_rounds: rounds as usize,
-            ..Default::default()
-        }
+    let config = max_tool_rounds.map(|rounds| SessionConfig {
+        max_tool_rounds: rounds as usize,
+        ..Default::default()
     });
     let mut session = match conversation_id {
         Some(ref conv_id) => client
@@ -183,8 +181,8 @@ pub async fn ai_update_session(
         Ok(())
     }
 
-    let params: SessionUpdateParams = serde_json::from_value(params)
-        .map_err(|e| format!("参数解析失败: {}", e))?;
+    let params: SessionUpdateParams =
+        serde_json::from_value(params).map_err(|e| format!("参数解析失败: {}", e))?;
 
     if let Some(Some(t)) = params.temperature {
         validate_f64(t, "temperature", 0.0, 2.0)?;

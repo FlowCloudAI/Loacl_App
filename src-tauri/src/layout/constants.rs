@@ -1,6 +1,6 @@
 /// 节点碰撞半径额外补偿，保证视觉上不重叠。
 /// 调大：节点间最小间距变大，布局更松散；调小：节点更紧凑，但可能贴边。
-pub const COLLISION_PADDING: f64 = 20.0;
+pub const COLLISION_PADDING: f64 = 40.0;
 /// 节点之间希望额外保留的可见空隙。
 /// 调大：理想边长与碰撞下限同步增大，整体布局更舒展；调小：更紧凑。
 pub const NODE_GAP: f64 = 28.0;
@@ -19,7 +19,7 @@ pub const EDGE_LENGTH_ALPHA_RHO: f64 = 0.7;
 pub const EDGE_LENGTH_ALPHA_CV: f64 = 0.5;
 /// 基础理想边长的全局下限。
 /// 调大：所有图的最小边长被强制抬高，小图也会变松散；调小：小图可以更紧凑。
-pub const EDGE_LENGTH_MIN: f64 = 84.0;
+pub const EDGE_LENGTH_MIN: f64 = 100.0;
 /// 基础理想边长的全局上限。
 /// 调大：超大图节点间距可进一步拉开；调小：限制最大图的舒展程度。
 pub const EDGE_LENGTH_MAX: f64 = 320.0;
@@ -32,7 +32,7 @@ pub const TWO_WAY_EDGE_LENGTH_FACTOR: f64 = 0.84;
 pub const TWO_WAY_ATTRACTION_WEIGHT: f64 = 1.68;
 /// 全局向心力强度，防止弱连接子结构漂散。
 /// 调大：整体布局更聚拢；调小：节点更自由外扩。
-pub const GRAVITY_STRENGTH: f64 = 0.06;
+pub const GRAVITY_STRENGTH: f64 = 0.1;
 
 /// 初始温度相对于初始化半径的比例因子。
 /// 调大：退火初期节点移动幅度更大，布局更随机但可能跳出局部最优；调小：初期更稳定。
@@ -113,19 +113,19 @@ pub const ISOLATED_NODE_HORIZONTAL_GAP: f64 = 56.0;
 pub const CLUSTER_BOX_GAP: f64 = 56.0;
 /// 簇图连接边对应的额外目标距离基准。
 /// 调大：有连接的簇之间保持更远距离；调小：关联簇更靠近。
-pub const CLUSTER_LINK_DISTANCE_BASE: f64 = 110.0;
+pub const CLUSTER_LINK_DISTANCE_BASE: f64 = 100.0;
 /// 簇级轻量力导向的软斥力系数，避免整体炸开。
 /// 调大：簇间软斥力增强，整体更分散；调小：簇更容易聚集。
 pub const CLUSTER_REPULSION_SOFT: f64 = 14.0;
 /// 簇级布局向画面中心回收的轻微拉力。
 /// 调大：簇更向中心聚拢，画布更集中；调小：簇分布更自由，可能外扩。
-pub const CLUSTER_CENTER_PULL: f64 = 0.015;
+pub const CLUSTER_CENTER_PULL: f64 = 0.02;
 /// 簇级布局的初始温度。
 /// 调大：簇级退火初期移动更剧烈，探索更广；调小：簇级布局更稳定。
 pub const CLUSTER_TEMPERATURE_INITIAL: f64 = 42.0;
 /// 簇级布局的温度衰减率。
 /// 调大：降温更慢，簇级收敛更充分；调小：更快冻结，可能欠优化。
-pub const CLUSTER_TEMPERATURE_DECAY: f64 = 0.92;
+pub const CLUSTER_TEMPERATURE_DECAY: f64 = 0.95;
 /// 簇级布局的最大迭代轮数。
 /// 调大：簇级位置优化更充分；调小：簇级布局更快完成。
 pub const CLUSTER_ITERATIONS: usize = 80;

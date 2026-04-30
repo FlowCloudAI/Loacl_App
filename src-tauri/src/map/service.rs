@@ -467,7 +467,6 @@ fn safe_location_name(location: &MapKeyLocationDraft) -> &str {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

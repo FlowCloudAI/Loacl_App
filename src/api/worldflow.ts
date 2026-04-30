@@ -50,7 +50,8 @@ export interface Entry {
     type?: string | null
     tags?: EntryTag[] | null
     images?: FCImage[] | null
-
+    created_at?: string | null
+    updated_at?: string | null
 }
 
 export interface EntryBrief {

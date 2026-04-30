@@ -4,7 +4,7 @@ use flowcloudai_client::{FlowCloudAIClient, SessionHandle};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{Mutex, mpsc, oneshot};
 use worldflow_core::SqliteDb;
 
 // ── SearchEngineState ─────────────────────────────────────────────────────────

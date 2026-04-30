@@ -3,7 +3,7 @@ use crate::tools::confirm::request_confirmation;
 use crate::tools::format;
 use anyhow::Result;
 use flowcloudai_client::llm::types::ToolFunctionArg;
-use flowcloudai_client::tool::{arg_str, ToolRegistry};
+use flowcloudai_client::tool::{ToolRegistry, arg_str};
 use tauri::Emitter;
 use uuid::Uuid;
 
@@ -45,8 +45,17 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
 
                 if let Some(ref h) = app_handle {
                     #[derive(serde::Serialize, Clone)]
-                    struct Evt { category_id: String, project_id: String }
-                    let _ = h.emit("category:created", Evt { category_id: category.id.to_string(), project_id: project_id.to_string() });
+                    struct Evt {
+                        category_id: String,
+                        project_id: String,
+                    }
+                    let _ = h.emit(
+                        "category:created",
+                        Evt {
+                            category_id: category.id.to_string(),
+                            project_id: project_id.to_string(),
+                        },
+                    );
                 }
 
                 Ok("修改已完成".to_string())
@@ -108,7 +117,7 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                             },
                             180,
                         )
-                            .await?;
+                        .await?;
 
                         if !confirmed {
                             return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
@@ -120,8 +129,15 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                             .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
 
                         #[derive(serde::Serialize, Clone)]
-                        struct Evt { category_id: String }
-                        let _ = app_handle.emit("category:deleted", Evt { category_id: cat_id_str.clone() });
+                        struct Evt {
+                            category_id: String,
+                        }
+                        let _ = app_handle.emit(
+                            "category:deleted",
+                            Evt {
+                                category_id: cat_id_str.clone(),
+                            },
+                        );
 
                         Ok("用户审核已通过，更改已完成".to_string())
                     }
@@ -165,7 +181,7 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                             },
                             180,
                         )
-                            .await?;
+                        .await?;
 
                         if !confirmed_preview {
                             return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
@@ -186,7 +202,7 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                             },
                             180,
                         )
-                            .await?;
+                        .await?;
 
                         if !confirmed_final {
                             return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
@@ -199,8 +215,15 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                                 .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
 
                         #[derive(serde::Serialize, Clone)]
-                        struct Evt { category_id: String }
-                        let _ = app_handle.emit("category:deleted", Evt { category_id: cat_id_str.clone() });
+                        struct Evt {
+                            category_id: String,
+                        }
+                        let _ = app_handle.emit(
+                            "category:deleted",
+                            Evt {
+                                category_id: cat_id_str.clone(),
+                            },
+                        );
 
                         Ok("用户审核已通过，更改已完成".to_string())
                     }

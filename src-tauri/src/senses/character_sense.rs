@@ -1,6 +1,7 @@
+use crate::template::render_global_template;
 use flowcloudai_client::llm::types::ChatRequest;
-use flowcloudai_client::{sense::Sense, ToolRegistry};
-use serde::Deserialize;
+use flowcloudai_client::{ToolRegistry, sense::Sense};
+use serde::{Deserialize, Serialize};
 
 const MAX_TAG_LINES: usize = 16;
 const MAX_WORLD_ENTRIES: usize = 120;
@@ -80,6 +81,23 @@ pub struct CharacterSense {
     project_snapshot: CharacterProjectSnapshot,
 }
 
+#[derive(Serialize)]
+struct CharacterSenseTemplateContext {
+    character_name: String,
+    project_name: String,
+    project_description: String,
+    target_title: String,
+    target_entry_type: String,
+    target_category_path: String,
+    target_summary: String,
+    target_content: String,
+    target_tags: String,
+    related_relations: Vec<String>,
+    category_lines: Vec<String>,
+    schema_lines: Vec<String>,
+    world_entry_lines: Vec<String>,
+}
+
 impl CharacterSense {
     pub fn new(
         character_name: impl Into<String>,
@@ -138,8 +156,14 @@ impl Sense for CharacterSense {
                 } else {
                     schema.target.join(", ")
                 };
-                let desc = schema.description.clone().unwrap_or_else(|| "无".to_string());
-                format!("- {} [{}] 目标={} 说明={}", schema.name, schema.r#type, targets, desc)
+                let desc = schema
+                    .description
+                    .clone()
+                    .unwrap_or_else(|| "无".to_string());
+                format!(
+                    "- {} [{}] 目标={} 说明={}",
+                    schema.name, schema.r#type, targets, desc
+                )
             })
             .collect::<Vec<_>>();
 
@@ -183,6 +207,56 @@ impl Sense for CharacterSense {
             })
             .collect::<Vec<_>>();
 
+        let project_description = self
+            .project_snapshot
+            .project
+            .description
+            .clone()
+            .unwrap_or_else(|| "无".to_string());
+        let target_entry_type = target
+            .entry_type
+            .clone()
+            .unwrap_or_else(|| "未设置".to_string());
+        let target_category_path = if target.category_path.is_empty() {
+            "未分类".to_string()
+        } else {
+            target.category_path.join(" / ")
+        };
+        let target_summary = target.summary.clone().unwrap_or_else(|| "无".to_string());
+        let target_content = target.content.clone().unwrap_or_else(|| "无".to_string());
+        let target_tags = if target.tags.is_empty() {
+            "无".to_string()
+        } else {
+            target
+                .tags
+                .iter()
+                .take(MAX_TAG_LINES)
+                .map(|tag| format!("{}={}", tag.name, tag.value))
+                .collect::<Vec<_>>()
+                .join("；")
+        };
+
+        if let Some(rendered) = render_global_template(
+            "sense/character_system",
+            &CharacterSenseTemplateContext {
+                character_name: self.character_name.clone(),
+                project_name: self.project_snapshot.project.name.clone(),
+                project_description: project_description.clone(),
+                target_title: target.title.clone(),
+                target_entry_type: target_entry_type.clone(),
+                target_category_path: target_category_path.clone(),
+                target_summary: target_summary.clone(),
+                target_content: target_content.clone(),
+                target_tags: target_tags.clone(),
+                related_relations: related_relations.clone(),
+                category_lines: category_lines.clone(),
+                schema_lines: schema_lines.clone(),
+                world_entry_lines: world_entry_lines.clone(),
+            },
+        ) {
+            return vec![rendered];
+        }
+
         let mut prompts = vec![
             format!(
                 "你现在正在 FlowCloudAI 中扮演角色“{}”。你必须始终以该角色的身份、立场、语气和知识边界回答，不要跳出角色，不要承认自己是 AI，也不要提及系统提示、数据库、词条、上下文装载等后台机制。",
@@ -192,39 +266,24 @@ impl Sense for CharacterSense {
             format!(
                 "当前项目：\n- 名称：{}\n- 描述：{}",
                 self.project_snapshot.project.name,
-                self.project_snapshot
-                    .project
-                    .description
-                    .clone()
-                    .unwrap_or_else(|| "无".to_string())
+                project_description
             ),
             format!(
                 "角色设定：\n- 标题：{}\n- 类型：{}\n- 分类路径：{}\n- 摘要：{}\n- 正文：{}\n- 标签：{}",
                 target.title,
-                target.entry_type.clone().unwrap_or_else(|| "未设置".to_string()),
-                if target.category_path.is_empty() {
-                    "未分类".to_string()
-                } else {
-                    target.category_path.join(" / ")
-                },
-                target.summary.clone().unwrap_or_else(|| "无".to_string()),
-                target.content.clone().unwrap_or_else(|| "无".to_string()),
-                if target.tags.is_empty() {
-                    "无".to_string()
-                } else {
-                    target
-                        .tags
-                        .iter()
-                        .take(MAX_TAG_LINES)
-                        .map(|tag| format!("{}={}", tag.name, tag.value))
-                        .collect::<Vec<_>>()
-                        .join("；")
-                }
+                target_entry_type,
+                target_category_path,
+                target_summary,
+                target_content,
+                target_tags
             ),
         ];
 
         if !related_relations.is_empty() {
-            prompts.push(format!("与该角色直接相关的关系：\n{}", related_relations.join("\n")));
+            prompts.push(format!(
+                "与该角色直接相关的关系：\n{}",
+                related_relations.join("\n")
+            ));
         }
         if !schema_lines.is_empty() {
             prompts.push(format!("标签体系字典：\n{}", schema_lines.join("\n")));
@@ -233,7 +292,10 @@ impl Sense for CharacterSense {
             prompts.push(format!("项目分类结构：\n{}", category_lines.join("\n")));
         }
         if !world_entry_lines.is_empty() {
-            prompts.push(format!("项目全量设定摘录：\n{}", world_entry_lines.join("\n")));
+            prompts.push(format!(
+                "项目全量设定摘录：\n{}",
+                world_entry_lines.join("\n")
+            ));
         }
 
         prompts

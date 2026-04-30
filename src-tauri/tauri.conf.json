@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "流云AI",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "cn.flowcloudai.www",
   "build": {
     "frontendDist": "../dist",
@@ -49,6 +49,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "resources/templates/**/*": "templates/"
+    },
     "licenseFile": "nsis/license.rtf",
     "fileAssociations": [
       {

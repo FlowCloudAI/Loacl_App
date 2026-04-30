@@ -10,7 +10,11 @@ pub struct SnapshotInfoDto {
 
 impl From<SnapshotInfo> for SnapshotInfoDto {
     fn from(s: SnapshotInfo) -> Self {
-        Self { id: s.id, message: s.message, timestamp: s.timestamp }
+        Self {
+            id: s.id,
+            message: s.message,
+            timestamp: s.timestamp,
+        }
     }
 }
 
@@ -118,7 +122,10 @@ fn load_snapshot_graph(repo_dir: &Path, active_branch: &str) -> Result<SnapshotG
         .set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
         .map_err(|e| e.to_string())?;
 
-    for branch_result in repo.branches(Some(BranchType::Local)).map_err(|e| e.to_string())? {
+    for branch_result in repo
+        .branches(Some(BranchType::Local))
+        .map_err(|e| e.to_string())?
+    {
         let (branch, _) = branch_result.map_err(|e| e.to_string())?;
         let name = branch
             .name()
@@ -193,9 +200,7 @@ fn load_snapshot_graph(repo_dir: &Path, active_branch: &str) -> Result<SnapshotG
 /// 手动触发一次快照（消息前缀 "manual <unix_secs>"）
 /// 返回 true 表示创建了新快照，false 表示内容无变化跳过
 #[tauri::command]
-pub async fn db_snapshot(
-    state: State<'_, Arc<Mutex<AppState>>>,
-) -> Result<bool, String> {
+pub async fn db_snapshot(state: State<'_, Arc<Mutex<AppState>>>) -> Result<bool, String> {
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
     match db.snapshot().await {
@@ -266,7 +271,9 @@ pub async fn db_switch_branch(
 ) -> Result<(), String> {
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
-    db.switch_branch(&branch_name).await.map_err(|e| e.to_string())
+    db.switch_branch(&branch_name)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 列出所有历史快照，最新的在 index 0
@@ -336,7 +343,9 @@ pub async fn db_rollback_to(
 ) -> Result<(), String> {
     let state = state.inner().lock().await;
     let db = state.sqlite_db.lock().await;
-    db.rollback_to(&snapshot_id).await.map_err(|e| e.to_string())
+    db.rollback_to(&snapshot_id)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// 追加恢复：把历史快照里有、当前 DB 没有的记录补回来（非破坏性）

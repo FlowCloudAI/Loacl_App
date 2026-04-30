@@ -2,11 +2,11 @@ use crate::tools;
 use crate::tools::confirm::request_confirmation;
 use anyhow::Result;
 use flowcloudai_client::llm::types::ToolFunctionArg;
-use flowcloudai_client::tool::{arg_str, ToolRegistry};
+use flowcloudai_client::tool::{ToolRegistry, arg_str};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{Mutex, oneshot};
 
 // ── 编辑操作分派枚举 ─────────────────────────────────────────────────────────
 
@@ -33,7 +33,12 @@ async fn dispatch_edit_op(
     op: EditOp,
 ) -> anyhow::Result<String> {
     match op {
-        EditOp::EditContentLines { entry_id, start_line, end_line, new_content } => {
+        EditOp::EditContentLines {
+            entry_id,
+            start_line,
+            end_line,
+            new_content,
+        } => {
             if start_line == 0 {
                 anyhow::bail!("修改未完成：start_line 必须从 1 开始");
             }
@@ -56,7 +61,11 @@ async fn dispatch_edit_op(
             let lines: Vec<&str> = before_content.lines().collect();
             let total = lines.len();
             if start_line > total + 1 {
-                anyhow::bail!("修改未完成：start_line ({}) 超出内容行数 ({})", start_line, total);
+                anyhow::bail!(
+                    "修改未完成：start_line ({}) 超出内容行数 ({})",
+                    start_line,
+                    total
+                );
             }
             let end_clamped = end_line.min(total);
 
@@ -80,15 +89,19 @@ async fn dispatch_edit_op(
             }
 
             let confirmed = request_confirmation(
-                &app_handle, &pending_edits, "entry:edit-request",
+                &app_handle,
+                &pending_edits,
+                "entry:edit-request",
                 |request_id| Payload {
                     request_id,
                     entry_id: entry_id.clone(),
                     entry_title: entry_title.clone(),
                     before_content: before_content.clone(),
                     after_content: after_content.clone(),
-                }, 180,
-            ).await?;
+                },
+                180,
+            )
+            .await?;
 
             if !confirmed {
                 return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
@@ -103,13 +116,22 @@ async fn dispatch_edit_op(
             struct Evt {
                 entry_id: String,
             }
-            app_handle.emit("entry:updated", Evt { entry_id: entry.id.to_string() })
+            app_handle
+                .emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: entry.id.to_string(),
+                    },
+                )
                 .map_err(|e| anyhow::anyhow!("修改未完成：emit 失败: {}", e))?;
 
             Ok("用户审核已通过，更改已完成".to_string())
         }
 
-        EditOp::ReplaceContent { entry_id, new_content } => {
+        EditOp::ReplaceContent {
+            entry_id,
+            new_content,
+        } => {
             let (entry_title, before_content) = {
                 let guard = app_state.lock().await;
                 let entry = tools::get_entry(&*guard, &entry_id)
@@ -129,15 +151,19 @@ async fn dispatch_edit_op(
 
             let after = new_content.clone();
             let confirmed = request_confirmation(
-                &app_handle, &pending_edits, "entry:edit-request",
+                &app_handle,
+                &pending_edits,
+                "entry:edit-request",
                 |request_id| Payload {
                     request_id,
                     entry_id: entry_id.clone(),
                     entry_title: entry_title.clone(),
                     before_content: before_content.clone(),
                     after_content: after.clone(),
-                }, 180,
-            ).await?;
+                },
+                180,
+            )
+            .await?;
 
             if !confirmed {
                 return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
@@ -152,7 +178,13 @@ async fn dispatch_edit_op(
             struct Evt {
                 entry_id: String,
             }
-            app_handle.emit("entry:updated", Evt { entry_id: entry.id.to_string() })
+            app_handle
+                .emit(
+                    "entry:updated",
+                    Evt {
+                        entry_id: entry.id.to_string(),
+                    },
+                )
                 .map_err(|e| anyhow::anyhow!("修改未完成：emit 失败: {}", e))?;
 
             Ok("用户审核已通过，更改已完成".to_string())
@@ -176,14 +208,18 @@ async fn dispatch_edit_op(
             }
 
             let confirmed = request_confirmation(
-                &app_handle, &pending_edits, "entry:delete-request",
+                &app_handle,
+                &pending_edits,
+                "entry:delete-request",
                 |request_id| Payload {
                     request_id,
                     entry_id: entry_id.clone(),
                     entry_title: entry_title.clone(),
                     entry_summary: entry_summary.clone(),
-                }, 180,
-            ).await?;
+                },
+                180,
+            )
+            .await?;
 
             if !confirmed {
                 return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
@@ -198,7 +234,13 @@ async fn dispatch_edit_op(
             struct Evt {
                 entry_id: String,
             }
-            app_handle.emit("entry:deleted", Evt { entry_id: entry_id.clone() })
+            app_handle
+                .emit(
+                    "entry:deleted",
+                    Evt {
+                        entry_id: entry_id.clone(),
+                    },
+                )
                 .map_err(|e| anyhow::anyhow!("修改未完成：emit 失败: {}", e))?;
 
             Ok("用户审核已通过，更改已完成".to_string())
@@ -217,10 +259,18 @@ pub fn register_edit_tools(registry: &mut ToolRegistry) -> Result<()> {
          删除：start_line ≤ end_line，new_content 为空字符串；\
          在第 N 行前插入：end_line = start_line - 1，new_content 为要插入的内容",
         vec![
-            ToolFunctionArg::new("entry_id", "string").required(true).desc("词条ID"),
-            ToolFunctionArg::new("start_line", "integer").required(true).desc("起始行号（从 1 开始，含）；插入时表示在该行前插入"),
-            ToolFunctionArg::new("end_line", "integer").required(true).desc("结束行号（含）；设为 start_line - 1 表示纯插入（不替换任何行）"),
-            ToolFunctionArg::new("new_content", "string").required(true).desc("新内容（支持多行）；空字符串表示删除 start_line 到 end_line 的区间"),
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("start_line", "integer")
+                .required(true)
+                .desc("起始行号（从 1 开始，含）；插入时表示在该行前插入"),
+            ToolFunctionArg::new("end_line", "integer")
+                .required(true)
+                .desc("结束行号（含）；设为 start_line - 1 表示纯插入（不替换任何行）"),
+            ToolFunctionArg::new("new_content", "string")
+                .required(true)
+                .desc("新内容（支持多行）；空字符串表示删除 start_line 到 end_line 的区间"),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
@@ -228,10 +278,23 @@ pub fn register_edit_tools(registry: &mut ToolRegistry) -> Result<()> {
             let pending_edits = _state.pending_edits.clone();
             let result = (|| -> anyhow::Result<EditOp> {
                 let entry_id = arg_str(args, "entry_id")?.to_string();
-                let start_line = args.get("start_line").and_then(|v| v.as_u64()).ok_or_else(|| anyhow::anyhow!("缺少或非法参数: start_line"))? as usize;
-                let end_line = args.get("end_line").and_then(|v| v.as_u64()).ok_or_else(|| anyhow::anyhow!("缺少或非法参数: end_line"))? as usize;
+                let start_line = args
+                    .get("start_line")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| anyhow::anyhow!("缺少或非法参数: start_line"))?
+                    as usize;
+                let end_line = args
+                    .get("end_line")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| anyhow::anyhow!("缺少或非法参数: end_line"))?
+                    as usize;
                 let new_content = arg_str(args, "new_content")?.to_string();
-                Ok(EditOp::EditContentLines { entry_id, start_line, end_line, new_content })
+                Ok(EditOp::EditContentLines {
+                    entry_id,
+                    start_line,
+                    end_line,
+                    new_content,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
@@ -246,8 +309,12 @@ pub fn register_edit_tools(registry: &mut ToolRegistry) -> Result<()> {
         "将词条正文全量替换为新内容；修改会发送给用户预览，用户确认后才写入。\
          适合 AI 生成初稿或大范围重写场景，对比 edit_entry_content_lines 粒度更粗",
         vec![
-            ToolFunctionArg::new("entry_id", "string").required(true).desc("词条ID"),
-            ToolFunctionArg::new("new_content", "string").required(true).desc("新的完整正文内容，支持 Markdown"),
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
+            ToolFunctionArg::new("new_content", "string")
+                .required(true)
+                .desc("新的完整正文内容，支持 Markdown"),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();
@@ -256,7 +323,10 @@ pub fn register_edit_tools(registry: &mut ToolRegistry) -> Result<()> {
             let result = (|| -> anyhow::Result<EditOp> {
                 let entry_id = arg_str(args, "entry_id")?.to_string();
                 let new_content = arg_str(args, "new_content")?.to_string();
-                Ok(EditOp::ReplaceContent { entry_id, new_content })
+                Ok(EditOp::ReplaceContent {
+                    entry_id,
+                    new_content,
+                })
             })();
             let op = match result {
                 Ok(op) => op,
@@ -270,7 +340,9 @@ pub fn register_edit_tools(registry: &mut ToolRegistry) -> Result<()> {
         "delete_entry",
         "删除指定词条；操作不可逆，会发送给用户确认后才执行",
         vec![
-            ToolFunctionArg::new("entry_id", "string").required(true).desc("词条ID"),
+            ToolFunctionArg::new("entry_id", "string")
+                .required(true)
+                .desc("词条ID"),
         ],
         |_state, args| {
             let app_state = _state.app_state.clone().unwrap();

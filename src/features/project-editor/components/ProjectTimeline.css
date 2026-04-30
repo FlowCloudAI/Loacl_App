@@ -176,6 +176,13 @@
     height: 100%;
 }
 
+/* 覆盖 Timeline 库硬编码的选中态颜色，统一使用 --fc-color-primary */
+.project-timeline__timeline-shell .flag-body.selected {
+    background-color: color-mix(in srgb, var(--fc-color-primary) 10%, var(--fc-color-bg));
+    border-left-color: var(--fc-color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--fc-color-primary) 20%, transparent);
+}
+
 @media (max-width: 900px) {
     .project-timeline__layout {
         padding: var(--fc-space-md);

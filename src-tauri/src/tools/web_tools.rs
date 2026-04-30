@@ -8,7 +8,12 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 fn is_text_content_type(ct: &str) -> bool {
-    let ct = ct.split(';').next().unwrap_or("").trim().to_ascii_lowercase();
+    let ct = ct
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
     matches!(
         ct.as_str(),
         "text/html"
@@ -145,7 +150,10 @@ pub fn register_web_tools(registry: &mut ToolRegistry) -> Result<()> {
                         "HTTP {}\n\n[不支持的内容类型: {}，无法提取文本]",
                         status, content_type
                     );
-                    log::info!("[open_url] binary content-type={}, skipping body read", content_type);
+                    log::info!(
+                        "[open_url] binary content-type={}, skipping body read",
+                        content_type
+                    );
                     return Ok(msg);
                 }
 
@@ -184,8 +192,8 @@ fn validate_url(raw: &str) -> Result<String> {
         raw.to_string()
     };
 
-    let parsed = reqwest::Url::parse(&normalized)
-        .map_err(|e| anyhow::anyhow!("无效 URL: {}", e))?;
+    let parsed =
+        reqwest::Url::parse(&normalized).map_err(|e| anyhow::anyhow!("无效 URL: {}", e))?;
 
     if parsed.scheme() != "https" {
         return Err(anyhow::anyhow!(
@@ -485,11 +493,18 @@ fn html_to_text(html: &str) -> String {
                 .collect::<Vec<_>>()
                 .join("\n");
             // 输出到控制台供调试验证
-            println!("[open_url][htmd] ===== markdown output ({}chars) =====\n{}\n=====", result.len(), result);
+            println!(
+                "[open_url][htmd] ===== markdown output ({}chars) =====\n{}\n=====",
+                result.len(),
+                result
+            );
             result
         }
         Err(e) => {
-            log::warn!("[open_url][htmd] conversion failed: {}, falling back to plain text", e);
+            log::warn!(
+                "[open_url][htmd] conversion failed: {}, falling back to plain text",
+                e
+            );
             let document = Html::parse_document(html);
             let mut buf = String::new();
             collect_text(document.tree.root(), &mut buf);
@@ -522,9 +537,23 @@ fn collect_text(node: NodeRef<'_, Node>, buf: &mut String) {
             // 块级元素后加换行，使文本结构更清晰
             if matches!(
                 tag,
-                "p" | "div" | "br" | "li" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
-                    | "tr" | "article" | "section" | "blockquote" | "pre" | "header"
-                    | "footer" | "nav"
+                "p" | "div"
+                    | "br"
+                    | "li"
+                    | "h1"
+                    | "h2"
+                    | "h3"
+                    | "h4"
+                    | "h5"
+                    | "h6"
+                    | "tr"
+                    | "article"
+                    | "section"
+                    | "blockquote"
+                    | "pre"
+                    | "header"
+                    | "footer"
+                    | "nav"
             ) {
                 buf.push('\n');
             }

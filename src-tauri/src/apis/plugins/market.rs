@@ -19,7 +19,9 @@ pub async fn plugin_market_install(
 ) -> Result<LocalPluginInfo, String> {
     require_no_active_sessions(&ai_state).await?;
 
-    let images_dir = paths.db_path.parent()
+    let images_dir = paths
+        .db_path
+        .parent()
         .map(|p| p.join("images"))
         .unwrap_or_else(|| std::env::temp_dir().join("flowcloudai_images"));
 

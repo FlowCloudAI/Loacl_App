@@ -1,6 +1,6 @@
 [package]
 name = "FlowCloudAI"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Tauri-based desktop app for creative writing and knowledge management with AI assistance."
 authors = ["flowcloudai"]
 license = "MIT"
@@ -67,6 +67,7 @@ semver = "1"
 git2 = "0.20.4"
 keyring = { version = "3", features = ["windows-native", "linux-native"] }
 moka = { version = "0.12", features = ["future"] }
+tera = "1"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39"

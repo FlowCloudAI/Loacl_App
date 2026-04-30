@@ -8,7 +8,9 @@ pub async fn plugin_list_local(
     paths: State<'_, PathsState>,
     ai_state: State<'_, AiState>,
 ) -> Result<Vec<LocalPluginInfo>, String> {
-    let images_dir = paths.db_path.parent()
+    let images_dir = paths
+        .db_path
+        .parent()
         .map(|p| p.join("images"))
         .unwrap_or_else(|| std::env::temp_dir().join("flowcloudai_images"));
     let client = ai_state.client.lock().await;
@@ -31,7 +33,9 @@ pub async fn plugin_install_from_file(
     file_path: String,
 ) -> Result<LocalPluginInfo, String> {
     require_no_active_sessions(&ai_state).await?;
-    let images_dir = paths.db_path.parent()
+    let images_dir = paths
+        .db_path
+        .parent()
         .map(|p| p.join("images"))
         .unwrap_or_else(|| std::env::temp_dir().join("flowcloudai_images"));
     let path = PathBuf::from(&file_path);
@@ -55,4 +59,3 @@ pub async fn plugin_uninstall(
         .uninstall_plugin(&plugin_id)
         .map_err(|e| e.to_string())
 }
-

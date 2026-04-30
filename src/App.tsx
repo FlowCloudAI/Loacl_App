@@ -12,8 +12,6 @@ import Idea from "./pages/Idea";
 import type {Project} from "./api";
 import AIChatContent from "./features/ai-chat/components/AIChatContent";
 import DockableSidePanel from "./shared/ui/layout/DockableSidePanel";
-import RelationDemo from "./features/relation-graph/dev/RelationDemo";
-import MapShapeEditorDemo from "./features/maps/dev/MapShapeEditorDemo";
 import SnapshotPanel from "./features/snapshots/components/SnapshotPanel";
 import EntryEditModal from "./features/entries/components/EntryEditModal";
 import AiConfirmModal from "./features/ai-chat/components/AiConfirmModal";
@@ -646,12 +644,6 @@ function App() {
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                        <div className={`page-wrapper ${mainContentKey === 'relation' ? 'active' : ''}`}>
-                            <RelationDemo/>
-                        </div>
-                        <div className={`page-wrapper ${mainContentKey === 'map-editor' ? 'active' : ''}`}>
-                            <MapShapeEditorDemo/>
                         </div>
                         <div className={`page-wrapper ${mainContentKey === 'settings' ? 'active' : ''}`}>
                             <Settings onBack={() => {

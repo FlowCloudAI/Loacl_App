@@ -12,7 +12,7 @@ interface EntryEditorSidebarProps {
     projectDataLoading: boolean
     relationDrafts: EntryRelationDraft[]
     outgoingLinks: EntryLink[]
-    backlinks: EntryBrief[]
+    backlinks: (EntryBrief & { content?: string | null })[]
     projectEntries: EntryBrief[]
     entryCache: Record<string, Entry>
     categories: Category[]

@@ -5,9 +5,8 @@ pub(super) use crate::PathsState;
 pub(super) use crate::PendingEditsState;
 pub(super) use flowcloudai_client::llm::config::SessionConfig;
 pub(super) use flowcloudai_client::{
-    image::ImageRequest, AudioDecoder, AudioSource, ConversationMeta, DefaultOrchestrator,
-    ImageSession,
-    PluginKind, SessionEvent, StoredConversation, TaskContext, TurnStatus, Usage,
+    AudioDecoder, AudioSource, ConversationMeta, DefaultOrchestrator, ImageSession, PluginKind,
+    SessionEvent, StoredConversation, TaskContext, TurnStatus, Usage, image::ImageRequest,
 };
 pub(super) use futures::StreamExt;
 pub(super) use serde::{Deserialize, Serialize};
@@ -163,8 +162,12 @@ pub(crate) async fn save_api_usage(app: &AppHandle, session_id: &str, usage: &Us
 
     log::info!(
         "[usage] saving: session={} model={} plugin={} prompt={} completion={} total={}",
-        session_id, model, plugin_id,
-        usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
+        session_id,
+        model,
+        plugin_id,
+        usage.prompt_tokens,
+        usage.completion_tokens,
+        usage.total_tokens
     );
 
     let app_state = app.state::<std::sync::Arc<tokio::sync::Mutex<crate::AppState>>>();
@@ -193,7 +196,7 @@ pub(crate) fn spawn_session_event_loop<S>(
     run_id: String,
     event_stream: S,
 ) where
-    S: futures::Stream<Item=SessionEvent> + Send + 'static,
+    S: futures::Stream<Item = SessionEvent> + Send + 'static,
 {
     let sid = session_id.clone();
     let rid = run_id.clone();
@@ -235,11 +238,7 @@ pub(crate) fn spawn_session_event_loop<S>(
                         .ok();
                 }
                 SessionEvent::ContentDelta(text) => {
-                    log::info!(
-                        "[ai:delta] run_id={} len={}",
-                        rid,
-                        text.len()
-                    );
+                    log::info!("[ai:delta] run_id={} len={}", rid, text.len());
                     app_clone
                         .emit(
                             "ai:delta",
@@ -252,11 +251,7 @@ pub(crate) fn spawn_session_event_loop<S>(
                         .ok();
                 }
                 SessionEvent::ReasoningDelta(text) => {
-                    log::info!(
-                        "[ai:reasoning] run_id={} len={}",
-                        rid,
-                        text.len()
-                    );
+                    log::info!("[ai:reasoning] run_id={} len={}", rid, text.len());
                     app_clone
                         .emit(
                             "ai:reasoning",
@@ -319,7 +314,11 @@ pub(crate) fn spawn_session_event_loop<S>(
                         )
                         .ok();
                 }
-                SessionEvent::TurnEnd { status, node_id, usage } => {
+                SessionEvent::TurnEnd {
+                    status,
+                    node_id,
+                    usage,
+                } => {
                     log::info!(
                         "[ai:turn_end] session_id={} run_id={} status={} node_id={} has_usage={}",
                         sid,

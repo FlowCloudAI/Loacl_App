@@ -583,7 +583,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
             const nextMessages = [...conversation.messages]
             nextMessages[actualIndex] = {
                 ...targetMessage,
-                nodeId: session.lastUserNodeId,
+                nodeId: session.lastUserNodeId ?? undefined,
             }
 
             return {
@@ -599,6 +599,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
         const convId = activeConversationIdRef.current
         if (!convId || convId.startsWith('conv_')) return
         ai_get_conversation(convId).then(stored => {
+            if (!stored) return
             setConversations(prev => prev.map(c =>
                 c.id === convId ? {...c, messages: storedToMessages(stored.messages)} : c,
             ))

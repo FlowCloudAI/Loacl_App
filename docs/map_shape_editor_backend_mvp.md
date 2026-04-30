@@ -30,7 +30,7 @@
 
 ### Tauri 命令入口
 
-- [src-tauri/src/apis/map.rs](/E:/Projects/flowcloudai_app/src-tauri/src/apis/map.rs)
+- [src-tauri/src/apis/map.rs](../src-tauri/src/apis/map.rs)
 
 当前暴露命令：
 
@@ -42,30 +42,30 @@
 
 ### Rust map 模块
 
-- [src-tauri/src/map/mod.rs](/E:/Projects/flowcloudai_app/src-tauri/src/map/mod.rs)
+- [src-tauri/src/map/mod.rs](../src-tauri/src/map/mod.rs)
 
 各文件职责：
 
-- [types.rs](/E:/Projects/flowcloudai_app/src-tauri/src/map/types.rs)
+- [types.rs](../src-tauri/src/map/types.rs)
   负责请求、响应、预览场景、错误响应的协议结构。
 
-- [service.rs](/E:/Projects/flowcloudai_app/src-tauri/src/map/service.rs)
+- [service.rs](../src-tauri/src/map/service.rs)
   负责保存主流程、请求校验、时间戳生成、场景组装。
 
-- [geometry.rs](/E:/Projects/flowcloudai_app/src-tauri/src/map/geometry.rs)
+- [geometry.rs](../src-tauri/src/map/geometry.rs)
   负责基础二维几何判断：
     - 点在线段上
     - 线段相交
     - 多边形自交检测
     - 点在多边形内
 
-- [color.rs](/E:/Projects/flowcloudai_app/src-tauri/src/map/color.rs)
+- [color.rs](../src-tauri/src/map/color.rs)
   负责 `fill / stroke` 十六进制颜色转 deck RGBA，以及关键地点类型颜色映射。
 
-- [coastline.rs](/E:/Projects/flowcloudai_app/src-tauri/src/map/coastline.rs)
+- [coastline.rs](../src-tauri/src/map/coastline.rs)
   负责“自然海岸线 MVP”生成。
 
-- [constants.rs](/E:/Projects/flowcloudai_app/src-tauri/src/map/constants.rs)
+- [constants.rs](../src-tauri/src/map/constants.rs)
   负责集中管理当前可调参数，方便后续迭代。
 
 ## 协议现状
@@ -112,7 +112,7 @@
 
 入口函数：
 
-- `save_map_shape_scene` in [service.rs](/E:/Projects/flowcloudai_app/src-tauri/src/map/service.rs)
+- `save_map_shape_scene` in [service.rs](../src-tauri/src/map/service.rs)
 
 ### 2. 请求级校验
 
@@ -157,7 +157,7 @@
 
 实现位置：
 
-- [coastline.rs](/E:/Projects/flowcloudai_app/src-tauri/src/map/coastline.rs)
+- [coastline.rs](../src-tauri/src/map/coastline.rs)
 
 ### 算法链路
 
@@ -205,7 +205,7 @@
 
 如果后续要继续强化海岸线效果，请优先查看：
 
-- [constants.rs](/E:/Projects/flowcloudai_app/src-tauri/src/map/constants.rs)
+- [constants.rs](../src-tauri/src/map/constants.rs)
 
 ### 一阶高优先级参数
 

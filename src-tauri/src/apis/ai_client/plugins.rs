@@ -11,10 +11,7 @@ pub struct PluginInfo {
     pub supported_voices: Vec<String>,
 }
 
-fn load_string_array_from_fcplug(
-    fcplug_path: &Path,
-    keys: &[&str],
-) -> Vec<String> {
+fn load_string_array_from_fcplug(fcplug_path: &Path, keys: &[&str]) -> Vec<String> {
     let file = match File::open(fcplug_path) {
         Ok(file) => file,
         Err(_) => return Vec::new(),
@@ -60,10 +57,7 @@ fn load_string_array_from_fcplug(
     Vec::new()
 }
 
-fn load_voice_array_from_fcplug(
-    fcplug_path: &Path,
-    keys: &[&str],
-) -> Vec<String> {
+fn load_voice_array_from_fcplug(fcplug_path: &Path, keys: &[&str]) -> Vec<String> {
     let file = match File::open(fcplug_path) {
         Ok(file) => file,
         Err(_) => return Vec::new(),
@@ -128,16 +122,19 @@ fn load_voice_array_from_fcplug(
 }
 
 fn load_supported_sizes_from_fcplug(fcplug_path: &Path) -> Vec<String> {
-    load_string_array_from_fcplug(
-        fcplug_path,
-        &["supported-sizes", "supported_sizes"],
-    )
+    load_string_array_from_fcplug(fcplug_path, &["supported-sizes", "supported_sizes"])
 }
 
 fn load_supported_voices_from_fcplug(fcplug_path: &Path) -> Vec<String> {
     load_voice_array_from_fcplug(
         fcplug_path,
-        &["voices", "supported-voices", "supported_voices", "voice_ids", "voice-ids"],
+        &[
+            "voices",
+            "supported-voices",
+            "supported_voices",
+            "voice_ids",
+            "voice-ids",
+        ],
     )
 }
 
@@ -162,7 +159,7 @@ pub async fn ai_list_plugins(
             let supported_sizes = meta
                 .as_image()
                 .map(|info| info.supported_sizes.clone())
-                .filter(|sizes| !sizes.is_empty())
+                .filter(|sizes:&Vec<String> | !sizes.is_empty())
                 .unwrap_or_else(|| load_supported_sizes_from_fcplug(&meta.fcplug_path));
             let supported_voices = if kind == "tts" {
                 load_supported_voices_from_fcplug(&meta.fcplug_path)

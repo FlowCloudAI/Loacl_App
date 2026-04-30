@@ -19,8 +19,8 @@ pub async fn db_create_idea_note(
         title,
         pinned,
     })
-        .await
-        .map_err(|e| e.to_string())
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// 获取单条灵感便签
@@ -66,8 +66,8 @@ pub async fn db_list_idea_notes(
         limit,
         offset,
     )
-        .await
-        .map_err(|e| e.to_string())
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// 更新灵感便签
@@ -113,8 +113,8 @@ pub async fn db_update_idea_note(
             converted_entry_id,
         },
     )
-        .await
-        .map_err(|e| e.to_string())
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// 删除灵感便签

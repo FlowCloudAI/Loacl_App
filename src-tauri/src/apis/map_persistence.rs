@@ -33,7 +33,13 @@ pub struct ProjectMapStore {
 fn store_path(app: &AppHandle, project_id: &str) -> Result<PathBuf, String> {
     let safe_id: String = project_id
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     let paths = app
         .try_state::<crate::PathsState>()
@@ -74,19 +80,10 @@ fn load_store(app: &AppHandle, project_id: &str) -> Result<ProjectMapStore, Stri
                     .to_string(),
                 scene_json: legacy["sceneJson"].as_str().map(|s| s.to_string()),
                 coastline_params_json: None,
-                style: legacy["style"]
-                    .as_str()
-                    .unwrap_or("flat")
-                    .to_string(),
+                style: legacy["style"].as_str().unwrap_or("flat").to_string(),
                 background_image_url: None,
-                created_at: legacy["savedAt"]
-                    .as_str()
-                    .unwrap_or_else(|| "")
-                    .to_string(),
-                updated_at: legacy["savedAt"]
-                    .as_str()
-                    .unwrap_or_else(|| "")
-                    .to_string(),
+                created_at: legacy["savedAt"].as_str().unwrap_or_else(|| "").to_string(),
+                updated_at: legacy["savedAt"].as_str().unwrap_or_else(|| "").to_string(),
             };
             return Ok(ProjectMapStore {
                 project_id: project_id.to_string(),
@@ -111,10 +108,7 @@ fn save_store(app: &AppHandle, store: &ProjectMapStore) -> Result<(), String> {
 // ── Commands ──────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn map_list_project_maps(
-    app: AppHandle,
-    project_id: String,
-) -> Result<Vec<MapEntry>, String> {
+pub fn map_list_project_maps(app: AppHandle, project_id: String) -> Result<Vec<MapEntry>, String> {
     Ok(load_store(&app, &project_id)?.maps)
 }
 

@@ -177,6 +177,7 @@ export default function EntryEditor({
         summary: '',
         content: '',
         type: null,
+        categoryId: null,
         tags: {},
         images: [],
     })
@@ -391,7 +392,7 @@ export default function EntryEditor({
         // Reset history tracking when switching entries
         historyInitializedRef.current = null
         undoRedo.reset({
-            draft: {title: '', summary: '', content: '', type: null, tags: {}, images: []},
+            draft: {title: '', summary: '', content: '', type: null, categoryId: null, tags: {}, images: []},
             relationDrafts: []
         })
     }, [entryId]) // eslint-disable-line react-hooks/exhaustive-deps
