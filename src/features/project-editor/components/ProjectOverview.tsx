@@ -282,7 +282,7 @@ function ProjectOverview({
             'warning',
             'confirm',
         )
-        if (!confirmed) return
+        if (confirmed !== 'yes') return
         try {
             await onDelete()
         } catch (e) {

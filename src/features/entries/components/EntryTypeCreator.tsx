@@ -109,7 +109,7 @@ export default function EntryTypeCreator({
         if (!initialEntryType || submitting) return
 
         const confirmed = await showAlert(`确认删除词条类型“${initialEntryType.name}”？`, 'warning', 'confirm')
-        if (!confirmed) return
+        if (confirmed !== 'yes') return
 
         setSubmitting(true)
         setApiError(null)

@@ -849,7 +849,7 @@ export default function EntryEditor({
             'warning',
             'confirm',
         )
-        if (!confirmed) return
+        if (confirmed !== 'yes') return
         try {
             await db_delete_entry(entry.id)
             await onDelete?.()

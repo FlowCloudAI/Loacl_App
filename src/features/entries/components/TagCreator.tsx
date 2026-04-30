@@ -210,7 +210,7 @@ export default function TagCreator({
         if (!initialTag || submitting) return
 
         const confirmed = await showAlert(`确认删除标签“${initialTag.name}”？`, 'warning', 'confirm')
-        if (!confirmed) return
+        if (confirmed !== 'yes') return
 
         setSubmitting(true)
         setApiError(null)
