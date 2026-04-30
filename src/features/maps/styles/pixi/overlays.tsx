@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import '@pixi/react'
 import {extend} from '@pixi/react'
 import {Container, Graphics, Sprite, Text} from 'pixi.js'
@@ -247,7 +248,7 @@ function useImageTexture(url: string): Texture {
 
 function PixiTextureOverlay({context, style}: { context: MapPixiPreviewOverlayContext; style: PixiMapStyle }) {
     pixiOverlayLog('PixiTextureOverlay: ENTER')
-    const dataUrl = useMemo(() => createOverlayDataUrl(context, style), [context.scene, style])
+    const dataUrl = useMemo(() => createOverlayDataUrl(context, style), [context, style])
     pixiOverlayLog(`PixiTextureOverlay: useMemo dataUrl=${dataUrl ? 'present' : 'empty'}`)
     const texture = useImageTexture(dataUrl)
     pixiOverlayLog(`PixiTextureOverlay: useImageTexture returned texture=${texture !== Texture.EMPTY ? 'loaded' : 'empty'}`)

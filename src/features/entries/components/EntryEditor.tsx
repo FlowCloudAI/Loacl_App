@@ -987,7 +987,7 @@ export default function EntryEditor({
         } finally {
             setSaving(false)
         }
-    }, [entry, canSave, trimmedTitle, trimmedSummary, normalizedContent, draft.type, draft.tags, draft.images, entryTags.localTagSchemas, projectId, entryRelations, relationDrafts, onTitleChange, onSaved, showAlert, reloadEntryFromDatabase])
+    }, [entry, canSave, trimmedTitle, trimmedSummary, normalizedContent, draft.type, draft.tags, draft.images, draft.categoryId, entryTags.localTagSchemas, projectId, entryRelations, relationDrafts, onTitleChange, onSaved, showAlert, reloadEntryFromDatabase])
 
     useEffect(() => {
         canSaveRef.current = canSave

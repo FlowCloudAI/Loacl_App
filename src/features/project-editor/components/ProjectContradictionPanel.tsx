@@ -209,7 +209,7 @@ function ProjectContradictionPanel({
         } finally {
             setHistoryLoading(false)
         }
-    }, [projectId, showAlert])
+    }, [projectId, showAlert, setSelectedReportId])
 
     useEffect(() => {
         void loadHistory()
@@ -293,7 +293,7 @@ function ProjectContradictionPanel({
         } finally {
             setGenerating(false)
         }
-    }, [effectiveModel, effectivePluginId, loadHistory, onStartDiscussion, projectId, projectName, showAlert])
+    }, [effectiveModel, effectivePluginId, loadHistory, onStartDiscussion, projectId, projectName, showAlert, setSelectedReportId])
 
     const handleDelete = useCallback(async (reportId: string) => {
         const confirmed = await showAlert('删除后将无法在历史中恢复这份报告。是否继续？', 'warning', 'confirm')
@@ -313,7 +313,7 @@ function ProjectContradictionPanel({
             console.error('删除矛盾检测报告失败', error)
             await showAlert(`删除报告失败：${String(error)}`, 'error', 'toast', 2600)
         }
-    }, [historyItems, selectedReportId, showAlert])
+    }, [historyItems, selectedReportId, showAlert, setSelectedReportId])
 
     const handleStartDiscussion = useCallback(async () => {
         if (!activeRecord || !onStartDiscussion) return

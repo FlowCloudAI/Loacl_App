@@ -352,7 +352,6 @@ function ProjectOverview({
                                 value={descDraft}
                                 onChange={(e) => setDescDraft(e.target.value)}
                                 rows={3}
-                                // eslint-disable-next-line jsx-a11y/no-autofocus
                                 autoFocus
                                 placeholder="添加项目描述…"
                             />
