@@ -486,7 +486,7 @@ export const db_delete_links_from_entry = (entryId: string) =>
 export const db_replace_outgoing_links = (projectId: string, entryId: string, linkedEntryIds: string[]) =>
     command<EntryLink[]>('db_replace_outgoing_links', {projectId, entryId, linkedEntryIds})
 
-// ── Entry Types ────────────────────────────────────────────────────────────────
+// ── 词条类型 ────────────────────────────────────────────────────────────────
 
 export interface CustomEntryType {
     id: string
@@ -499,12 +499,12 @@ export interface CustomEntryType {
     updated_at: string
 }
 
-/** Discriminated union returned by list_all_entry_types */
+/** list_all_entry_types 返回的联合类型 */
 export type EntryTypeView =
     | { kind: 'builtin'; key: string; name: string; description: string; icon: string; color: string }
     | { kind: 'custom' } & CustomEntryType
 
-/** Returns the stable identifier used as Entry.type value */
+/** 返回用作 Entry.type 值的稳定标识符 */
 export function entryTypeKey(et: EntryTypeView): string {
     return et.kind === 'builtin' ? et.key : et.id
 }

@@ -99,7 +99,7 @@ function computeDiff(before: string, after: string): DiffLine[] {
         }
     }
 
-    // backtrack
+    // 回溯
     const ops: Array<[number, number, number, number]> = []
     let x = m, y = n
     for (let d = trace.length - 1; d >= 0; d--) {

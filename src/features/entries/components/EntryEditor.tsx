@@ -389,7 +389,7 @@ export default function EntryEditor({
         setAutoSaveStatus('')
         lastAutoSaveAttemptAtRef.current = 0
         lastSuccessfulSaveAtRef.current = Date.now()
-        // Reset history tracking when switching entries
+        // 切换词条时重置历史追踪
         historyInitializedRef.current = null
         undoRedo.reset({
             draft: {title: '', summary: '', content: '', type: null, categoryId: null, tags: {}, images: []},
@@ -489,7 +489,7 @@ export default function EntryEditor({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [entry, entryId, entryTags.localTagSchemas, entryTags.setPinnedTagSchemaIds])
 
-    // Initialize history once per entry load (fires when both entry and relations are ready)
+    // 每次加载词条时初始化历史记录（词条和关联都就绪后触发）
     useEffect(() => {
         if (!entry || entry.id !== entryId) return
         if (historyInitializedRef.current === entryId) return
@@ -497,7 +497,7 @@ export default function EntryEditor({
         undoRedo.reset({draft, relationDrafts})
     }, [entry, entryId, draft, relationDrafts]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Auto-push history snapshot on draft/relation changes (debounced to avoid per-keystroke entries)
+    // 草稿/关联变更时自动推送历史快照（防抖以避免每次按键都记录）
     useEffect(() => {
         if (!entry || entry.id !== entryId) return
         if (historyInitializedRef.current !== entryId) return
@@ -1050,8 +1050,8 @@ export default function EntryEditor({
                 return
             }
 
-            // Undo/redo — only when focus is NOT inside the MarkdownEditor textarea
-            // (the textarea handles its own Ctrl+Z via onKeyDown)
+            // 撤销/重做 — 仅在焦点不在 MarkdownEditor 文本框内时生效
+            //（文本框通过 onKeyDown 自行处理 Ctrl+Z）
             const textarea = editorRef.current?.getTextareaElement()
             if (textarea && document.activeElement === textarea) return
 

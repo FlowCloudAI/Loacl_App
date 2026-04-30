@@ -119,7 +119,7 @@ export default function EntryEditorMetaPanel({
                     className={`entry-editor-cover ${coverSrc ? 'has-image' : ''}`}
                     onClick={() => {
                         if (draft.images.length) {
-                            // lightbox open handled by parent
+                            // lightbox 展开由父组件处理
                         } else if (!isBrowseMode) {
                             onOpenImageAddModal()
                         }

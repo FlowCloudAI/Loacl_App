@@ -43,15 +43,15 @@ use apis::worldflow::snapshots::*;
 use apis::worldflow::system::*;
 use apis::worldflow::tags::*;
 use layout::cache::LayoutCacheState;
-use template::{TemplateEngine, install_global_template_engine};
+use template::{install_global_template_engine, TemplateEngine};
 
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::sync::Arc;
 use tauri::{
-    AppHandle, Emitter, Manager, Runtime, UriSchemeContext,
-    http::{Response, StatusCode, header::CONTENT_TYPE},
+    http::{header::CONTENT_TYPE, Response, StatusCode}, AppHandle, Emitter, Manager, Runtime,
+    UriSchemeContext,
 };
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_log;
@@ -261,19 +261,19 @@ pub fn run() {
             log_message,
             open_in_file_manager,
             show_main_window,
-            // Projects
+            // 项目
             db_create_project,
             db_get_project,
             db_list_projects,
             db_update_project,
             db_delete_project,
-            // Categories
+            // 分类
             db_create_category,
             db_get_category,
             db_list_categories,
             db_update_category,
             db_delete_category,
-            // Entries
+            // 词条
             db_create_entry,
             db_get_entry,
             db_list_entries,
@@ -287,13 +287,13 @@ pub fn run() {
             db_optimize_fts,
             import_entry_images,
             open_entry_image_path,
-            // Tag Schemas
+            // 标签模式
             db_create_tag_schema,
             db_get_tag_schema,
             db_list_tag_schemas,
             db_update_tag_schema,
             db_delete_tag_schema,
-            // Entry Relations
+            // 词条关系
             db_create_relation,
             db_get_relation,
             db_list_relations_for_entry,
@@ -301,21 +301,21 @@ pub fn run() {
             db_update_relation,
             db_delete_relation,
             db_delete_relations_between,
-            // Entry Types
+            // 词条类型
             db_list_all_entry_types,
             db_list_custom_entry_types,
             db_create_entry_type,
             db_get_entry_type,
             db_update_entry_type,
             db_delete_entry_type,
-            // Entry Links
+            // 词条链接
             db_create_entry_link,
             db_list_outgoing_links,
             db_list_incoming_links,
             db_delete_links_from_entry,
             db_replace_outgoing_links,
             import_remote_images,
-            // Idea Notes
+            // 灵感笔记
             db_create_idea_note,
             db_get_idea_note,
             db_list_idea_notes,
@@ -357,7 +357,7 @@ pub fn run() {
             ai_set_task_context,
             ai_get_usage_summary,
             ai_get_usage_by_model,
-            // App Settings
+            // 应用设置
             setting_get_settings,
             setting_update_settings,
             setting_get_media_dir,
@@ -383,7 +383,7 @@ pub fn run() {
             map_save_map_entry,
             map_delete_map_entry,
             compute_layout,
-            // Snapshots
+            // 快照
             db_snapshot,
             db_snapshot_with_message,
             db_get_active_branch,

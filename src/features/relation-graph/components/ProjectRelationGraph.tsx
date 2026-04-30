@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
     Button,
-    RelationGraph,
     type LayoutFunction,
     type LayoutRequest,
     type LayoutResponse,
+    RelationGraph,
     type RelationLayoutState,
     type RelationNodeInput,
 } from 'flowcloudai-ui'
@@ -15,11 +15,7 @@ import {
     type EntryBrief,
     type EntryRelation,
 } from '../../../api'
-import {
-    type RelationDemoNode,
-    toRelationEdges,
-    toRelationNodes,
-} from '../fixtures/relationGraphFixture'
+import {type RelationDemoNode, toRelationEdges, toRelationNodes,} from '../fixtures/relationGraphFixture'
 import '../dev/RelationDemo.css'
 import '../../../shared/ui/layout/WorkspaceScaffold.css'
 import './ProjectRelationGraph.css'
@@ -154,7 +150,7 @@ export default function ProjectRelationGraph({projectId, onBack}: ProjectRelatio
 
     return (
         <div className="project-relation-graph fc-op-panel">
-            {/* ── Header ── */}
+            {/* ── 顶部 ── */}
             <div className="fc-op-header">
                 {onBack && (
                     <button type="button" className="fc-op-back-btn" onClick={onBack}>
@@ -174,7 +170,7 @@ export default function ProjectRelationGraph({projectId, onBack}: ProjectRelatio
                 </div>
             </div>
 
-            {/* ── Toolbar (stats + status) ── */}
+            {/* ── 工具栏（统计 + 状态） ── */}
             {(entries.length > 0 || statusItems.length > 0) && (
                 <div className="fc-op-toolbar">
                     {statsChips.map((chip) => (
@@ -198,7 +194,7 @@ export default function ProjectRelationGraph({projectId, onBack}: ProjectRelatio
                 </div>
             )}
 
-            {/* ── Error Banner ── */}
+            {/* ── 错误提示 ── */}
             {dataError && (
                 <div className="fc-status-banner fc-status-banner--error">
                     数据加载失败：{dataError.message}
@@ -211,7 +207,7 @@ export default function ProjectRelationGraph({projectId, onBack}: ProjectRelatio
                 </div>
             )}
 
-            {/* ── Viewport ── */}
+            {/* ── 视口 ── */}
             <div className="fc-op-viewport">
                 {dataLoading && entries.length === 0 ? (
                     <div className="fc-op-viewport-empty">正在加载项目关系数据…</div>

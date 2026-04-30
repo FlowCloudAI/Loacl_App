@@ -14,18 +14,18 @@
     height: 100%;
 }
 
-/* deck layer captures mouse for pan/zoom */
+/* deck 层捕获鼠标用于平移/缩放 */
 .world-map-overlay__deck {
     z-index: 0;
 }
 
-/* svg editor layer: readOnly allows pan/zoom but blocks shape edits */
+/* svg 编辑器层：readOnly 允许平移/缩放但禁止图形编辑 */
 .world-map-overlay__svg {
     z-index: 1;
     pointer-events: none;
 }
 
-/* marker layer is purely visual */
+/* 标记层仅用于视觉展示 */
 .world-map-overlay__markers {
     z-index: 2;
     pointer-events: none;

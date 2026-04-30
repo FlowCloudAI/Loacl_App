@@ -96,4 +96,4 @@ pub async fn db_replace_outgoing_links(
     Ok(links)
 }
 
-// ============ Idea Notes ============
+// ============ 灵感笔记 ============

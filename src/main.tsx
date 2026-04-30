@@ -4,7 +4,7 @@ import {createRoot} from 'react-dom/client'
 import App from './App.tsx'
 import {setting_get_settings, showWindow} from './api'
 import {AlertProvider, ContextMenuProvider, ThemeProvider} from 'flowcloudai-ui'
-// @ts-expect-error - CSS import, no types needed
+// @ts-expect-error - CSS 导入，无需类型声明
 import 'flowcloudai-ui/style';
 import './i18n' // 初始化 i18n
 

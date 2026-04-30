@@ -47,7 +47,7 @@ export interface SessionIdentity {
     runId: string
 }
 
-// ── Hook ─────────────────────────────────────────────────────
+// ── 钩子 ─────────────────────────────────────────────────────
 
 interface UseAiSessionOptions {
     /** 一轮对话完成时调用（助手消息已完整） */
@@ -187,7 +187,7 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
             const runKey = event.payload.run_id
             const prev = blocksByRunRef.current[runKey] ?? []
 
-            // Dedup by index: same tool_call event arriving for an existing block
+            // 按 index 去重：相同 tool_call 事件到达已有块
             const existingToolIdx = prev.findIndex(
                 block => block.type === 'tool'
                     && block.tool.index === event.payload.index
@@ -210,7 +210,7 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
                 return
             }
 
-            // Dedup by index inside tool_use groups
+            // 在 tool_use 组内按 index 去重
             const existingToolUseIdx = prev.findIndex(
                 block => block.type === 'tool_use'
                     && block.tools.some(t => t.index === event.payload.index && t.result == null),
@@ -231,7 +231,7 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
                 return
             }
 
-            // Grouping: merge consecutive same-name tool calls
+            // 分组：合并连续的同名 tool 调用
             const newTool: ToolCallInfo = {
                 index: event.payload.index,
                 name: event.payload.name,
@@ -244,12 +244,12 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
                 && last.tools.length > 0
                 && last.tools[0].name === event.payload.name
                 && last.tools.some(t => t.result == null)) {
-                // Append to existing tool_use group
+                // 追加到已有 tool_use 组
                 next = [...prev.slice(0, -1), {...last, tools: [...last.tools, newTool]}]
             } else if (last && last.type === 'tool'
                 && last.tool.name === event.payload.name
                 && last.tool.result == null) {
-                // Convert last individual tool + new tool into a tool_use group
+                // 将最后一个独立 tool 与新 tool 合并为 tool_use 组
                 next = [...prev.slice(0, -1), {
                     type: 'tool_use' as const,
                     tools: [last.tool, newTool],
@@ -274,7 +274,7 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
             const runKey = event.payload.run_id
             const prev = blocksByRunRef.current[runKey] ?? []
             const next = prev.map(b => {
-                // Individual tool block
+                // 独立 tool 块
                 if (b.type === 'tool' && b.tool.index === event.payload.index && b.tool.result == null) {
                     return {
                         ...b,
@@ -285,7 +285,7 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
                         },
                     }
                 }
-                // Tool inside tool_use group
+                // tool_use 组内的 tool
                 if (b.type === 'tool_use') {
                     const updated = b.tools.map(t => {
                         if (t.index === event.payload.index && t.result == null) {

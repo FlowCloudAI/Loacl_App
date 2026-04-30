@@ -102,4 +102,4 @@ pub async fn db_delete_category(
     touch_project_updated_at(&db, &category.project_id).await
 }
 
-// ============ Entries ============
+// ============ 词条 ============

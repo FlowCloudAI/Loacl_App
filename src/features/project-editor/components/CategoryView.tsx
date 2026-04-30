@@ -1,13 +1,7 @@
 import {convertFileSrc} from '@tauri-apps/api/core'
 import {type CSSProperties, memo, useCallback, useEffect, useRef, useState} from 'react'
 import {Button, Card, Input, RollingBox} from 'flowcloudai-ui'
-import {
-    db_list_entries,
-    db_search_entries,
-    type EntryBrief,
-    entryTypeKey,
-    type EntryTypeView,
-} from '../../../api'
+import {db_list_entries, db_search_entries, type EntryBrief, entryTypeKey, type EntryTypeView,} from '../../../api'
 import EntryTypeIcon from './EntryTypeIcon'
 
 type SortMode = 'updated-desc' | 'updated-asc' | 'name-asc' | 'name-desc'
@@ -150,7 +144,7 @@ function CategoryView({
 
     useEffect(() => {
         void loadEntries(searchText, typeFilter)
-        // searchText changes are handled by handleSearchChange debounce
+        // searchText 变更由 handleSearchChange 的防抖处理
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [categoryId, typeFilter, refreshToken, loadEntries])
 

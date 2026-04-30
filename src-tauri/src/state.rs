@@ -4,17 +4,17 @@ use flowcloudai_client::{FlowCloudAIClient, SessionHandle};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{Mutex, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use worldflow_core::SqliteDb;
 
-// ── SearchEngineState ─────────────────────────────────────────────────────────
+// ── 搜索引擎状态 ─────────────────────────────────────────────────────────────
 
 /// 当前搜索引擎选择（与设置同步，供 AI 工具使用）
 pub struct SearchEngineState {
     pub engine: Arc<Mutex<String>>,
 }
 
-// ── NetworkState ──────────────────────────────────────────────────────────────
+// ── 网络状态 ──────────────────────────────────────────────────────────────────
 
 /// 全局共享 HTTP 客户端（连接池复用）
 pub struct NetworkState {
@@ -29,7 +29,7 @@ impl NetworkState {
     }
 }
 
-// ── PathsState ────────────────────────────────────────────────────────────────
+// ── 路径状态 ──────────────────────────────────────────────────────────────────
 
 /// 解析后的数据目录路径（db 和 plugins）
 pub struct PathsState {
@@ -37,14 +37,14 @@ pub struct PathsState {
     pub plugins_path: PathBuf,
 }
 
-// ── AppState ──────────────────────────────────────────────────────────────────
+// ── 应用状态 ──────────────────────────────────────────────────────────────────
 
 /// 数据库连接池状态
 pub struct AppState {
     pub sqlite_db: Mutex<SqliteDb>,
 }
 
-// ── PendingEditsState ─────────────────────────────────────────────────────────
+// ── 待确认编辑状态 ───────────────────────────────────────────────────────────
 
 /// AI 工具发起的待确认编辑请求。
 /// key = request_id（UUID 字符串），value = oneshot sender（true=确认，false=取消）
@@ -52,7 +52,7 @@ pub struct PendingEditsState {
     pub pending: Arc<Mutex<HashMap<String, oneshot::Sender<bool>>>>,
 }
 
-// ── AiState ───────────────────────────────────────────────────────────────────
+// ── AI 状态 ───────────────────────────────────────────────────────────────────
 
 /// LLM 会话的内部句柄（通过 channel 向后台事件循环发送用户消息）
 #[derive(Clone, Debug)]

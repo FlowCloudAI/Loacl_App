@@ -26,7 +26,7 @@ export function useUndoRedo<T>(initialState: T): UndoRedoHandle<T> {
     }, [])
 
     const push = useCallback((state: T) => {
-        // Truncate any forward history
+        // 截断所有前进历史
         historyRef.current = historyRef.current.slice(0, cursorRef.current + 1)
         historyRef.current.push(state)
         if (historyRef.current.length > MAX_HISTORY) {
@@ -48,11 +48,11 @@ export function useUndoRedo<T>(initialState: T): UndoRedoHandle<T> {
     }, [push])
 
     const flushDebounced = useCallback(() => {
-        // No-op if no pending debounce — caller shouldn't need to check
+        // 无待处理防抖时不做任何操作 — 调用方无需额外检查
         if (debounceTimerRef.current === null) return
         clearTimeout(debounceTimerRef.current)
         debounceTimerRef.current = null
-        // The state to commit is unknown here; callers must push explicitly after flush
+        // 这里不知道要提交什么状态；调用方必须在 flush 后显式 push
     }, [])
 
     const undo = useCallback((): T | null => {

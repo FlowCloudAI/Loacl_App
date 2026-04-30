@@ -96,4 +96,4 @@ pub async fn db_delete_project(
     db.delete_project(&id).await.map_err(|e| e.to_string())
 }
 
-// ============ Categories ============
+// ============ 分类 ============

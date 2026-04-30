@@ -11,9 +11,9 @@ pub(super) use tauri_plugin_opener::OpenerExt;
 pub(super) use tokio::sync::Mutex;
 pub(super) use uuid::Uuid;
 pub(super) use worldflow_core::{
-    AppendResult, CategoryOps, EntryLinkOps, EntryOps, EntryRelationOps, EntryTypeOps, IdeaNoteOps,
-    ProjectOps, SnapshotBranchInfo, SnapshotInfo, SqliteDb, TagSchemaOps, WorldflowError,
-    models::*,
+    models::*, AppendResult, CategoryOps, EntryLinkOps, EntryOps, EntryRelationOps, EntryTypeOps,
+    IdeaNoteOps, ProjectOps, SnapshotBranchInfo, SnapshotInfo, SqliteDb, TagSchemaOps,
+    WorldflowError,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -258,7 +258,7 @@ pub(crate) async fn initialize_default_timeline_tags(
     Ok(())
 }
 
-// ============ Logging & Window ============
+// ============ 日志与窗口 ============
 
 /// 前端日志桥接，将日志写入后端日志系统
 

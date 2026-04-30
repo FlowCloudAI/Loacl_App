@@ -1,8 +1,8 @@
-use crate::AppState;
 use crate::apis::worldflow::common::initialize_default_timeline_tags;
+use crate::AppState;
 use uuid::Uuid;
 use worldflow_core::{
-    CategoryOps, EntryOps, EntryRelationOps, EntryTypeOps, ProjectOps, TagSchemaOps, models::*,
+    models::*, CategoryOps, EntryOps, EntryRelationOps, EntryTypeOps, ProjectOps, TagSchemaOps,
 };
 
 pub mod category_tools;
@@ -507,7 +507,7 @@ pub mod format {
         result
     }
 
-    // (removed: format_category and format_project — replaced by unified tool return messages)
+    // （已移除：format_category 和 format_project — 由统一工具返回消息替代）
 }
 
 // ============ 内部工具函数（不暴露给前端） ============

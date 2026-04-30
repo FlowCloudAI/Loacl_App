@@ -1,10 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Button, RollingBox, Timeline, type TimelineEvent} from 'flowcloudai-ui'
-import {
-    db_list_timeline_events,
-    type ProjectTimelineData,
-    type TagSchema,
-} from '../../../api'
+import {db_list_timeline_events, type ProjectTimelineData, type TagSchema,} from '../../../api'
 import '../../../shared/ui/layout/WorkspaceScaffold.css'
 import './ProjectTimeline.css'
 
@@ -284,7 +280,7 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
 
     return (
         <div className="project-timeline fc-op-panel">
-            {/* ── Header ── */}
+            {/* ── 顶部 ── */}
             <div className="fc-op-header">
                 {onBack && (
                     <button type="button" className="fc-op-back-btn" onClick={onBack}>
@@ -313,7 +309,7 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
                 </div>
             </div>
 
-            {/* ── Toolbar (stats chips) ── */}
+            {/* ── 工具栏（统计标签） ── */}
             {data && events.length > 0 && (
                 <div className="fc-op-toolbar">
                     <span className="fc-op-chip">扫描词条 {data.scannedEntryCount}</span>
@@ -336,14 +332,14 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
                 </div>
             )}
 
-            {/* ── Error Banner ── */}
+            {/* ── 错误提示 ── */}
             {error && (
                 <div className="fc-status-banner fc-status-banner--error">
                     时间线数据加载失败：{error.message}
                 </div>
             )}
 
-            {/* ── Body ── */}
+            {/* ── 主体 ── */}
             {events.length === 0 ? (
                 <div className="fc-op-viewport-empty">
                     <div className="fc-op-hint-block">

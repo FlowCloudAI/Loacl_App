@@ -127,4 +127,4 @@ pub async fn db_delete_relations_between(
     Ok(deleted)
 }
 
-// ============ Entry Types ============
+// ============ 词条类型 ============

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
-// ── Data model ────────────────────────────────────────────────────────────────
+// ── 数据模型 ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,7 +15,7 @@ pub struct MapEntry {
     pub scene_json: Option<String>,
     pub coastline_params_json: Option<String>,
     pub style: String,
-    /// data: URL or null
+    /// data: URL 或 null
     pub background_image_url: Option<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -28,7 +28,7 @@ pub struct ProjectMapStore {
     pub maps: Vec<MapEntry>,
 }
 
-// ── Internal helpers ──────────────────────────────────────────────────────────
+// ── 内部辅助 ──────────────────────────────────────────────────────────────────
 
 fn store_path(app: &AppHandle, project_id: &str) -> Result<PathBuf, String> {
     let safe_id: String = project_id
@@ -63,12 +63,12 @@ fn load_store(app: &AppHandle, project_id: &str) -> Result<ProjectMapStore, Stri
     }
     let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
 
-    // Try multi-map format first
+    // 优先尝试多地图格式
     if let Ok(store) = serde_json::from_str::<ProjectMapStore>(&content) {
         return Ok(store);
     }
 
-    // Legacy single-map format: { projectId, draftJson, sceneJson, style, savedAt }
+    // 旧版单地图格式：{ projectId, draftJson, sceneJson, style, savedAt }
     if let Ok(legacy) = serde_json::from_str::<serde_json::Value>(&content) {
         if legacy.get("draftJson").is_some() {
             let entry = MapEntry {
@@ -105,14 +105,14 @@ fn save_store(app: &AppHandle, store: &ProjectMapStore) -> Result<(), String> {
     Ok(())
 }
 
-// ── Commands ──────────────────────────────────────────────────────────────────
+// ── 命令 ──────────────────────────────────────────────────────────────────────
 
 #[tauri::command]
 pub fn map_list_project_maps(app: AppHandle, project_id: String) -> Result<Vec<MapEntry>, String> {
     Ok(load_store(&app, &project_id)?.maps)
 }
 
-/// Create or update a map entry. Returns the saved entry (with generated id/timestamps).
+/// 创建或更新地图条目。返回保存后的条目（含自动生成的 id/时间戳）。
 #[tauri::command]
 pub fn map_save_map_entry(
     app: AppHandle,

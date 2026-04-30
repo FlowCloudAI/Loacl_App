@@ -1,4 +1,4 @@
-/* ── Panel ─────────────────────────────────────────────────────────────────── */
+/* ── 面板 ─────────────────────────────────────────────────────────────────── */
 
 .pe-contradiction-panel {
     display: flex;
@@ -9,7 +9,7 @@
     background: var(--fc-color-bg);
 }
 
-/* ── Toolbar / Header ──────────────────────────────────────────────────────── */
+/* ── 工具栏 / 头部 ──────────────────────────────────────────────────────── */
 
 .pe-contradiction-toolbar {
     gap: var(--fc-space-md);
@@ -43,7 +43,7 @@
     margin: 0;
 }
 
-/* ── Layout ────────────────────────────────────────────────────────────────── */
+/* ── 布局 ────────────────────────────────────────────────────────────────── */
 
 .pe-contradiction-layout {
     flex: 1;
@@ -54,7 +54,7 @@
     padding: var(--fc-space-lg) var(--fc-space-xl) var(--fc-space-xl);
 }
 
-/* ── History & Report sections ─────────────────────────────────────────────── */
+/* ── 历史与报告区域 ─────────────────────────────────────────────── */
 
 .pe-contradiction-history,
 .pe-contradiction-report {
@@ -68,7 +68,7 @@
     overflow: hidden;
 }
 
-/* ── Section header ────────────────────────────────────────────────────────── */
+/* ── 区域标题 ────────────────────────────────────────────────────────── */
 
 .pe-contradiction-section__header {
     display: flex;
@@ -89,7 +89,7 @@
     color: var(--fc-color-text-secondary);
 }
 
-/* ── History scroll ────────────────────────────────────────────────────────── */
+/* ── 历史记录滚动区 ────────────────────────────────────────────────────────── */
 
 .pe-contradiction-history__scroll {
     flex: 1;
@@ -103,7 +103,7 @@
     gap: 2px;
 }
 
-/* ── History item (flattened, using fc-op-item) ───────────────────────────── */
+/* ── 历史项（扁平化，使用 fc-op-item） ───────────────────────────── */
 
 .pe-contradiction-history__item {
     padding: 5px 8px;
@@ -155,7 +155,7 @@
     color: var(--fc-color-text);
 }
 
-/* ── Report body & scroll ──────────────────────────────────────────────────── */
+/* ── 报告正文与滚动区 ──────────────────────────────────────────────────── */
 
 .pe-contradiction-report__body {
     flex: 1;
@@ -174,7 +174,7 @@
     gap: 0.9rem;
 }
 
-/* ── Hero (flattened summary bar) ──────────────────────────────────────────── */
+/* ── 概览栏（扁平化摘要条） ──────────────────────────────────────────── */
 
 .pe-contradiction-report__hero {
     display: flex;
@@ -209,7 +209,7 @@
     white-space: pre-wrap;
 }
 
-/* ── Stats ─────────────────────────────────────────────────────────────────── */
+/* ── 统计数据 ─────────────────────────────────────────────────────────────────── */
 
 .pe-contradiction-stats {
     display: grid;
@@ -274,7 +274,7 @@
     color: var(--fc-color-text-secondary);
 }
 
-/* ── Report sections ───────────────────────────────────────────────────────── */
+/* ── 报告章节 ───────────────────────────────────────────────────────── */
 
 .pe-contradiction-report__section {
     display: flex;
@@ -288,7 +288,7 @@
     gap: 0.9rem;
 }
 
-/* ── Issue list & list ─────────────────────────────────────────────────────── */
+/* ── 问题列表与清单 ─────────────────────────────────────────────────────── */
 
 .pe-contradiction-issue-list,
 .pe-contradiction-list {
@@ -297,7 +297,7 @@
     gap: 0.7rem;
 }
 
-/* ── Cards ─────────────────────────────────────────────────────────────────── */
+/* ── 卡片 ─────────────────────────────────────────────────────────────────── */
 
 .pe-contradiction-issue-card,
 .pe-contradiction-list__item,
@@ -473,7 +473,7 @@ button.pe-contradiction-chip--entry:hover {
     color: var(--fc-color-text-secondary);
 }
 
-/* ── Responsive ────────────────────────────────────────────────────────────── */
+/* ── 响应式 ────────────────────────────────────────────────────────────── */
 
 @container (max-width: 780px) {
     .pe-contradiction-layout,
@@ -487,7 +487,7 @@ button.pe-contradiction-chip--entry:hover {
     }
 }
 
-/* ── Model selectors ─────────────────────────────────────────── */
+/* ── 模型选择器 ─────────────────────────────────────────── */
 
 .pe-contradiction-model-selectors {
     display: flex;
@@ -568,7 +568,7 @@ button.pe-contradiction-chip--entry:hover {
     cursor: default;
 }
 
-/* ── History item text color fix ────────────────────────────── */
+/* ── 历史项文字颜色修复 ────────────────────────────── */
 
 .pe-contradiction-history__item .fc-op-item__title {
     color: var(--fc-color-text);
@@ -578,7 +578,7 @@ button.pe-contradiction-chip--entry:hover {
     color: var(--fc-color-text-secondary);
 }
 
-/* ── Select width fix ───────────────────────────────────────── */
+/* ── 选择器宽度修复 ───────────────────────────────────────── */
 
 .pe-contradiction-model-selectors > :first-child {
     min-width: 150px;
@@ -588,7 +588,7 @@ button.pe-contradiction-chip--entry:hover {
     min-width: 200px;
 }
 
-/* ── History item button reset ──────────────────────────────── */
+/* ── 历史项按钮重置 ──────────────────────────────── */
 
 button.fc-op-item__content {
     background: transparent;

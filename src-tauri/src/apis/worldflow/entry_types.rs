@@ -111,4 +111,4 @@ pub async fn db_delete_entry_type(
     touch_project_updated_at(&db, &entry_type.project_id).await
 }
 
-// ============ Entry Links ============
+// ============ 词条链接 ============

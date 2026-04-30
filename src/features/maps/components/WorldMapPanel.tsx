@@ -35,7 +35,7 @@ function mapLog(msg: string) {
     void log_message('info', `[WorldMap] ${msg}`)
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── 常量 ─────────────────────────────────────────────────────────────────
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 type ViewportMode = 'edit' | 'preview'
@@ -56,7 +56,7 @@ const DEFAULT_COASTLINE_PARAMS: CoastlineParamsPayload = {
     waveCWeight: 0.30,
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── 辅助函数 ───────────────────────────────────────────────────────────────────
 
 function emptyDraft(): MapShapeEditorDraft {
     return {shapes: [], keyLocations: []}
@@ -77,7 +77,7 @@ function newMapEntry(name: string): MapEntry {
     }
 }
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
+// ── 图标 ─────────────────────────────────────────────────────────────────────
 
 function BackArrow() {
     return (
@@ -117,7 +117,7 @@ function ImageIcon() {
     )
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── 主组件 ────────────────────────────────────────────────────────────
 
 interface WorldMapPanelProps {
     projectId: string
@@ -141,13 +141,13 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
     useContextMenu()
     const imageInputRef = useRef<HTMLInputElement>(null)
 
-    // ── Map list state ────────────────────────────────────────────────────────
+    // ── 地图列表状态 ────────────────────────────────────────────────────────
     const [isLoading, setIsLoading] = useState(true)
     const [maps, setMaps] = useState<MapEntry[]>([])
     const [activeMapId, setActiveMapId] = useState<string | null>(null)
     const [entryOptions, setEntryOptions] = useState<EntryBrief[]>([])
 
-    // ── Active map editor state ───────────────────────────────────────────────
+    // ── 当前地图编辑状态 ───────────────────────────────────────────────
     const [draft, setDraft] = useState<MapShapeEditorDraft>(emptyDraft)
     const [scene, setScene] = useState<MapPreviewScene | null>(null)
     const [style, setStyle] = useState<MapStyle>('flat')
@@ -156,7 +156,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
     const [sceneDirty, setSceneDirty] = useState(false)
     const [coastlineParams, setCoastlineParams] = useState<CoastlineParamsPayload>(DEFAULT_COASTLINE_PARAMS)
 
-    // ── Editor interaction state ──────────────────────────────────────────────
+    // ── 编辑器交互状态 ──────────────────────────────────────────────
     const [drawingShape, setDrawingShape] = useState<MapShapeDraft | null>(null)
     const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null)
     const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
@@ -164,7 +164,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
     const [viewportMode, setViewportMode] = useState<ViewportMode>('preview')
     const [previewRenderer, setPreviewRenderer] = useState<MapShapeViewportRenderer>('pixi')
 
-    // ── Op state ─────────────────────────────────────────────────────────────
+    // ── 操作状态 ─────────────────────────────────────────────────────────────
     const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
     const [isGenerating, setIsGenerating] = useState(false)
     const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -180,7 +180,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
     const loadMapDataRef = useRef<(entry: MapEntry) => void>(() => {
     })
 
-    // ── Load map list on mount ────────────────────────────────────────────────
+    // ── 挂载时加载地图列表 ────────────────────────────────────────────────
 
     useEffect(() => {
         let cancelled = false
@@ -224,7 +224,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         }
     }, [projectId])
 
-    // ── Load a map entry into editor state ────────────────────────────────────
+    // ── 将地图条目加载到编辑器状态 ────────────────────────────────────
 
     const loadMapData = useCallback((entry: MapEntry) => {
         try {
@@ -264,7 +264,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         loadMapDataRef.current = loadMapData
     }, [loadMapData])
 
-    // ── Build current entry from editor state ─────────────────────────────────
+    // ── 从编辑器状态构建当前条目 ─────────────────────────────────
 
     const buildCurrentEntry = useCallback((
         existingEntry: MapEntry,
@@ -285,7 +285,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         updatedAt: new Date().toISOString(),
     }), [])
 
-    // ── Auto-save current map (silent, called before switching) ───────────────
+    // ── 自动保存当前地图（静默，切换前调用） ───────────────
 
     const autoSave = useCallback(async (
         mapId: string,
@@ -298,7 +298,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
     ) => {
         const existing = maps.find(m => m.id === mapId)
         if (!existing) return
-        if (currentDraft.shapes.length === 0 && !currentBg) return // nothing worth saving
+        if (currentDraft.shapes.length === 0 && !currentBg) return // 无值得保存的内容
 
         const previewScene = buildPreviewSceneFromDraft({
             canvas: CANVAS,
@@ -315,11 +315,11 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
             const saved = await map_save_map_entry(projectId, entry)
             setMaps(prev => prev.map(m => m.id === mapId ? saved : m))
         } catch {
-            // Silent — don't block the switch
+            // 静默 — 不阻塞切换
         }
     }, [maps, projectId, buildCurrentEntry])
 
-    // ── Switch to another map ─────────────────────────────────────────────────
+    // ── 切换到其他地图 ─────────────────────────────────────────────────
 
     const handleSwitchMap = useCallback(async (entry: MapEntry) => {
         if (entry.id === activeMapId) return
@@ -329,7 +329,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         loadMapData(entry)
     }, [activeMapId, draft, scene, style, backgroundImageUrl, activeMapName, coastlineParams, autoSave, loadMapData])
 
-    // ── Create new map ────────────────────────────────────────────────────────
+    // ── 新建地图 ────────────────────────────────────────────────────────
 
     const handleCreateMap = useCallback(async () => {
         if (activeMapId) {
@@ -340,7 +340,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         loadMapData(entry)
     }, [activeMapId, draft, scene, style, backgroundImageUrl, activeMapName, coastlineParams, maps.length, autoSave, loadMapData])
 
-    // ── Delete a map ──────────────────────────────────────────────────────────
+    // ── 删除地图 ──────────────────────────────────────────────────────────
 
     const handleDeleteMap = useCallback(async (mapId: string) => {
         const target = maps.find(m => m.id === mapId)
@@ -377,7 +377,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         [draft, drawingShape],
     )
 
-    // ── Save current map ──────────────────────────────────────────────────────
+    // ── 保存当前地图 ──────────────────────────────────────────────────────
 
     const handleSave = useCallback(async () => {
         if (!activeMapId) {
@@ -421,7 +421,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         }
     }, [activeMapId, draft, scene, style, backgroundImageUrl, activeMapName, coastlineParams, maps, projectId, buildCurrentEntry, validation.isValid])
 
-    // ── Rename active map ─────────────────────────────────────────────────────
+    // ── 重命名当前地图 ─────────────────────────────────────────────────────
 
     const handleRename = useCallback((name: string) => {
         setActiveMapName(name)
@@ -457,7 +457,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         setSelectedLocationId(id => (id === locationId ? null : id))
     }, [draft.keyLocations, showAlert, updateDraft])
 
-    // ── Generate coastline ────────────────────────────────────────────────────
+    // ── 生成海岸线 ────────────────────────────────────────────────────
 
     const handleGenerate = useCallback(async () => {
         if (draft.shapes.length === 0) {
@@ -485,7 +485,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         }
     }, [draft, validation.isValid, coastlineParams])
 
-    // ── Quick preview ─────────────────────────────────────────────────────────
+    // ── 快速预览 ─────────────────────────────────────────────────────────
 
     const handleQuickPreview = useCallback(() => {
         if (draft.shapes.length === 0) {
@@ -496,7 +496,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         setSceneDirty(false)
     }, [draft])
 
-    // ── Background image upload ───────────────────────────────────────────────
+    // ── 底图上传 ───────────────────────────────────────────────────────────────
 
     const handleImageFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -515,7 +515,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         setSaveStatus('idle')
     }, [])
 
-    // ── Shape editing helpers ─────────────────────────────────────────────────
+    // ── 图形编辑辅助 ─────────────────────────────────────────────────
 
     const deleteVertex = useCallback((shapeId: string, vertexId: string) => {
         updateDraft(d => ({
@@ -586,7 +586,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         }))
     }, [])
 
-    // ── Add shape / location ──────────────────────────────────────────────────
+    // ── 添加图形/地点 ──────────────────────────────────────────────────
 
     const handleAddShape = useCallback(() => {
         const next = createEmptyShapeDraft(draft.shapes)
@@ -615,7 +615,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         setSelectedLocationId(loc.id)
     }, [draft, selectedShapeId, updateDraft])
 
-    // ── Scene & renderer props ────────────────────────────────────────────────
+    // ── 场景与渲染器属性 ────────────────────────────────────────────────
 
     const styleTextureUrl = useMemo(() => {
         if (backgroundImageUrl) return null
@@ -707,7 +707,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
     const viewportKeyLocationStyle = previewRenderer === 'pixi' ? compiledPixiStyle.keyLocationStyle : undefined
     const viewportLabelStyle = previewRenderer === 'pixi' ? compiledPixiStyle.labelStyle : undefined
 
-    // DEBUG: wrap renderOverlay to trace whether MapShapeViewport actually calls it
+    // DEBUG：包装 renderOverlay 以追踪 MapShapeViewport 是否实际调用了它
     const wrappedPixiProps = useMemo(() => {
         if (!pixiProps.renderOverlay) {
             mapLog('wrapRenderOverlay: no renderOverlay to wrap')
@@ -768,7 +768,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         onRequestLocationDelete: requestDeleteLocation,
     }), [draft, selectedShapeId, selectedLocationId, drawingShape, requestDeleteShape, deleteVertex, requestDeleteLocation, updateDraft])
 
-    // ── Derived ───────────────────────────────────────────────────────────────
+    // ── 派生数据 ───────────────────────────────────────────────────────────────
 
     const selectedShape = draft.shapes.find(s => s.id === selectedShapeId) ?? null
     const selectedLocation = draft.keyLocations.find(l => l.id === selectedLocationId) ?? null
@@ -800,15 +800,15 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
         </div>
     }
 
-    // ── Render ────────────────────────────────────────────────────────────────
+    // ── 渲染 ────────────────────────────────────────────────────────────────
 
     return (
         <div className="wm-panel">
-            {/* Hidden file input */}
+            {/* 隐藏的文件输入框 */}
             <input ref={imageInputRef} type="file" accept="image/*" style={{display: 'none'}}
                    onChange={handleImageFileChange}/>
 
-            {/* ── Header ── */}
+            {/* ── 顶部导航栏 ── */}
             <div className="wm-header">
                 <button type="button" className="wm-back-btn" onClick={onBack}><BackArrow/>返回</button>
                 <div className="wm-header__title-block fc-page-title-block">
@@ -834,7 +834,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                 </div>
             </div>
 
-            {/* ── Toolbar ── */}
+            {/* ── 工具栏 ── */}
             <div className="wm-toolbar">
                 <button type="button"
                         className={`wm-chip${viewportMode === 'preview' ? ' is-active' : ''}`}
@@ -897,7 +897,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                 )}
             </div>
 
-            {/* ── Error Banner ── */}
+            {/* ── 错误提示 ── */}
             {errorMsg && (
                 <div className="wm-error-banner fc-status-banner fc-status-banner--error">
                     {errorMsg}
@@ -906,11 +906,11 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                 </div>
             )}
 
-            {/* ── Body ── */}
+            {/* ── 主体 ── */}
             <div className="wm-body">
-                {/* ── Sidebar ── */}
+                {/* ── 侧边栏 ── */}
                 <div className="wm-sidebar">
-                    {/* Map list section */}
+                    {/* 地图列表区域 */}
                     <div className="wm-sidebar__section">
                         <div className="wm-sidebar__section-header">
                             <span className="wm-sidebar__section-title">地图列表</span>
@@ -949,7 +949,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
 
                     <div className="wm-sidebar__sep"/>
 
-                    {/* Properties section */}
+                    {/* 属性区域 */}
                     <div className="wm-sidebar__section wm-sidebar__section--flex">
                         <div className="wm-sidebar__section-header">
                             <span className="wm-sidebar__section-title">
@@ -964,7 +964,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                                 return false
                             }}
                         >
-                            {/* Active map name */}
+                            {/* 当前地图名称 */}
                             {activeMapId && !drawingShape && !selectedShape && (!selectedLocation || viewportMode === 'preview') && (
                                 <>
                                     <div className="wm-field">
@@ -1121,7 +1121,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                                 </div>
                             )}
 
-                            {/* Drawing shape editor */}
+                            {/* 绘制中的图形编辑器 */}
                             {drawingShape && (
                                 <>
                                     <div className="wm-field">
@@ -1157,7 +1157,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                                 </>
                             )}
 
-                            {/* Selected shape editor */}
+                            {/* 已选图形编辑器 */}
                             {!drawingShape && selectedShape && viewportMode === 'edit' && (
                                 <>
                                     <div className="wm-field">
@@ -1193,7 +1193,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                                 </>
                             )}
 
-                            {/* Selected location editor */}
+                            {/* 已选地点编辑器 */}
                             {!drawingShape && !selectedShape && selectedLocation && viewportMode === 'edit' && (
                                 <>
                                     <div className="wm-field">
@@ -1269,7 +1269,7 @@ export default function WorldMapPanel({projectId, projectName, onBack, onOpenEnt
                     </div>
                 </div>
 
-                {/* ── Viewport ── */}
+                {/* ── 视口 ── */}
                 <div className="wm-viewport-container">
                     {activeMapId ? (
                         <MapShapeViewport

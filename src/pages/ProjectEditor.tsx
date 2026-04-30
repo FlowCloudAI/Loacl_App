@@ -1,13 +1,13 @@
 import React, {memo, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {type CategoryTreeNode, type DropPosition, DeleteDialog, flatToTree, Tree, useAlert} from 'flowcloudai-ui'
+import {type CategoryTreeNode, DeleteDialog, type DropPosition, flatToTree, Tree, useAlert} from 'flowcloudai-ui'
 import {listen} from '@tauri-apps/api/event'
 import {
     type Category,
+    CATEGORY_CREATED,
+    CATEGORY_DELETED,
     type CategoryCreatedEvent,
     type CategoryDeletedEvent,
     type CustomEntryType,
-    CATEGORY_CREATED,
-    CATEGORY_DELETED,
     db_count_entries,
     db_create_category,
     db_create_entry,
@@ -22,13 +22,13 @@ import {
     db_list_tag_schemas,
     db_update_category,
     db_update_project,
+    ENTRY_CREATED,
+    ENTRY_DELETED,
+    ENTRY_UPDATED,
     type EntryCreatedEvent,
     type EntryDeletedEvent,
     type EntryTypeView,
     type EntryUpdatedEvent,
-    ENTRY_CREATED,
-    ENTRY_DELETED,
-    ENTRY_UPDATED,
     type Project,
     type TagSchema,
 } from '../api'
@@ -449,9 +449,8 @@ function ProjectEditorInner({
     useEffect(() => {
         if (placeholderEntryIds.size === 0) return
         const stillOpen = new Set(openEntryIds)
-        // Track placeholders that have actually appeared in openEntryIds — only those
-        // count as "removed" when later absent. Guards the brief window between creation
-        // and the parent propagating the new openEntryIds.
+        // 追踪已在 openEntryIds 中出现过的占位符——只有这些占位符在后续缺失时才计为"已移除"
+        // 这保护了从创建到父组件传播新的 openEntryIds 之间的短暂窗口期。
         for (const id of openEntryIds) {
             if (placeholderEntryIds.has(id)) placeholderSeenInOpenRef.current.add(id)
         }
@@ -470,8 +469,8 @@ function ProjectEditorInner({
             return next
         })
 
-        // Untouched placeholders → silently delete from DB.
-        // "Untouched" means: title still default AND no content/summary/images.
+        // 未修改的占位符 → 从数据库中静默删除。
+        // "未修改"指：标题仍为默认值且无内容/摘要/图片。
         for (const id of removed) {
             void (async () => {
                 try {
@@ -486,7 +485,7 @@ function ProjectEditorInner({
                         setCategoryEntryRefreshToken(current => current + 1)
                     }
                 } catch {
-                    // Entry may already be deleted — ignore.
+                    // 词条可能已被删除 — 忽略。
                 }
             })()
         }

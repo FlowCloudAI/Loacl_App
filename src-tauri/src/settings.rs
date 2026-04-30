@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-// ── AppSettings ───────────────────────────────────────────────────────────────
+// ── 应用设置 ───────────────────────────────────────────────────────────────
 
 /// 存储在 app_config_dir/settings.json，不含任何密钥
 #[derive(Serialize, Deserialize, Clone)]
@@ -135,7 +135,7 @@ impl Default for TtsDefaults {
     }
 }
 
-// ── ApiKeyStore ───────────────────────────────────────────────────────────────
+// ── API 密钥存储 ───────────────────────────────────────────────────────────
 
 const KEYRING_SERVICE: &str = "cn.flowcloudai.www";
 

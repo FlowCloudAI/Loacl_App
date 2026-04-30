@@ -83,7 +83,7 @@ export const map_save_scene = (request: MapShapeSaveRequest, coastlineParams?: C
         request: normalizeMapSaveRequest(request, coastlineParams),
     })
 
-// ── Multi-map persistence ─────────────────────────────────────────────────────
+// ── 多地图持久化 ─────────────────────────────────────────────────────
 
 export interface MapEntry {
     id: string
@@ -92,7 +92,7 @@ export interface MapEntry {
     sceneJson: string | null
     coastlineParamsJson: string | null
     style: string
-    /** data: URL or null */
+    /** data: URL 或 null */
     backgroundImageUrl: string | null
     createdAt: string
     updatedAt: string
@@ -101,7 +101,7 @@ export interface MapEntry {
 export const map_list_project_maps = (projectId: string) =>
     command<MapEntry[]>('map_list_project_maps', {projectId})
 
-/** Create or update a map entry. Returns the saved entry (with server-assigned id/timestamps). */
+/** 创建或更新地图条目。返回保存后的条目（含服务端分配的 id/时间戳）。 */
 export const map_save_map_entry = (projectId: string, entry: MapEntry) =>
     command<MapEntry>('map_save_map_entry', {projectId, entry})
 
