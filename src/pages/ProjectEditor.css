@@ -44,10 +44,37 @@
 
 .pe-tree-panel__header {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     align-items: center;
     padding: 0.75rem 0.75rem 0.5rem;
     border-bottom: 1px solid color-mix(in srgb, var(--fc-color-border) 88%, transparent);
+    gap: 0.75rem;
+}
+
+.pe-tree-header-btn {
+    border: 1px solid color-mix(in srgb, var(--fc-color-border) 92%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--fc-color-bg-elevated) 92%, var(--fc-color-bg-secondary));
+    color: var(--fc-color-text);
+    font-size: 0.78rem;
+    line-height: 1;
+    padding: 0.38rem 0.8rem;
+    cursor: pointer;
+    transition:
+        border-color 0.14s ease,
+        background 0.14s ease,
+        color 0.14s ease,
+        transform 0.14s ease;
+}
+
+.pe-tree-header-btn:hover {
+    border-color: color-mix(in srgb, var(--fc-color-primary) 70%, var(--fc-color-border));
+    background: color-mix(in srgb, var(--fc-color-primary) 14%, var(--fc-color-bg-secondary));
+    color: var(--fc-color-primary);
+}
+
+.pe-tree-header-btn:active {
+    transform: translateY(1px);
 }
 
 .pe-tree-panel__body {

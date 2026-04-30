@@ -1,15 +1,17 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {listen} from '@tauri-apps/api/event'
-import {type MessageBoxBlock} from 'flowcloudai-ui'
+import {type MessageBoxBlock, type ToolCallInfo} from 'flowcloudai-ui'
 import {
     ai_cancel_session,
     ai_checkout,
     ai_close_session,
     ai_create_character_session,
     ai_create_llm_session,
+    ai_get_conversation_tree,
     ai_send_message,
     ai_switch_plugin,
     ai_update_session,
+    type AiEventBranchChanged,
     type AiEventDelta,
     type AiEventError,
     type AiEventReady,
@@ -19,6 +21,7 @@ import {
     type AiEventTurnBegin,
     type AiEventTurnEnd,
     type CharacterChatProjectSnapshot,
+    type ConversationNode,
 } from '../../../api'
 
 // ── 导出类型 ──────────────────────────────────────────────────
@@ -73,6 +76,12 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
     // 标记下一个 TurnBegin 是用户发起的（非工具续轮）
     const expectUserTurnRef = useRef(false)
 
+    // 分支导航
+    const [treeNodes, setTreeNodes] = useState<ConversationNode[]>([])
+    const [treeRefreshCounter, setTreeRefreshCounter] = useState(0)
+    const [branchSwitchVersion, setBranchSwitchVersion] = useState(0)
+    const branchInfoRef = useRef<Map<number, {branchIndex: number; branchTotal: number; siblings: number[]}>>(new Map())
+
     // 通过 ref 访问回调，避免 event listener 内部 stale closure
     const onMessageRef = useRef(onMessage)
     const onErrorRef = useRef(onError)
@@ -100,7 +109,11 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
 
     // ── 事件监听（仅注册一次） ────────────────────────────────
     useEffect(() => {
-        const unlistenReady = listen<AiEventReady>('ai:ready', () => {
+        const unlistenReady = listen<AiEventReady>('ai:ready', event => {
+            console.log('[useAiSession][ready]', {
+                sessionId: event.payload.session_id,
+                runId: event.payload.run_id,
+            })
         })
 
         // 只记录用户发起轮次的起始节点（工具续轮不更新）
@@ -123,6 +136,11 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
         })
 
         const unlistenDelta = listen<AiEventDelta>('ai:delta', event => {
+            console.log('[useAiSession][delta]', {
+                runId: event.payload.run_id,
+                textLen: event.payload.text.length,
+                text: event.payload.text,
+            })
             const runKey = event.payload.run_id
             const prev = blocksByRunRef.current[runKey] ?? []
             const next = [...prev]
@@ -139,6 +157,11 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
         })
 
         const unlistenReasoning = listen<AiEventReasoning>('ai:reasoning', event => {
+            console.log('[useAiSession][reasoning]', {
+                runId: event.payload.run_id,
+                textLen: event.payload.text.length,
+                text: event.payload.text,
+            })
             const runKey = event.payload.run_id
             const prev = blocksByRunRef.current[runKey] ?? []
             const next = [...prev]
@@ -155,17 +178,24 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
         })
 
         const unlistenToolCall = listen<AiEventToolCall>('ai:tool_call', event => {
+            console.log('[useAiSession][tool_call]', {
+                runId: event.payload.run_id,
+                index: event.payload.index,
+                name: event.payload.name,
+                args: event.payload.arguments,
+            })
             const runKey = event.payload.run_id
             const prev = blocksByRunRef.current[runKey] ?? []
-            const existingIndex = prev.findIndex(
+
+            // Dedup by index: same tool_call event arriving for an existing block
+            const existingToolIdx = prev.findIndex(
                 block => block.type === 'tool'
                     && block.tool.index === event.payload.index
                     && block.tool.result == null,
             )
-            let next: MessageBoxBlock[]
-            if (existingIndex !== -1) {
-                next = prev.map((block, index) => {
-                    if (index !== existingIndex || block.type !== 'tool') return block
+            if (existingToolIdx !== -1) {
+                const next = prev.map((block, index) => {
+                    if (index !== existingToolIdx || block.type !== 'tool') return block
                     return {
                         ...block,
                         tool: {
@@ -175,39 +205,101 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
                         },
                     }
                 })
+                blocksByRunRef.current[runKey] = next
+                if (runIdRef.current === runKey) setBlocks(next)
+                return
+            }
+
+            // Dedup by index inside tool_use groups
+            const existingToolUseIdx = prev.findIndex(
+                block => block.type === 'tool_use'
+                    && block.tools.some(t => t.index === event.payload.index && t.result == null),
+            )
+            if (existingToolUseIdx !== -1) {
+                const next = prev.map((block, index) => {
+                    if (index !== existingToolUseIdx || block.type !== 'tool_use') return block
+                    return {
+                        ...block,
+                        tools: block.tools.map(t => {
+                            if (t.index !== event.payload.index || t.result != null) return t
+                            return {...t, name: event.payload.name, args: event.payload.arguments || t.args}
+                        }),
+                    }
+                })
+                blocksByRunRef.current[runKey] = next
+                if (runIdRef.current === runKey) setBlocks(next)
+                return
+            }
+
+            // Grouping: merge consecutive same-name tool calls
+            const newTool: ToolCallInfo = {
+                index: event.payload.index,
+                name: event.payload.name,
+                args: event.payload.arguments,
+            }
+            const last = prev[prev.length - 1]
+            let next: MessageBoxBlock[]
+
+            if (last && last.type === 'tool_use'
+                && last.tools.length > 0
+                && last.tools[0].name === event.payload.name
+                && last.tools.some(t => t.result == null)) {
+                // Append to existing tool_use group
+                next = [...prev.slice(0, -1), {...last, tools: [...last.tools, newTool]}]
+            } else if (last && last.type === 'tool'
+                && last.tool.name === event.payload.name
+                && last.tool.result == null) {
+                // Convert last individual tool + new tool into a tool_use group
+                next = [...prev.slice(0, -1), {
+                    type: 'tool_use' as const,
+                    tools: [last.tool, newTool],
+                    detail: 'verbose' as const,
+                }]
             } else {
-                next = [
-                    ...prev,
-                    {
-                        type: 'tool',
-                        tool: {
-                            index: event.payload.index,
-                            name: event.payload.name,
-                            args: event.payload.arguments,
-                        },
-                        detail: 'verbose',
-                    },
-                ]
+                next = [...prev, {type: 'tool', tool: newTool, detail: 'verbose'}]
             }
+
             blocksByRunRef.current[runKey] = next
-            if (runIdRef.current === runKey) {
-                setBlocks(next)
-            }
+            if (runIdRef.current === runKey) setBlocks(next)
         })
 
         const unlistenToolResult = listen<AiEventToolResult>('ai:tool_result', event => {
+            console.log('[useAiSession][tool_result]', {
+                runId: event.payload.run_id,
+                index: event.payload.index,
+                isError: event.payload.is_error,
+                resultLen: (event.payload.result ?? event.payload.output)?.length ?? 0,
+                result: event.payload.result ?? event.payload.output,
+            })
             const runKey = event.payload.run_id
             const prev = blocksByRunRef.current[runKey] ?? []
             const next = prev.map(b => {
-                if (b.type !== 'tool' || b.tool.index !== event.payload.index || b.tool.result != null) return b
-                return {
-                    ...b,
-                    tool: {
-                        ...b.tool,
-                        result: event.payload.result ?? event.payload.output,
-                        isError: event.payload.is_error,
-                    },
+                // Individual tool block
+                if (b.type === 'tool' && b.tool.index === event.payload.index && b.tool.result == null) {
+                    return {
+                        ...b,
+                        tool: {
+                            ...b.tool,
+                            result: event.payload.result ?? event.payload.output,
+                            isError: event.payload.is_error,
+                        },
+                    }
                 }
+                // Tool inside tool_use group
+                if (b.type === 'tool_use') {
+                    const updated = b.tools.map(t => {
+                        if (t.index === event.payload.index && t.result == null) {
+                            return {
+                                ...t,
+                                result: event.payload.result ?? event.payload.output,
+                                isError: event.payload.is_error,
+                            }
+                        }
+                        return t
+                    })
+                    if (updated !== b.tools) return {...b, tools: updated}
+                }
+                return b
             })
             blocksByRunRef.current[runKey] = next
             if (runIdRef.current === runKey) {
@@ -283,6 +375,7 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
                     if (runIdRef.current === rid) {
                         setBlocks([])
                         setIsStreaming(false)
+                        setTreeRefreshCounter(c => c + 1)
                     }
                 })
             } else if (status.startsWith('error:')) {
@@ -356,6 +449,12 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
             })
         })
 
+        const unlistenBranchChanged = listen<AiEventBranchChanged>('ai:branch_changed', event => {
+            if (event.payload.run_id === runIdRef.current) {
+                setTreeRefreshCounter(c => c + 1)
+            }
+        })
+
         return () => {
             unlistenReady.then(fn => fn())
             unlistenTurnBegin.then(fn => fn())
@@ -365,8 +464,27 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
             unlistenToolResult.then(fn => fn())
             unlistenTurnEnd.then(fn => fn())
             unlistenError.then(fn => fn())
+            unlistenBranchChanged.then(fn => fn())
         }
     }, []) // 空依赖——回调通过 ref 访问
+
+    // 分支树刷新
+    const refreshTree = useCallback(async () => {
+        const sid = sessionIdRef.current
+        if (!sid) return
+        try {
+            const nodes = await ai_get_conversation_tree(sid)
+            setTreeNodes(nodes)
+        } catch {
+            // 树数据不可用时静默降级（不显示分支 UI）
+        }
+    }, [])
+
+    useEffect(() => {
+        if (treeRefreshCounter > 0) {
+            refreshTree()
+        }
+    }, [treeRefreshCounter, refreshTree])
 
     // ── 操作 ─────────────────────────────────────────────────
 
@@ -477,9 +595,10 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
      * 返回 true 表示指令已发送。
      */
     const checkout = useCallback(async (nodeId: number): Promise<boolean> => {
-        if (!sessionId) return false
+        const sid = sessionIdRef.current
+        if (!sid) return false
         try {
-            await ai_checkout(sessionId, nodeId)
+            await ai_checkout(sid, nodeId)
             expectUserTurnRef.current = true
             setIsStreaming(true)
             setBlocks([])
@@ -487,23 +606,24 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
         } catch {
             return false
         }
-    }, [sessionId])
+    }, [])
 
     /**
      * 编辑模式专用 checkout：checkout 到 assistant 节点，让 session 等待新输入。
      * 不设 isStreaming=true，避免 UI 提前进入流式状态。
      */
     const checkoutForEdit = useCallback(async (nodeId: number): Promise<boolean> => {
-        if (!sessionId) return false
+        const sid = sessionIdRef.current
+        if (!sid) return false
         try {
-            await ai_checkout(sessionId, nodeId)
+            await ai_checkout(sid, nodeId)
             expectUserTurnRef.current = true
             setBlocks([])
             return true
         } catch {
             return false
         }
-    }, [sessionId])
+    }, [])
 
     /** 切换插件（下一轮对话生效） */
     const switchPlugin = useCallback(async (pluginId: string) => {
@@ -516,6 +636,61 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
         if (!sessionId) return
         await ai_update_session(sessionId, {model}).catch(console.error)
     }, [sessionId])
+
+    // ── 分支导航 ─────────────────────────────────────────────
+
+    // 从 treeNodes 计算每个节点的 branchIndex/branchTotal
+    useEffect(() => {
+        if (treeNodes.length === 0) {
+            branchInfoRef.current = new Map()
+            return
+        }
+        const children = new Map<number, number[]>()
+        for (const n of treeNodes) {
+            if (n.parent !== null) {
+                const list = children.get(n.parent) ?? []
+                list.push(n.id)
+                children.set(n.parent, list)
+            }
+        }
+        const info = new Map<number, {branchIndex: number; branchTotal: number; siblings: number[]}>()
+        for (const [, siblingList] of children) {
+            if (siblingList.length > 1) {
+                siblingList.forEach((nodeId, index) => {
+                    info.set(nodeId, {
+                        branchIndex: index + 1,
+                        branchTotal: siblingList.length,
+                        siblings: siblingList,
+                    })
+                })
+            }
+        }
+        branchInfoRef.current = info
+    }, [treeNodes])
+
+    const getBranchInfo = useCallback((nodeId: number) => {
+        const info = branchInfoRef.current.get(nodeId)
+        return info ? {branchIndex: info.branchIndex, branchTotal: info.branchTotal} : null
+    }, [])
+
+    const switchBranch = useCallback(async (nodeId: number, direction: 'prev' | 'next'): Promise<boolean> => {
+        const info = branchInfoRef.current.get(nodeId)
+        if (!info) return false
+        const currentIdx = info.branchIndex - 1
+        const targetIdx = direction === 'prev' ? currentIdx - 1 : currentIdx + 1
+        if (targetIdx < 0 || targetIdx >= info.siblings.length) return false
+        const targetNodeId = info.siblings[targetIdx]
+        const sid = sessionIdRef.current
+        if (!sid) return false
+        try {
+            // 纯导航 checkout：只移动 head，不触发流式生成
+            await ai_checkout(sid, targetNodeId)
+            setBranchSwitchVersion(v => v + 1)
+            return true
+        } catch {
+            return false
+        }
+    }, [])
 
     return {
         sessionId,
@@ -534,5 +709,9 @@ export function useAiSession({onMessage, onError}: UseAiSessionOptions) {
         checkoutForEdit,
         switchPlugin,
         updateModel,
+        getBranchInfo,
+        switchBranch,
+        treeNodes,
+        branchSwitchVersion,
     }
 }

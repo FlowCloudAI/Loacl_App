@@ -41,7 +41,7 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                 let category =
                     tools::create_category(&*guard, project_id, name.to_string(), parent_id)
                         .await
-                        .map_err(|e| anyhow::anyhow!("{}", e))?;
+                        .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
 
                 if let Some(ref h) = app_handle {
                     #[derive(serde::Serialize, Clone)]
@@ -49,7 +49,7 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                     let _ = h.emit("category:created", Evt { category_id: category.id.to_string(), project_id: project_id.to_string() });
                 }
 
-                Ok(format::format_category(&category))
+                Ok("修改已完成".to_string())
             })
         },
     );
@@ -83,7 +83,7 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                             let guard = app_state.lock().await;
                             tools::get_category(&*guard, category_id)
                                 .await
-                                .map_err(|e| anyhow::anyhow!("{}", e))?
+                                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?
                         };
 
                         #[derive(serde::Serialize, Clone)]
@@ -111,19 +111,19 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                             .await?;
 
                         if !confirmed {
-                            return Ok("用户取消了删除操作".to_string());
+                            return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
                         }
 
                         let guard = app_state.lock().await;
                         tools::delete_category_move_to_parent(&*guard, category_id)
                             .await
-                            .map_err(|e| anyhow::anyhow!("{}", e))?;
+                            .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
 
                         #[derive(serde::Serialize, Clone)]
                         struct Evt { category_id: String }
                         let _ = app_handle.emit("category:deleted", Evt { category_id: cat_id_str.clone() });
 
-                        Ok(format!("分类「{}」已删除，其子内容已上移到父分类", cat.name))
+                        Ok("用户审核已通过，更改已完成".to_string())
                     }
 
                     "cascade" => {
@@ -132,10 +132,10 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                             let guard = app_state.lock().await;
                             let cat = tools::get_category(&*guard, category_id)
                                 .await
-                                .map_err(|e| anyhow::anyhow!("{}", e))?;
+                                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
                             let (ec, sc) = tools::preview_cascade_delete(&*guard, category_id)
                                 .await
-                                .map_err(|e| anyhow::anyhow!("{}", e))?;
+                                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
                             (ec, sc, cat.name.clone())
                         };
 
@@ -168,7 +168,7 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                             .await?;
 
                         if !confirmed_preview {
-                            return Ok("用户取消了联级删除操作".to_string());
+                            return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
                         }
 
                         // 第二次确认：最终确认
@@ -189,27 +189,24 @@ pub fn register_category_tools(registry: &mut ToolRegistry) -> Result<()> {
                             .await?;
 
                         if !confirmed_final {
-                            return Ok("用户在二次确认时取消了联级删除操作".to_string());
+                            return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
                         }
 
                         let guard = app_state.lock().await;
-                        let (deleted_entries, deleted_cats) =
+                        let (_deleted_entries, _deleted_cats) =
                             tools::cascade_delete_category(&*guard, category_id)
                                 .await
-                                .map_err(|e| anyhow::anyhow!("{}", e))?;
+                                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
 
                         #[derive(serde::Serialize, Clone)]
                         struct Evt { category_id: String }
                         let _ = app_handle.emit("category:deleted", Evt { category_id: cat_id_str.clone() });
 
-                        Ok(format!(
-                            "联级删除完成：已删除分类「{}」及其 {} 个子分类，共 {} 个词条",
-                            cat_name, deleted_cats.saturating_sub(1), deleted_entries
-                        ))
+                        Ok("用户审核已通过，更改已完成".to_string())
                     }
 
                     other => anyhow::bail!(
-                        "未知 mode 值: {}，应为 move_to_parent 或 cascade",
+                        "修改未完成：未知 mode 值: {}，应为 move_to_parent 或 cascade",
                         other
                     ),
                 }

@@ -1,6 +1,5 @@
 use crate::tools;
 use crate::tools::confirm::request_confirmation;
-use crate::tools::format;
 use anyhow::Result;
 use flowcloudai_client::llm::types::ToolFunctionArg;
 use flowcloudai_client::tool::{arg_str, ToolRegistry};
@@ -36,11 +35,11 @@ async fn dispatch_edit_op(
     match op {
         EditOp::EditContentLines { entry_id, start_line, end_line, new_content } => {
             if start_line == 0 {
-                anyhow::bail!("start_line 必须从 1 开始");
+                anyhow::bail!("修改未完成：start_line 必须从 1 开始");
             }
             if end_line + 1 < start_line {
                 anyhow::bail!(
-                    "end_line ({}) 无效：最小可为 start_line - 1 ({})（纯插入模式）",
+                    "修改未完成：end_line ({}) 无效：最小可为 start_line - 1 ({})（纯插入模式）",
                     end_line,
                     start_line - 1
                 );
@@ -50,14 +49,14 @@ async fn dispatch_edit_op(
                 let guard = app_state.lock().await;
                 let entry = tools::get_entry(&*guard, &entry_id)
                     .await
-                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                    .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
                 (entry.title.clone(), entry.content.clone())
             };
 
             let lines: Vec<&str> = before_content.lines().collect();
             let total = lines.len();
             if start_line > total + 1 {
-                anyhow::bail!("start_line ({}) 超出内容行数 ({})", start_line, total);
+                anyhow::bail!("修改未完成：start_line ({}) 超出内容行数 ({})", start_line, total);
             }
             let end_clamped = end_line.min(total);
 
@@ -92,22 +91,22 @@ async fn dispatch_edit_op(
             ).await?;
 
             if !confirmed {
-                return Ok("用户取消了此次编辑，内容未修改".to_string());
+                return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
             }
 
             let guard = app_state.lock().await;
             let entry = tools::update_entry_content(&*guard, &entry_id, Some(after_content))
                 .await
-                .map_err(|e| anyhow::anyhow!("{}", e))?;
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
 
             #[derive(serde::Serialize, Clone)]
             struct Evt {
                 entry_id: String,
             }
             app_handle.emit("entry:updated", Evt { entry_id: entry.id.to_string() })
-                .map_err(|e| anyhow::anyhow!("emit 失败: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("修改未完成：emit 失败: {}", e))?;
 
-            Ok(format::format_entry(&entry))
+            Ok("用户审核已通过，更改已完成".to_string())
         }
 
         EditOp::ReplaceContent { entry_id, new_content } => {
@@ -115,7 +114,7 @@ async fn dispatch_edit_op(
                 let guard = app_state.lock().await;
                 let entry = tools::get_entry(&*guard, &entry_id)
                     .await
-                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                    .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
                 (entry.title.clone(), entry.content.clone())
             };
 
@@ -141,22 +140,22 @@ async fn dispatch_edit_op(
             ).await?;
 
             if !confirmed {
-                return Ok("用户取消了此次编辑，内容未修改".to_string());
+                return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
             }
 
             let guard = app_state.lock().await;
             let entry = tools::update_entry_content(&*guard, &entry_id, Some(new_content))
                 .await
-                .map_err(|e| anyhow::anyhow!("{}", e))?;
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
 
             #[derive(serde::Serialize, Clone)]
             struct Evt {
                 entry_id: String,
             }
             app_handle.emit("entry:updated", Evt { entry_id: entry.id.to_string() })
-                .map_err(|e| anyhow::anyhow!("emit 失败: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("修改未完成：emit 失败: {}", e))?;
 
-            Ok(format::format_entry(&entry))
+            Ok("用户审核已通过，更改已完成".to_string())
         }
 
         EditOp::DeleteEntry { entry_id } => {
@@ -164,7 +163,7 @@ async fn dispatch_edit_op(
                 let guard = app_state.lock().await;
                 let entry = tools::get_entry(&*guard, &entry_id)
                     .await
-                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                    .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
                 (entry.title.clone(), entry.summary.clone())
             };
 
@@ -187,22 +186,22 @@ async fn dispatch_edit_op(
             ).await?;
 
             if !confirmed {
-                return Ok("用户取消了删除操作".to_string());
+                return Ok("用户审核未通过，请停止任务并向用户确认需求".to_string());
             }
 
             let guard = app_state.lock().await;
             tools::delete_entry(&*guard, &entry_id)
                 .await
-                .map_err(|e| anyhow::anyhow!("{}", e))?;
+                .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
 
             #[derive(serde::Serialize, Clone)]
             struct Evt {
                 entry_id: String,
             }
             app_handle.emit("entry:deleted", Evt { entry_id: entry_id.clone() })
-                .map_err(|e| anyhow::anyhow!("emit 失败: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("修改未完成：emit 失败: {}", e))?;
 
-            Ok(format!("词条「{}」已删除", entry_title))
+            Ok("用户审核已通过，更改已完成".to_string())
         }
     }
 }

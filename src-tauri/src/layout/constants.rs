@@ -29,7 +29,10 @@ pub const EDGE_LENGTH_MAX: f64 = 320.0;
 pub const TWO_WAY_EDGE_LENGTH_FACTOR: f64 = 0.84;
 /// 双向边吸引权重增强系数，应温和高于单向边。
 /// 调大：双向关系更紧密，节点对更聚合；调小：双向与单向边吸引力差异减弱。
-pub const TWO_WAY_ATTRACTION_WEIGHT: f64 = 1.26;
+pub const TWO_WAY_ATTRACTION_WEIGHT: f64 = 1.68;
+/// 全局向心力强度，防止弱连接子结构漂散。
+/// 调大：整体布局更聚拢；调小：节点更自由外扩。
+pub const GRAVITY_STRENGTH: f64 = 0.06;
 
 /// 初始温度相对于初始化半径的比例因子。
 /// 调大：退火初期节点移动幅度更大，布局更随机但可能跳出局部最优；调小：初期更稳定。

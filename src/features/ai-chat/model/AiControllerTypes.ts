@@ -108,4 +108,6 @@ export interface AiContextValue {
     deleteConversation: (convId: string, e?: React.MouseEvent) => Promise<void>
     renameConversation: (convId: string, title: string) => Promise<void>
     activeConversation: Conversation | undefined
+    getBranchInfo: (nodeId: number) => { branchIndex: number; branchTotal: number } | null
+    switchBranch: (nodeId: number, direction: 'prev' | 'next') => Promise<boolean>
 }

@@ -320,6 +320,9 @@ export default function AIChatContent({
 
     return (
         <>
+            {!ctx.sidebarCollapsed && (
+                <div className="ai-sidebar-overlay" onClick={() => ctx.setSidebarCollapsed(true)}/>
+            )}
             <aside className="ai-sidebar">
                 <div className="ai-sidebar-top">
                     <div className="ai-sidebar-topbar">
@@ -573,7 +576,13 @@ export default function AIChatContent({
                                         ? () => ctx.editMessage(message.id)
                                         : undefined}
                                     onRegenerate={message.role === 'assistant'
-                                        ? () => void ctx.regenerateMessage(message.id)
+                                        ? () => {
+                                            console.log('[AIChatContent] 点击重说', {
+                                                messageId: message.id,
+                                                conversationId: ctx.activeConversationId,
+                                            })
+                                            void ctx.regenerateMessage(message.id)
+                                        }
                                         : undefined}
                                 />
                             ))}

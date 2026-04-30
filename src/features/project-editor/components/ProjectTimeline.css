@@ -80,48 +80,21 @@
 }
 
 .project-timeline__event-strip {
-    --timeline-strip-thumb: transparent;
-    --timeline-strip-thumb-hover: var(--fc-color-text-tertiary);
-    --timeline-strip-thumb-active: var(--fc-color-text-secondary);
-    --timeline-strip-track: transparent;
+    --roll-thumb-hover: var(--fc-color-text-tertiary);
+    --roll-thumb-active: var(--fc-color-text-secondary);
+    --roll-track: transparent;
+    --roll-size: 0.5rem;
     width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
+    height: auto;
+    max-width: 100%;
     padding: var(--fc-space-md);
     box-sizing: border-box;
     overscroll-behavior-x: contain;
     scroll-snap-type: x proximity;
-    scrollbar-width: thin;
-    scrollbar-color: var(--timeline-strip-thumb) var(--timeline-strip-track);
     -webkit-overflow-scrolling: touch;
 }
 
-.project-timeline__event-strip:hover {
-    --timeline-strip-thumb: var(--timeline-strip-thumb-hover);
-}
-
-.project-timeline__event-strip.is-scrolling {
-    --timeline-strip-thumb: var(--timeline-strip-thumb-active);
-}
-
-.project-timeline__event-strip::-webkit-scrollbar {
-    height: 0.5rem;
-    background: transparent;
-}
-
-.project-timeline__event-strip::-webkit-scrollbar-track {
-    background: var(--timeline-strip-track);
-    border-radius: var(--fc-radius-full);
-}
-
-.project-timeline__event-strip::-webkit-scrollbar-thumb {
-    background: var(--timeline-strip-thumb);
-    border-radius: var(--fc-radius-full);
-    border: 2px solid transparent;
-    background-clip: padding-box;
-}
-
-.project-timeline__event-strip-content {
+.project-timeline__event-strip.fc-roll .fc-roll__content {
     display: flex;
     flex-direction: row;
     align-items: stretch;
@@ -225,7 +198,7 @@
         text-align: left;
     }
 
-    .project-timeline__event-strip-content {
+    .project-timeline__event-strip.fc-roll .fc-roll__content {
         min-width: max-content;
     }
 
@@ -249,7 +222,7 @@
         min-height: 12rem;
     }
 
-    .project-timeline__event-strip-content {
+    .project-timeline__event-strip.fc-roll .fc-roll__content {
         min-width: max-content;
     }
 

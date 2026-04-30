@@ -320,26 +320,7 @@ pub mod format {
         result
     }
 
-    /// 格式化单个分类（用于 create_category 返回）
-    pub fn format_category(cat: &Category) -> String {
-        let parent = cat
-            .parent_id
-            .map(|p| p.to_string())
-            .unwrap_or_else(|| "（根节点）".to_string());
-        format!(
-            "分类已创建\n名称：{}\nID：{}\n上级分类：{}",
-            cat.name, cat.id, parent
-        )
-    }
-
-    /// 格式化单个项目（用于 create_project 返回）
-    pub fn format_project(project: &Project) -> String {
-        let mut result = format!("项目已创建\n名称：{}\nID：{}", project.name, project.id);
-        if let Some(desc) = &project.description {
-            result.push_str(&format!("\n描述：{}", desc));
-        }
-        result
-    }
+    // (removed: format_category and format_project — replaced by unified tool return messages)
 }
 
 // ============ 内部工具函数（不暴露给前端） ============

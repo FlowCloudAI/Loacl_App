@@ -4,7 +4,7 @@ import {Button, SideBar, type SideBarItem, TabBar, type TabItem, useAlert} from 
 import type {AiFocus} from './features/ai-chat/hooks/useAiController'
 import {useAiController} from './features/ai-chat/hooks/useAiController'
 import {getCurrentWindow} from "@tauri-apps/api/window";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import ProjectList from "./pages/ProjectList.tsx";
 import ProjectEditor from "./pages/ProjectEditor";
 import Settings from "./pages/Settings";
@@ -35,9 +35,10 @@ type MainContentKey = 'home' | 'relation' | 'map-editor' | 'settings'
 type SidePanelContentKey = 'idea' | 'ai-chat' | 'snapshot'
 
 function App() {
-    const AI_MIN_PANEL_WIDTH = 470
+    const AI_MIN_PANEL_WIDTH = 500
     const win = getCurrentWindow();
     const {showAlert} = useAlert()
+    const initializedTabsRef = useRef(false)
 
     const [isMaximized, setIsMaximized] = useState(false);
     useEffect(() => {
@@ -106,15 +107,21 @@ function App() {
     }, [])
 
     // 新增标签（通用）
-    const handleAdd = useCallback(() => {
+    const handleAdd = useCallback((label = '新标签') => {
         if (mainContentKey === 'settings') {
             setMainContentKey('home')
             setSelectedKey('')
         }
         const newKey = `tab-${Date.now()}`;
-        setTabs(prev => [...prev, {key: newKey, label: `新标签`, closable: true}]);
+        setTabs(prev => [...prev, {key: newKey, label, closable: true}]);
         setActiveKey(newKey);
     }, [mainContentKey]);
+
+    useEffect(() => {
+        if (initializedTabsRef.current || tabs.length > 0) return
+        initializedTabsRef.current = true
+        handleAdd('主页')
+    }, [handleAdd, tabs.length])
 
     // 打开项目标签页
     const handleOpenProject = useCallback((project: Project) => {
@@ -199,6 +206,12 @@ function App() {
         activateProjectTab(projectId);
     }, [activateProjectTab]);
 
+    const handleBackHome = useCallback(() => {
+        setActiveKey('')
+        setSelectedKey('')
+        showHomeWorkspace()
+    }, [showHomeWorkspace])
+
     const closeTabsForKeys = useCallback((keysToRemove: Set<string>) => {
         const newTabs = tabs.filter((tab) => !keysToRemove.has(tab.key))
         setTabs(newTabs)
@@ -259,22 +272,27 @@ function App() {
 
     const handleTabChange = useCallback((key: string) => {
         const shouldShowHomeWorkspace = Boolean(projectTabMap[key] || toolTabMap[key] || entryTabMap[key])
+        const shouldReturnHomeWorkspace = mainContentKey !== 'home'
         if (key === activeKey) {
-            if (shouldShowHomeWorkspace && mainContentKey !== 'home') {
+            if (shouldReturnHomeWorkspace) {
                 if (mainContentKey === 'settings') {
                     setSelectedKey('')
                 }
-                touchRecentPage(key)
+                if (shouldShowHomeWorkspace) {
+                    touchRecentPage(key)
+                }
                 showHomeWorkspace()
             }
             return
         }
         setActiveKey(key);
-        if (shouldShowHomeWorkspace) {
+        if (shouldReturnHomeWorkspace || shouldShowHomeWorkspace) {
             if (mainContentKey === 'settings') {
                 setSelectedKey('')
             }
-            touchRecentPage(key)
+            if (shouldShowHomeWorkspace) {
+                touchRecentPage(key)
+            }
             showHomeWorkspace()
         }
     }, [activeKey, entryTabMap, mainContentKey, projectTabMap, showHomeWorkspace, toolTabMap, touchRecentPage])
@@ -365,6 +383,7 @@ function App() {
         }
         if (key === 'settings') {
             setSelectedKey('settings')
+            setActiveKey('')
             setMainContentKey('settings')
             setAiPanelCollapsed(true)
             return
@@ -610,15 +629,16 @@ function App() {
                                             projectId={projectId}
                                             activeToolPanel={toolTabMap[activeKey]?.projectId === projectId ? toolTabMap[activeKey].panel : null}
                                             onOpenProjectPanel={handleOpenProjectTool}
-                                                aiPluginId={aiController.selectedPlugin || null}
-                                                aiModel={aiController.selectedModel || null}
-                                                activeEntryId={activeEntryMeta?.projectId === projectId ? activeEntryMeta.entryId : null}
-                                                openEntryIds={openEntryIdsByProject[projectId] ?? []}
-                                                onOpenEntry={handleOpenEntry}
-                                                onEntryTitleChange={handleEntryTitleChange}
-                                                onBackToProject={handleBackToProject}
-                                                onEntryDirtyChange={handleEntryDirtyChange}
-                                                onStartCharacterChat={handleStartCharacterChat}
+                                            aiPluginId={aiController.selectedPlugin || null}
+                                            aiModel={aiController.selectedModel || null}
+                                            activeEntryId={activeEntryMeta?.projectId === projectId ? activeEntryMeta.entryId : null}
+                                            openEntryIds={openEntryIdsByProject[projectId] ?? []}
+                                            onOpenEntry={handleOpenEntry}
+                                            onEntryTitleChange={handleEntryTitleChange}
+                                            onBackHome={handleBackHome}
+                                            onBackToProject={handleBackToProject}
+                                            onEntryDirtyChange={handleEntryDirtyChange}
+                                            onStartCharacterChat={handleStartCharacterChat}
                                             onStartReportDiscussion={handleStartReportDiscussion}
                                             onDeleteProject={handleDeleteProject}
                                             onDeleteEntry={handleDeleteEntry}

@@ -239,7 +239,7 @@ function ProjectList({onOpenProject}: ProjectListProps) {
                                                 hoverable
                                                 expandContentOnHover
                                                 imageHeight="100%"
-                                                contentAreaRatio={0.12}
+                                                contentAreaRatio={0.2}
                                                 hoverContentAreaRatio={0.8}
                                                 overlayStartOpacity={1}
                                                 overlayEndOpacity={0}

@@ -121,123 +121,123 @@ async fn dispatch_entry_op(
         CreateEntry { project_id, category_id, title, entry_type, summary, content } => {
             let guard = state.lock().await;
             let entry = tools::create_entry(&*guard, &project_id, &category_id, title, entry_type, summary, content)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
                 struct Evt { entry_id: String, project_id: String }
                 let _ = h.emit("entry:created", Evt { entry_id: entry.id.to_string(), project_id: entry.project_id.to_string() });
             }
-            Ok(format::format_entry(&entry))
+            Ok("修改已完成".to_string())
         }
         UpdateEntry { entry_id, title, summary, entry_type } => {
             if title.is_none() && summary.is_none() && entry_type.is_none() {
-                anyhow::bail!("title、summary、entry_type 至少需要提供一个");
+                anyhow::bail!("修改未完成：title、summary、entry_type 至少需要提供一个");
             }
             let guard = state.lock().await;
             let entry = tools::update_entry_fields(&*guard, &entry_id, title, summary, entry_type)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
                 struct Evt { entry_id: String }
                 let _ = h.emit("entry:updated", Evt { entry_id: entry.id.to_string() });
             }
-            Ok(format::format_entry(&entry))
+            Ok("修改已完成".to_string())
         }
         UpdateEntryTags { entry_id, tags } => {
             let tags: Vec<worldflow_core::models::EntryTag> = serde_json::from_value(tags)
-                .map_err(|e| anyhow::anyhow!("tags 格式错误: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("修改未完成：tags 格式错误: {}", e))?;
             let guard = state.lock().await;
             let entry = tools::update_entry_tags(&*guard, &entry_id, tags)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
                 struct Evt { entry_id: String }
                 let _ = h.emit("entry:updated", Evt { entry_id: entry.id.to_string() });
             }
-            Ok(format::format_entry(&entry))
+            Ok("修改已完成".to_string())
         }
         AddEntryTag { entry_id, schema_id, value } => {
             let guard = state.lock().await;
             let entry = tools::add_entry_tag(&*guard, &entry_id, &schema_id, value)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
                 struct Evt { entry_id: String }
                 let _ = h.emit("entry:updated", Evt { entry_id: entry.id.to_string() });
             }
-            Ok(format::format_entry(&entry))
+            Ok("修改已完成".to_string())
         }
         RemoveEntryTag { entry_id, schema_id } => {
             let guard = state.lock().await;
             let entry = tools::remove_entry_tag(&*guard, &entry_id, &schema_id)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
                 struct Evt { entry_id: String }
                 let _ = h.emit("entry:updated", Evt { entry_id: entry.id.to_string() });
             }
-            Ok(format::format_entry(&entry))
+            Ok("修改已完成".to_string())
         }
         CreateRelation { a_id, b_id, relation, content } => {
             let guard = state.lock().await;
-            let rel = tools::create_relation(&*guard, &a_id, &b_id, relation, content)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let _rel = tools::create_relation(&*guard, &a_id, &b_id, relation, content)
+                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
                 struct Evt { entry_id: String }
                 let _ = h.emit("entry:updated", Evt { entry_id: a_id.clone() });
                 let _ = h.emit("entry:updated", Evt { entry_id: b_id.clone() });
             }
-            Ok(format!("关系已创建 (ID: {})", rel.id))
+            Ok("修改已完成".to_string())
         }
         UpdateRelation { relation_id, relation, content } => {
             if relation.is_none() && content.is_none() {
-                anyhow::bail!("relation 和 content 至少需要提供一个");
+                anyhow::bail!("修改未完成：relation 和 content 至少需要提供一个");
             }
             let (a_id, b_id) = {
                 let guard = state.lock().await;
                 let rel = tools::get_relation(&*guard, &relation_id)
-                    .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+                    .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
                 (rel.a_id, rel.b_id)
             };
             let guard = state.lock().await;
-            let rel = tools::update_relation(&*guard, &relation_id, relation, content)
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            let _rel = tools::update_relation(&*guard, &relation_id, relation, content)
+                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
                 struct Evt { entry_id: String }
                 let _ = h.emit("entry:updated", Evt { entry_id: a_id.to_string() });
                 let _ = h.emit("entry:updated", Evt { entry_id: b_id.to_string() });
             }
-            Ok(format!("关系已更新 (ID: {})", rel.id))
+            Ok("修改已完成".to_string())
         }
         DeleteRelation { relation_id } => {
             let (a_id, b_id) = {
                 let guard = state.lock().await;
                 let rel = tools::get_relation(&*guard, &relation_id)
-                    .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+                    .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
                 (rel.a_id, rel.b_id)
             };
             let guard = state.lock().await;
-            tools::delete_relation(&*guard, &relation_id).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+            tools::delete_relation(&*guard, &relation_id).await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
                 struct Evt { entry_id: String }
                 let _ = h.emit("entry:updated", Evt { entry_id: a_id.to_string() });
                 let _ = h.emit("entry:updated", Evt { entry_id: b_id.to_string() });
             }
-            Ok("关系已删除".to_string())
+            Ok("修改已完成".to_string())
         }
         MoveEntry { entry_id, category_id } => {
             let guard = state.lock().await;
             let entry = tools::move_entry(&*guard, &entry_id, category_id.as_deref())
-                .await.map_err(|e| anyhow::anyhow!("{}", e))?;
+                .await.map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
             if let Some(ref h) = app_handle {
                 #[derive(serde::Serialize, Clone)]
                 struct Evt { entry_id: String }
                 let _ = h.emit("entry:updated", Evt { entry_id: entry.id.to_string() });
             }
-            Ok(format::format_entry(&entry))
+            Ok("修改已完成".to_string())
         }
     }
 }

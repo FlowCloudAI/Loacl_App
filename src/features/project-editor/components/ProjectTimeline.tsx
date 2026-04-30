@@ -1,5 +1,5 @@
-import {forwardRef, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {Button, Timeline, type TimelineEvent} from 'flowcloudai-ui'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {Button, RollingBox, Timeline, type TimelineEvent} from 'flowcloudai-ui'
 import {
     db_list_timeline_events,
     type ProjectTimelineData,
@@ -131,126 +131,19 @@ function BackArrow() {
     )
 }
 
-interface HorizontalEventStripProps extends React.HTMLAttributes<HTMLDivElement> {
-    children: React.ReactNode
-}
-
-const HorizontalEventStrip = forwardRef<HTMLDivElement, HorizontalEventStripProps>(function HorizontalEventStrip(
-    {children, className, ...props},
-    ref,
-) {
-    const containerRef = useRef<HTMLDivElement | null>(null)
-    const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const animationFrameRef = useRef<number | null>(null)
-    const targetScrollLeftRef = useRef<number | null>(null)
-    const [isScrolling, setIsScrolling] = useState(false)
-
-    const setContainerRef = useCallback((node: HTMLDivElement | null) => {
-        containerRef.current = node
-        if (!ref) return
-        if (typeof ref === 'function') {
-            ref(node)
-            return
-        }
-        ref.current = node
-    }, [ref])
-
-    useEffect(() => {
-        const container = containerRef.current
-        if (!container) return
-
-        const handleScroll = () => {
-            setIsScrolling(true)
-            if (scrollTimeoutRef.current) {
-                clearTimeout(scrollTimeoutRef.current)
-            }
-            scrollTimeoutRef.current = setTimeout(() => {
-                setIsScrolling(false)
-            }, 1000)
-        }
-
-        const clampTarget = (value: number) => {
-            const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth)
-            return Math.min(Math.max(0, value), maxScrollLeft)
-        }
-
-        const animate = () => {
-            const target = targetScrollLeftRef.current
-            if (target === null) {
-                animationFrameRef.current = null
-                return
-            }
-
-            const current = container.scrollLeft
-            const diff = target - current
-            if (Math.abs(diff) < 0.5) {
-                container.scrollLeft = target
-                targetScrollLeftRef.current = null
-                animationFrameRef.current = null
-                return
-            }
-
-            container.scrollLeft = current + diff * 0.18
-            animationFrameRef.current = requestAnimationFrame(animate)
-        }
-
-        const handleWheel = (event: WheelEvent) => {
-            const rawDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-            if (rawDelta === 0) return
-            event.preventDefault()
-
-            const delta = event.deltaMode === WheelEvent.DOM_DELTA_LINE
-                ? rawDelta * 16
-                : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-                    ? rawDelta * container.clientWidth
-                    : rawDelta
-
-            const currentTarget = targetScrollLeftRef.current ?? container.scrollLeft
-            targetScrollLeftRef.current = clampTarget(currentTarget + delta)
-
-            if (animationFrameRef.current === null) {
-                animationFrameRef.current = requestAnimationFrame(animate)
-            }
-        }
-
-        container.addEventListener('wheel', handleWheel, {passive: false})
-        container.addEventListener('scroll', handleScroll, {passive: true})
-        return () => {
-            container.removeEventListener('wheel', handleWheel)
-            container.removeEventListener('scroll', handleScroll)
-            if (scrollTimeoutRef.current) {
-                clearTimeout(scrollTimeoutRef.current)
-                scrollTimeoutRef.current = null
-            }
-            if (animationFrameRef.current !== null) {
-                cancelAnimationFrame(animationFrameRef.current)
-                animationFrameRef.current = null
-            }
-            targetScrollLeftRef.current = null
-        }
-    }, [])
-
-    return (
-        <div
-            ref={setContainerRef}
-            className={['project-timeline__event-strip', isScrolling && 'is-scrolling', className].filter(Boolean).join(' ')}
-            {...props}
-        >
-            <div className="project-timeline__event-strip-content">
-                {children}
-            </div>
-        </div>
-    )
-})
-
 export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEntry}: ProjectTimelineProps) {
     const [data, setData] = useState<ProjectTimelineData | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<Error | null>(null)
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+    const selectedEventIdRef = useRef<string | null>(null)
     const eventStripRef = useRef<HTMLDivElement | null>(null)
     const eventItemRefs = useRef<Record<string, HTMLButtonElement | null>>({})
     const shouldSyncEventStripRef = useRef(false)
+
+    useEffect(() => {
+        selectedEventIdRef.current = selectedEventId
+    }, [selectedEventId])
 
     const matchedSchemaNames = useMemo(() => {
         const groups: Record<TimelineTagRole, string[]> = {
@@ -365,10 +258,15 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
     }, [selectedEventId, events])
 
     const handleTimelineSelect = useCallback((eventId: string) => {
-        if (eventId === selectedEventId) return
+        if (eventId === selectedEventIdRef.current) return
         shouldSyncEventStripRef.current = true
         setSelectedEventId(eventId)
-    }, [selectedEventId])
+    }, [])
+
+    const handleEventStripWheelIntercept = useCallback((event: WheelEvent) => {
+        event.stopPropagation()
+        return false
+    }, [])
 
     const timelineEvents = useMemo<TimelineEvent[]>(
         () => events.map((event) => ({
@@ -472,8 +370,14 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
                                     : `0 / ${events.length}`}
                             </span>
                         </div>
-                        <HorizontalEventStrip
+                        <RollingBox
                             ref={eventStripRef}
+                            className="project-timeline__event-strip"
+                            horizontal
+                            vertical={false}
+                            thumbSize="thin"
+                            showThumb="auto"
+                            interceptWheel={handleEventStripWheelIntercept}
                             role="list"
                             aria-label="时间线事件列表"
                         >
@@ -509,7 +413,7 @@ export default function ProjectTimeline({projectId, tagSchemas, onBack, onOpenEn
                                     </button>
                                 )
                             })}
-                        </HorizontalEventStrip>
+                        </RollingBox>
                     </section>
 
                     <section className="project-timeline__timeline-panel">

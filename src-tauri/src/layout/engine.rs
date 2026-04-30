@@ -222,7 +222,7 @@ fn layout_component(
     let mut temperature = config.params.initial_temperature;
     let mut early_stop_streak = 0usize;
 
-    for _ in 0..iteration_limit {
+    for current_iter in 0..iteration_limit {
         let mut displacements = vec![Vec2::default(); node_count];
 
         for left in 0..node_count {
@@ -253,11 +253,25 @@ fn layout_component(
                         ^ edge.target as u64,
                 ),
             );
-            let force = edge.attraction_weight * distance.max(r.min_distance).powi(2)
+            let capped_d = distance.min(config.params.ideal_edge_length * 10.0);
+            let force = edge.attraction_weight * capped_d.max(r.min_distance).powi(2)
                 / edge.target_length.max(r.min_distance);
             let movement = direction * force;
             displacements[edge.source] -= movement;
             displacements[edge.target] += movement;
+        }
+
+        let centroid = positions
+            .iter()
+            .copied()
+            .fold(Vec2::default(), |acc, p| acc + p)
+            * (1.0 / node_count as f64);
+        let gravity_scale = r.gravity_strength * (node_count as f64).sqrt() / config.params.fr_scale;
+        for (slot, position) in positions.iter().enumerate() {
+            let to_centroid = centroid - *position;
+            if to_centroid.length() > r.min_distance {
+                displacements[slot] += to_centroid * gravity_scale;
+            }
         }
 
         let mut max_movement = 0.0_f64;
@@ -274,7 +288,7 @@ fn layout_component(
             max_movement = max_movement.max(limited.length());
         }
 
-        resolve_collisions(
+        let _ = resolve_collisions(
             prepared,
             component_nodes,
             &mut positions,
@@ -293,8 +307,11 @@ fn layout_component(
             early_stop_streak = 0;
         }
 
-        temperature =
-            (temperature * config.params.temperature_decay).max(config.params.minimum_temperature);
+        let progress = current_iter as f64 / iteration_limit as f64;
+        let adaptive_decay = (config.params.temperature_decay
+            * (1.0 - 0.12 * progress))
+            .min(0.998);
+        temperature = (temperature * adaptive_decay).max(config.params.minimum_temperature);
     }
 
     resolve_collisions(
@@ -466,10 +483,11 @@ fn resolve_collisions(
     positions: &mut [Vec2],
     component_seed: u64,
     passes: usize,
-) {
+) -> bool {
     let r = &prepared.resolved_params;
+    let mut any_overlap = false;
     for _ in 0..passes {
-        let mut any_overlap = false;
+        let mut pass_overlap = false;
 
         for left in 0..component_nodes.len() {
             for right in (left + 1)..component_nodes.len() {
@@ -496,14 +514,16 @@ fn resolve_collisions(
                 let shift = direction * (overlap * 0.54);
                 positions[left] -= shift;
                 positions[right] += shift;
-                any_overlap = true;
+                pass_overlap = true;
             }
         }
 
-        if !any_overlap {
+        if !pass_overlap {
             break;
         }
+        any_overlap = true;
     }
+    any_overlap
 }
 
 fn build_local_topology(

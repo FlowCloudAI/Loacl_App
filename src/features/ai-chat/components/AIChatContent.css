@@ -295,6 +295,15 @@
     font-family: inherit;
 }
 
+/* ========== 侧边栏遮罩（窄屏点击收回） ========== */
+.ai-sidebar-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 110;
+    background: rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+}
+
 /* ========== 右侧主区域 ========== */
 .ai-main {
     --ai-chat-content-max-width: 840px;

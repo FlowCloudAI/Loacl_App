@@ -57,6 +57,7 @@ interface Props {
     openEntryIds?: string[]
     onOpenEntry?: (projectId: string, entry: { id: string; title: string }) => void
     onEntryTitleChange?: (projectId: string, entry: { id: string; title: string }) => void
+    onBackHome?: () => void
     onBackToProject?: (projectId: string) => void
     onEntryDirtyChange?: (projectId: string, entryId: string, dirty: boolean) => void
     onStartCharacterChat?: (projectId: string, entry: { id: string; title: string }) => void
@@ -83,6 +84,7 @@ function ProjectEditorInner({
                                 openEntryIds = [],
                                 onOpenEntry,
                                 onEntryTitleChange,
+                                onBackHome,
                                 onBackToProject,
                                 onEntryDirtyChange,
                                 onStartCharacterChat,
@@ -582,6 +584,13 @@ function ProjectEditorInner({
         >
             <div className="pe-tree-panel">
                 <div className="pe-tree-panel__header">
+                    <button
+                        type="button"
+                        className="pe-tree-header-btn"
+                        onClick={() => onBackHome?.()}
+                    >
+                        返回主页
+                    </button>
                     <button
                         type="button"
                         className="pe-tree-toggle"

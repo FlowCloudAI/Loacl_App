@@ -146,6 +146,7 @@ fn naturalize_vertices(
         let edge_length = (dx * dx + dy * dy).sqrt();
         if edge_length <= f64::EPSILON {
             skipped_zero_length += 1;
+            refined.push(end.clone());
             continue;
         }
 
@@ -241,31 +242,31 @@ fn coastline_is_usable(
 }
 
 fn relax_polygon(vertices: &[MapShapeVertex], passes: usize, weight: f64) -> Vec<MapShapeVertex> {
-    if vertices.len() < 3 {
+    if vertices.len() < 3 || passes == 0 {
         return vertices.to_vec();
     }
 
-    let mut current = vertices.to_vec();
+    let total = vertices.len();
+    let mut a = vertices.to_vec();
+    let mut b = Vec::with_capacity(total);
+    let w2 = weight * 2.0;
+
     for _ in 0..passes {
-        let total = current.len();
-        let mut next = Vec::with_capacity(total);
+        let source = &a;
+        b.clear();
         for index in 0..total {
-            let previous = &current[(index + total - 1) % total];
-            let current_vertex = &current[index];
-            let following = &current[(index + 1) % total];
-            next.push(MapShapeVertex {
+            let previous = &source[(index + total - 1) % total];
+            let current_vertex = &source[index];
+            let following = &source[(index + 1) % total];
+            b.push(MapShapeVertex {
                 id: current_vertex.id.clone(),
-                x: current_vertex.x * (1.0 - weight * 2.0)
-                    + previous.x * weight
-                    + following.x * weight,
-                y: current_vertex.y * (1.0 - weight * 2.0)
-                    + previous.y * weight
-                    + following.y * weight,
+                x: current_vertex.x * (1.0 - w2) + previous.x * weight + following.x * weight,
+                y: current_vertex.y * (1.0 - w2) + previous.y * weight + following.y * weight,
             });
         }
-        current = next;
+        std::mem::swap(&mut a, &mut b);
     }
-    current
+    a
 }
 
 fn segment_count_for_edge(
@@ -290,7 +291,7 @@ fn segment_count_for_edge(
             ))
     .round() as usize;
     desired.clamp(
-        param!(params, min_segments, COASTLINE_MIN_SEGMENTS),
+        param!(params, min_segments, COASTLINE_MIN_SEGMENTS).max(1),
         param!(params, max_segments, COASTLINE_MAX_SEGMENTS),
     )
 }
@@ -387,25 +388,30 @@ fn layered_edge_noise(
         + phase_a * TAU)
         .sin();
 
-    (wave_a * param!(params, wave_a_weight, COASTLINE_WAVE_A_WEIGHT)
-        + wave_b * param!(params, wave_b_weight, COASTLINE_WAVE_B_WEIGHT)
-        + wave_c * param!(params, wave_c_weight, COASTLINE_WAVE_C_WEIGHT))
-    .clamp(-1.0, 1.0)
+    let w_a = param!(params, wave_a_weight, COASTLINE_WAVE_A_WEIGHT);
+    let w_b = param!(params, wave_b_weight, COASTLINE_WAVE_B_WEIGHT);
+    let w_c = param!(params, wave_c_weight, COASTLINE_WAVE_C_WEIGHT);
+    let total = w_a + w_b + w_c;
+    (wave_a * w_a + wave_b * w_b + wave_c * w_c) / total.max(f64::EPSILON)
 }
 
 fn dedupe_adjacent_vertices(
     vertices: Vec<MapShapeVertex>,
     distance_squared: f64,
 ) -> Vec<MapShapeVertex> {
+    if vertices.len() < 3 {
+        return vertices;
+    }
+
     let mut deduped = Vec::new();
-    for vertex in vertices {
+    for vertex in &vertices {
         let should_push = deduped.last().is_none_or(|previous: &MapShapeVertex| {
             let dx = previous.x - vertex.x;
             let dy = previous.y - vertex.y;
             dx * dx + dy * dy > distance_squared
         });
         if should_push {
-            deduped.push(vertex);
+            deduped.push(vertex.clone());
         }
     }
 
@@ -421,6 +427,9 @@ fn dedupe_adjacent_vertices(
         }
     }
 
+    if deduped.len() < 3 {
+        return vertices;
+    }
     deduped
 }
 

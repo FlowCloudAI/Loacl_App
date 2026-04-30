@@ -2,8 +2,8 @@ use crate::ai_services::artifact_parser::parse_json_artifact;
 use crate::ai_services::context_builders::{build_contradiction_prompt, build_task_context};
 use crate::ai_services::contradiction_loader::{load_contradiction_corpus, ContradictionLoadRequest};
 use crate::apis::ai_client::{
-    cleanup_session_state, turn_status_str, CreateLlmSessionResult, EventDelta, EventError, EventReady,
-    EventToolCall, EventToolResult, EventTurnBegin, EventTurnEnd,
+    cleanup_session_state, save_api_usage, turn_status_str, CreateLlmSessionResult, EventDelta,
+    EventError, EventReady, EventToolCall, EventToolResult, EventTurnBegin, EventTurnEnd,
 };
 use crate::reports::contradiction_report::ContradictionReport;
 use crate::senses::contradiction_sense::ContradictionSense;
@@ -491,7 +491,10 @@ fn spawn_contradiction_event_loop<S>(
                         )
                         .ok();
                 }
-                SessionEvent::TurnEnd { status, node_id, .. } => {
+                SessionEvent::TurnEnd { status, node_id, usage } => {
+                    if let Some(ref u) = usage {
+                        save_api_usage(&app_clone, &sid, u).await;
+                    }
                     app_clone
                         .emit(
                             "ai:turn_end",

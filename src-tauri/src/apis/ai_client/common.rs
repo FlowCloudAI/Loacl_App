@@ -70,6 +70,13 @@ pub(crate) struct EventToolResult {
     pub(crate) is_error: bool,
 }
 
+#[derive(Serialize, Clone)]
+pub(crate) struct EventBranchChanged {
+    pub(crate) session_id: String,
+    pub(crate) run_id: String,
+    pub(crate) node_id: u64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct CreateLlmSessionResult {
     pub session_id: String,
@@ -140,7 +147,7 @@ pub(crate) async fn cleanup_session_state(app: &AppHandle, session_id: &str, run
     }
 }
 
-async fn save_api_usage(app: &AppHandle, session_id: &str, usage: &Usage) {
+pub(crate) async fn save_api_usage(app: &AppHandle, session_id: &str, usage: &Usage) {
     let model;
     let plugin_id;
     {
@@ -160,8 +167,9 @@ async fn save_api_usage(app: &AppHandle, session_id: &str, usage: &Usage) {
         usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
     );
 
-    let app_state = app.state::<crate::AppState>();
-    let db = app_state.sqlite_db.lock().await;
+    let app_state = app.state::<std::sync::Arc<tokio::sync::Mutex<crate::AppState>>>();
+    let state = app_state.lock().await;
+    let db = state.sqlite_db.lock().await;
     let input = worldflow_core::models::CreateApiUsageLog {
         id: Uuid::new_v4().to_string(),
         session_id: session_id.to_string(),
@@ -227,6 +235,11 @@ pub(crate) fn spawn_session_event_loop<S>(
                         .ok();
                 }
                 SessionEvent::ContentDelta(text) => {
+                    log::info!(
+                        "[ai:delta] run_id={} len={}",
+                        rid,
+                        text.len()
+                    );
                     app_clone
                         .emit(
                             "ai:delta",
@@ -239,6 +252,11 @@ pub(crate) fn spawn_session_event_loop<S>(
                         .ok();
                 }
                 SessionEvent::ReasoningDelta(text) => {
+                    log::info!(
+                        "[ai:reasoning] run_id={} len={}",
+                        rid,
+                        text.len()
+                    );
                     app_clone
                         .emit(
                             "ai:reasoning",
@@ -255,6 +273,13 @@ pub(crate) fn spawn_session_event_loop<S>(
                     name,
                     arguments,
                 } => {
+                    log::info!(
+                        "[ai:tool_call] run_id={} index={} name={} args_len={}",
+                        rid,
+                        index,
+                        name,
+                        arguments.len()
+                    );
                     app_clone
                         .emit(
                             "ai:tool_call",
@@ -273,6 +298,13 @@ pub(crate) fn spawn_session_event_loop<S>(
                     output,
                     is_error,
                 } => {
+                    log::info!(
+                        "[ai:tool_result] run_id={} index={} is_error={} output_len={}",
+                        rid,
+                        index,
+                        is_error,
+                        output.len()
+                    );
                     app_clone
                         .emit(
                             "ai:tool_result",
@@ -325,7 +357,19 @@ pub(crate) fn spawn_session_event_loop<S>(
                         .ok();
                     break;
                 }
-                SessionEvent::BranchChanged { .. } => {}
+                SessionEvent::BranchChanged { node_id } => {
+                    log::info!("[ai:branch_changed] run_id={} node_id={}", rid, node_id);
+                    app_clone
+                        .emit(
+                            "ai:branch_changed",
+                            EventBranchChanged {
+                                session_id: sid.clone(),
+                                run_id: rid.clone(),
+                                node_id,
+                            },
+                        )
+                        .ok();
+                }
             }
         }
 

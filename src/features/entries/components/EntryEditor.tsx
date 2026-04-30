@@ -595,6 +595,7 @@ export default function EntryEditor({
             summary: normalizeComparableText(initialDraft.summary),
             content: normalizeComparableContent(initialDraft.content),
             type: normalizeComparableType(initialDraft.type),
+            categoryId: initialDraft.categoryId ?? null,
             tags: initialDraft.tags,
             images: initialDraft.images,
         }
@@ -614,6 +615,7 @@ export default function EntryEditor({
             || normalizedContent !== comparableInitial.content
             || normalizeComparableType(draft.type) !== comparableInitial.type
             || !areTagMapsEqual(draft.tags, comparableInitial.tags, entryTags.localTagSchemas)
+            || (draft.categoryId ?? null) !== comparableInitial.categoryId
             || !areImagesEqual(draft.images, comparableInitial.images)
             || hasRelationChanges
         ),

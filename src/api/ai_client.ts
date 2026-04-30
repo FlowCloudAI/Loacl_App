@@ -168,6 +168,12 @@ export interface AiEventTurnBegin {
   node_id: number
 }
 
+export interface AiEventBranchChanged {
+  session_id: string
+  run_id: string
+  node_id: number
+}
+
 export interface AiEventToolResult {
   session_id: string
   run_id: string
@@ -257,6 +263,9 @@ export const ai_cancel_session = (sessionId: string) =>
 export const ai_checkout = (sessionId: string, nodeId: number) =>
     command<void>('ai_checkout', {sessionId, nodeId})
 
+export const ai_get_conversation_tree = (sessionId: string) =>
+    command<ConversationNode[]>('ai_get_conversation_tree', {sessionId})
+
 export const ai_switch_plugin = (sessionId: string, pluginId: string) =>
     command<void>('ai_switch_plugin', {sessionId, pluginId})
 
@@ -325,6 +334,32 @@ export interface CharacterConversationMeta {
     characterAutoPlay: boolean | null
     reportContext?: unknown | null
     reportSeeded?: boolean | null
+}
+
+export interface ConversationNodeMessage {
+  role: string
+  content: string | null
+  reasoning_content?: string | null
+  tool_call_id?: string | null
+  tool_calls?: {
+    id?: string | null
+    index: number
+    type?: string | null
+    name?: string
+    arguments?: string
+    function?: {
+      name?: string
+      arguments?: string
+    }
+  }[] | null
+}
+
+export interface ConversationNode {
+  id: number
+  message: ConversationNodeMessage
+  parent: number | null
+  turn_id: number
+  timestamp: string
 }
 
 export interface StoredMessage {

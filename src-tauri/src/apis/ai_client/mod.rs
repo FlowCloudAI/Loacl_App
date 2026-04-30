@@ -9,6 +9,7 @@ pub(crate) mod task_context;
 pub(crate) mod usage;
 
 pub(crate) use common::{
-    cleanup_session_state, spawn_session_event_loop, turn_status_str, CreateLlmSessionResult,
-    EventDelta, EventError, EventReady, EventToolCall, EventToolResult, EventTurnBegin, EventTurnEnd,
+    cleanup_session_state, save_api_usage, spawn_session_event_loop, turn_status_str,
+    CreateLlmSessionResult, EventBranchChanged, EventDelta, EventError, EventReady,
+    EventToolCall, EventToolResult, EventTurnBegin, EventTurnEnd,
 };

@@ -188,9 +188,16 @@ pub fn derive_component_params(
     let iterations_raw = r.iteration_base
         + r.iteration_sqrt_scale * (stats.n as f64).sqrt()
         + r.iteration_rho_scale * stats.rho;
+    let iterations_lower_bound = if stats.n <= 8 {
+        (r.iteration_min as f64 * 0.42).ceil() as usize
+    } else if stats.n <= 20 {
+        (r.iteration_min as f64 * 0.7).ceil() as usize
+    } else {
+        r.iteration_min
+    };
     let iterations = iterations_raw
         .round()
-        .clamp(r.iteration_min as f64, r.iteration_max as f64) as usize;
+        .clamp(iterations_lower_bound as f64, r.iteration_max as f64) as usize;
 
     let temperature_decay = if stats.n <= 1 || initial_temperature <= minimum_temperature {
         r.temperature_decay_max

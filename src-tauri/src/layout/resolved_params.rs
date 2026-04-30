@@ -51,6 +51,7 @@ pub struct ResolvedLayoutParams {
     pub collision_direction_salt: u64,
     pub temperature_decay_min: f64,
     pub temperature_decay_max: f64,
+    pub gravity_strength: f64,
 }
 
 impl ResolvedLayoutParams {
@@ -240,6 +241,7 @@ impl ResolvedLayoutParams {
                 .unwrap_or(COLLISION_DIRECTION_SALT),
             temperature_decay_min: TEMPERATURE_DECAY_MIN,
             temperature_decay_max: TEMPERATURE_DECAY_MAX,
+            gravity_strength: GRAVITY_STRENGTH,
         }
     }
 }

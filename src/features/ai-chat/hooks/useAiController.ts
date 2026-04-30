@@ -404,15 +404,32 @@ const storedToMessages = (messages: StoredMessage[]): Message[] => {
             }
             if (message.tool_calls && message.tool_calls.length > 0) {
                 message.tool_calls.forEach((toolCall) => {
-                    nextBlocks.push({
-                        type: 'tool',
-                        tool: {
-                            index: toolCall.index,
-                            name: toolCall.function?.name ?? toolCall.name ?? '',
-                            args: toolCall.function?.arguments ?? toolCall.arguments ?? '',
-                        },
-                        detail: 'verbose',
-                    })
+                    const name = toolCall.function?.name ?? toolCall.name ?? ''
+                    const args = toolCall.function?.arguments ?? toolCall.arguments ?? ''
+                    const last = nextBlocks[nextBlocks.length - 1]
+
+                    if (last && last.type === 'tool_use'
+                        && last.tools.length > 0
+                        && last.tools[0].name === name) {
+                        nextBlocks[nextBlocks.length - 1] = {
+                            ...last,
+                            tools: [...last.tools, {index: toolCall.index, name, args}],
+                        }
+                    } else if (last && last.type === 'tool'
+                        && last.tool.name === name
+                        && last.tool.result == null) {
+                        nextBlocks[nextBlocks.length - 1] = {
+                            type: 'tool_use',
+                            tools: [last.tool, {index: toolCall.index, name, args}],
+                            detail: 'verbose',
+                        }
+                    } else {
+                        nextBlocks.push({
+                            type: 'tool',
+                            tool: {index: toolCall.index, name, args},
+                            detail: 'verbose',
+                        })
+                    }
                 })
             }
             if (message.content) {
@@ -471,6 +488,8 @@ export function useAiController(focus: AiFocus): AiContextValue {
     const [inputValue, setInputValue] = useState('')
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
     const [sessionParams, setSessionParams] = useState<SessionParams>({thinking: true})
+    const sessionParamsRef = useRef(sessionParams)
+    useEffect(() => { sessionParamsRef.current = sessionParams }, [sessionParams])
     const [tools, setTools] = useState<ToolStatus[]>([])
     const [webSearchEnabled, setWebSearchEnabled] = useState(true)
     const [editModeEnabled, setEditModeEnabled] = useState(true)
@@ -533,6 +552,58 @@ export function useAiController(focus: AiFocus): AiContextValue {
     }, [])
 
     const session = useAiSession({onMessage, onError})
+
+    useEffect(() => {
+        const currentConversationId = activeConversationIdRef.current
+        if (!currentConversationId || !session.sessionId || !session.runId || session.lastUserNodeId == null) {
+            return
+        }
+
+        setConversations((prev) => prev.map((conversation) => {
+            if (
+                conversation.id !== currentConversationId
+                || conversation.sessionId !== session.sessionId
+                || conversation.runId !== session.runId
+            ) {
+                return conversation
+            }
+
+            const targetIndex = [...conversation.messages]
+                .reverse()
+                .findIndex((message) => message.role === 'user' && message.nodeId == null)
+
+            if (targetIndex === -1) return conversation
+
+            const actualIndex = conversation.messages.length - 1 - targetIndex
+            const targetMessage = conversation.messages[actualIndex]
+            if (!targetMessage || targetMessage.role !== 'user' || targetMessage.nodeId != null) {
+                return conversation
+            }
+
+            const nextMessages = [...conversation.messages]
+            nextMessages[actualIndex] = {
+                ...targetMessage,
+                nodeId: session.lastUserNodeId,
+            }
+
+            return {
+                ...conversation,
+                messages: nextMessages,
+            }
+        }))
+    }, [session.lastUserNodeId, session.runId, session.sessionId])
+
+    // 分支切换后重新加载对话消息（新分支路径上的消息可能不同）
+    useEffect(() => {
+        if (session.branchSwitchVersion === 0) return
+        const convId = activeConversationIdRef.current
+        if (!convId || convId.startsWith('conv_')) return
+        ai_get_conversation(convId).then(stored => {
+            setConversations(prev => prev.map(c =>
+                c.id === convId ? {...c, messages: storedToMessages(stored.messages)} : c,
+            ))
+        }).catch(() => {})
+    }, [session.branchSwitchVersion])
 
     // 词条内容更新时清除对应缓存，避免下次推送旧摘要
     useEffect(() => {
@@ -991,12 +1062,16 @@ export function useAiController(focus: AiFocus): AiContextValue {
 
             currentSid = created.sessionId
 
+            // 立即同步 sessionParams，避免首轮对话使用旧默认值
+            ai_update_session(currentSid, {thinking: sessionParamsRef.current.thinking}).catch(() => {})
+
             // 兜底推送：session 刚建立时 effect 可能尚未触发，确保首轮 assemble 有上下文
-            resolveContextPayload(focusRef.current.projectId, focusRef.current.entryId)
-                .then((ctx) => ai_set_task_context(currentSid!, ctx).catch(() => {
-                }))
-                .catch(() => {
-                })
+            try {
+                const ctx = await resolveContextPayload(focusRef.current.projectId, focusRef.current.entryId)
+                await ai_set_task_context(currentSid!, ctx)
+            } catch {
+                // 上下文推送失败不阻塞发送
+            }
 
             if (isPending) {
                 effectiveConvId = created.conversationId
@@ -1057,18 +1132,86 @@ export function useAiController(focus: AiFocus): AiContextValue {
     }, [session])
 
     const regenerateMessage = useCallback(async (messageId: string) => {
-        if (session.isStreaming) return
+        console.log('[useAiController] 进入重说', {
+            messageId,
+            activeConversationId: activeConversationIdRef.current,
+            sessionId: session.sessionId,
+            isStreaming: session.isStreaming,
+        })
+        if (session.isStreaming) {
+            console.warn('[useAiController] 重说被阻止：当前仍在流式输出中，尝试取消后重试', {
+                isStreaming: session.isStreaming,
+                blocksLen: session.blocks.length,
+                sessionId: session.sessionId,
+            })
+            await session.cancelSession()
+            await new Promise(resolve => setTimeout(resolve, 100))
+            if (session.isStreaming) {
+                console.error('[useAiController] 重说失败：取消后仍处于流式状态，无法继续')
+                return
+            }
+        }
         const conv = conversations.find((conversation) => conversation.id === activeConversationIdRef.current)
-        if (!conv || conv.sessionId !== session.sessionId) return
+        if (!conv) {
+            console.warn('[useAiController] 重说被阻止：未找到对话')
+            return
+        }
 
         const messageIndex = conv.messages.findIndex((message) => message.id === messageId)
-        if (messageIndex === -1) return
+        if (messageIndex === -1) {
+            console.warn('[useAiController] 重说被阻止：未找到目标消息', {
+                messageId,
+                convMessageIds: conv.messages.map(m => m.id),
+            })
+            return
+        }
 
         const precedingUserMsg = conv.messages
             .slice(0, messageIndex)
             .reverse()
             .find((message) => message.role === 'user')
-        if (!precedingUserMsg?.nodeId) return
+        if (!precedingUserMsg?.nodeId) {
+            console.warn('[useAiController] 重说失败：上一条用户消息缺少 nodeId', {
+                conversationId: conv.id,
+                sessionId: conv.sessionId,
+                targetMessageId: messageId,
+                precedingUserMessageId: precedingUserMsg?.id ?? null,
+                currentLastUserNodeId: session.lastUserNodeId,
+            })
+            return
+        }
+
+        // 确保有活跃 session：不存在或不匹配时关闭旧 session 并创建新 session
+        let currentSid = session.sessionId
+        const sessionBelongsHere = currentSid != null && currentSid === conv.sessionId
+
+        if (currentSid && !sessionBelongsHere) {
+            await session.closeSession()
+            currentSid = null
+        }
+
+        if (!currentSid) {
+            const created = await session.createSession(conv.pluginId, conv.model, conv.id, sessionParams.maxToolRounds)
+            if (!created) {
+                console.error('[useAiController] 重说失败：无法创建会话')
+                return
+            }
+            currentSid = created.sessionId
+            runtimeConversationRef.current[
+                runtimeConversationKey(created.sessionId, created.runId)
+            ] = conv.id
+            setConversations((prev) => prev.map((c) =>
+                c.id === conv.id ? {...c, sessionId: created.sessionId, runId: created.runId} : c,
+            ))
+
+            // 兜底推送上下文，确保 checkout 触发的首轮 assemble 有上下文
+            try {
+                const ctx = await resolveContextPayload(focusRef.current.projectId, focusRef.current.entryId)
+                await ai_set_task_context(currentSid!, ctx)
+            } catch {
+                // 上下文推送失败不阻塞 checkout
+            }
+        }
 
         setConversations((prev) => prev.map((conversation) =>
             conversation.id === activeConversationIdRef.current
@@ -1077,7 +1220,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
         ))
         setAutoScroll(true)
         await session.checkout(precedingUserMsg.nodeId)
-    }, [conversations, session])
+    }, [conversations, session, sessionParams.maxToolRounds, resolveContextPayload])
 
     const editMessage = useCallback((messageId: string) => {
         const conv = conversations.find((conversation) => conversation.id === activeConversationIdRef.current)
@@ -1148,6 +1291,8 @@ export function useAiController(focus: AiFocus): AiContextValue {
         deleteConversation,
         renameConversation,
         activeConversation,
+        getBranchInfo: session.getBranchInfo,
+        switchBranch: session.switchBranch,
     }), [
         plugins, selectedPlugin, selectedModel, conversations, activeConversationId,
         messages, inputValue, editingMessageId, tools, webSearchEnabled, editModeEnabled,
@@ -1155,6 +1300,7 @@ export function useAiController(focus: AiFocus): AiContextValue {
         activeConversation, sendMessage, stopStreaming, regenerateMessage, editMessage,
         toggleWebSearch, toggleEditMode, createNewConversation, switchConversation, deleteConversation,
         renameConversation, startCharacterConversation, startReportDiscussion, updateConversationCharacterAutoPlay,
+        session.getBranchInfo, session.switchBranch,
     ])
 }
 

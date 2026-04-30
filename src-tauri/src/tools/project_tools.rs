@@ -1,5 +1,4 @@
 use crate::tools;
-use crate::tools::format;
 use anyhow::Result;
 use flowcloudai_client::llm::types::ToolFunctionArg;
 use flowcloudai_client::tool::{arg_str, ToolRegistry};
@@ -27,11 +26,11 @@ pub fn register_project_tools(registry: &mut ToolRegistry) -> Result<()> {
                     .map(|s| s.to_string());
 
                 let guard = app_state.lock().await;
-                let project = tools::create_project(&*guard, name.to_string(), description)
+                let _project = tools::create_project(&*guard, name.to_string(), description)
                     .await
-                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                    .map_err(|e| anyhow::anyhow!("修改未完成：{}", e))?;
 
-                Ok(format::format_project(&project))
+                Ok("修改已完成".to_string())
             })
         },
     );
