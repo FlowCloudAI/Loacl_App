@@ -4,6 +4,7 @@ import {Button, SideBar, type SideBarItem, TabBar, type TabItem, useAlert} from 
 import type {AiFocus} from './features/ai-chat/hooks/useAiController'
 import {useAiController} from './features/ai-chat/hooks/useAiController'
 import {getCurrentWindow} from "@tauri-apps/api/window";
+import {listen} from "@tauri-apps/api/event";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import ProjectList from "./pages/ProjectList.tsx";
 import ProjectEditor from "./pages/ProjectEditor";
@@ -72,6 +73,12 @@ function App() {
     const [aiPanelWidth, setAiPanelWidth] = useState(AI_MIN_PANEL_WIDTH)
     const [aiPanelCollapsed, setAiPanelCollapsed] = useState(true)
     const [aiPanelMode, setAiPanelMode] = useState<'floating' | 'fullscreen'>('floating')
+    const [backendReady, setBackendReady] = useState(false)
+
+    useEffect(() => {
+        const p = listen('backend-ready', () => setBackendReady(true))
+        return () => { p.then(fn => fn()) }
+    }, [])
 
     useEffect(() => {
         setMountedSidePanelKeys(prev => (
@@ -517,6 +524,23 @@ function App() {
     const bottomItems: SideBarItem[] = [
         {key: 'settings', label: '设置', icon: SettingsIcon},
     ]
+
+    if (!backendReady) {
+        return (
+            <div className="app-layout" style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100vh',
+                background: 'var(--fc-color-bg)',
+                color: 'var(--fc-color-text-secondary)',
+                fontSize: 'var(--fc-font-size-sm)',
+                userSelect: 'none',
+            }}>
+                正在启动…
+            </div>
+        )
+    }
 
     return (
         <div className="app-layout">
